@@ -620,6 +620,69 @@ mod tests {
     }
 
     #[test]
+    fn moisture_preview_map_exports_budget_and_vanishes_on_month_change() {
+        use crate::{
+            datasets::{DatasetRegistry, MonthlyField, Provenance},
+            moisture_transport::{self, WATER_COLUMN_ID},
+        };
+        let mut world = World::empty(PathBuf::from("transport-export"));
+        world.width = 48;
+        world.height = 24;
+        let mut sources = DatasetRegistry::default();
+        for (kind, value) in [
+            (MonthlyField::Pressure, 1013.25),
+            (MonthlyField::SpecificHumidity, 12.0),
+            (MonthlyField::WindEast, 20.0),
+            (MonthlyField::WindNorth, 0.0),
+        ] {
+            sources.create_month(&mut world, kind, 4, value).unwrap();
+        }
+        let input = world.scientific_fields[MonthlyField::SpecificHumidity.id()].cells.clone();
+        assert!(!Theme::TransportedVaporColumn.available(&world));
+        let result = moisture_transport::preview(&world, 6371.0, 120.0).unwrap();
+        world.scientific_fields.insert(WATER_COLUMN_ID.into(), result.column_kg_m2);
+        world.scientific_provenance.insert(
+            WATER_COLUMN_ID.into(),
+            Provenance::Derived {
+                operator: moisture_transport::OPERATOR.into(),
+                inputs: vec![
+                    MonthlyField::Pressure.id().into(),
+                    MonthlyField::SpecificHumidity.id().into(),
+                    MonthlyField::WindEast.id().into(),
+                    MonthlyField::WindNorth.id().into(),
+                ],
+            },
+        );
+        world.moisture_transport_budget = Some(result.budget);
+        let art = Cartography::new(&world);
+        assert!(Theme::TransportedVaporColumn.available(&world));
+        assert_eq!(art.legend(&world, Theme::TransportedVaporColumn).len(), 7);
+        assert_eq!(atlas_image(&world, &art, Theme::TransportedVaporColumn).size, [48, 24]);
+        let path = std::env::temp_dir().join(format!(
+            "aegaea-transport-{}.png", std::process::id()
+        ));
+        export_atlas_png(&world, &art, Theme::TransportedVaporColumn, &path).unwrap();
+        let meta: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(path.with_extension("json")).unwrap()
+        ).unwrap();
+        assert_eq!(meta["month"], 4);
+        assert_eq!(meta["units"], "kg/m²");
+        assert_eq!(meta["dataset_id"], WATER_COLUMN_ID);
+        assert_eq!(meta["provenance"]["kind"], "derived");
+        assert_eq!(meta["moisture_transport_budget"]["month"], 4);
+        assert_eq!(meta["moisture_transport_budget"]["substeps"].is_number(), true);
+        std::fs::remove_file(path.with_extension("json")).unwrap();
+        std::fs::remove_file(path).unwrap();
+        assert_eq!(
+            world.scientific_fields[MonthlyField::SpecificHumidity.id()].cells,
+            input
+        );
+        sources.activate(&mut world, 5).unwrap();
+        assert!(!Theme::TransportedVaporColumn.available(&world));
+        assert!(world.moisture_transport_budget.is_none());
+    }
+
+    #[test]
     fn surface_heat_capacity_exports_explicit_static_provenance() {
         use crate::map_layers::{LayerKind, ProjectLayers};
         let mut world = World::empty(PathBuf::from("thermal"));
