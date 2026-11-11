@@ -2,6 +2,7 @@
 //! Data files are immutable; annotations use a separate JSON sidecar.
 use crate::rainshadow::WindFrom;
 use crate::terrain_edit::TerrainEdits;
+use crate::terrain_generation::{TerrainMode, TerrainRecipe};
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File},
@@ -291,6 +292,10 @@ pub struct Project {
     pub wind_from: WindFrom,
     #[serde(default)]
     pub terrain: TerrainEdits,
+    #[serde(default)]
+    pub terrain_mode: TerrainMode,
+    #[serde(default)]
+    pub terrain_recipe: TerrainRecipe,
 }
 
 impl Project {
@@ -300,6 +305,8 @@ impl Project {
             markers: Vec::new(),
             wind_from: WindFrom::default(),
             terrain: TerrainEdits::default(),
+            terrain_mode: TerrainMode::default(),
+            terrain_recipe: TerrainRecipe::default(),
         }
     }
 
@@ -396,5 +403,7 @@ mod tests {
         assert_eq!(q.markers[0].longitude_deg, -122.0);
         assert_eq!(q.name, "Test World");
         assert_eq!(q.wind_from, WindFrom::West);
+        assert_eq!(q.terrain_mode, TerrainMode::Auto);
+        assert_eq!(q.terrain_recipe, TerrainRecipe::default());
     }
 }

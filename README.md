@@ -111,3 +111,15 @@ The 2026-11-10 desktop recording exposed globe polar pinwheel geometry, dark dou
 Choose **Fill workspace** for an aspect-preserving cropped viewport with normal drag/scroll controls, or **Fit entire planet** for the original whole-map perspective. On the globe, triangles now have outward winding and the far hemisphere is GPU-culled; poles converge to a single elevation, and the globe-only color texture is harmonized near the geographic pole. The globe's second lighting pass is much lighter, keeping the thematic legend readable.
 
 **Not solved by this fix:** the source terrain still contains obvious procedural oval mountain belts, coarse landform morphology, and unrefined drainage/coastlines. Those need generation-model improvements and source-preserving derived terrain, not new palettes.
+
+## Geological terrain generator (v1)
+
+Aegaea no longer needs to inherit the original elevation map as the basis for its physical maps. **Untouched geological projects default to a newly generated elevation field**, constrained by the scenario's province classes, crust thickness, cratons and plate boundaries. The source `elevation_m.tif` stays available for side-by-side comparison and old authored projects.
+
+Open **Terrain Source / Generator** to change seed and relief strength, regenerate, or return to the legacy DEM. Existing project-local brush edits cannot be silently retargeted to a different terrain basis. 2D/3D views, slope maps and rain-shadow maps use whichever numeric elevation field is selected. To export independent generation results:
+
+```powershell
+cargo run --release -- --generate-terrain maps/geology-generated
+```
+
+See [generation contract, provenance and limitations](docs/TERRAIN_GENERATION.md). **The first generator is heuristic, not a validated tectonic + erosion simulator.**
