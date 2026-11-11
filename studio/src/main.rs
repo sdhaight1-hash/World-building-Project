@@ -106,6 +106,11 @@ struct Studio {
     terrain_redo: Vec<TerrainStroke>,
     changed: bool,
     status: String,
+    new_project_open: bool,
+    new_project_name: String,
+    new_project_folder: String,
+    new_project_error: Option<String>,
+    discard_unsaved_changes: bool,
 }
 
 impl Studio {
@@ -190,6 +195,11 @@ impl Studio {
             terrain_redo: Vec::new(),
             changed: false,
             status,
+            new_project_open: false,
+            new_project_name: String::new(),
+            new_project_folder: String::new(),
+            new_project_error: None,
+            discard_unsaved_changes: false,
         };
         if !app.theme.available(&app.world) {
             app.theme = Theme::ALL
@@ -357,6 +367,131 @@ impl Studio {
         }
     }
 
+    fn begin_new_project(&mut self) {
+        let mut folder = PathBuf::from("projects/untitled-world");
+        let mut suffix = 2;
+        while folder.exists() {
+            folder = PathBuf::from(format!("projects/untitled-world-{suffix}"));
+            suffix += 1;
+        }
+        self.new_project_name = "Untitled World".into();
+        self.new_project_folder = folder.to_string_lossy().into_owned();
+        self.new_project_error = None;
+        self.discard_unsaved_changes = false;
+        self.new_project_open = true;
+    }
+
+    fn create_new_blank_project(&mut self) {
+        if self.changed && !self.discard_unsaved_changes {
+            self.new_project_error =
+                Some("Save the current project or confirm discarding unsaved changes.".into());
+            return;
+        }
+        let folder = PathBuf::from(self.new_project_folder.trim());
+        match Project::create_blank(folder, &self.new_project_name) {
+            Ok((world, project, path)) => {
+                self.world = world;
+                self.project = project;
+                self.project_path = path;
+                self.imported_elevation = None;
+                self.active_terrain_mode = TerrainMode::Imported;
+                self.geology_report = None;
+                self.theme = Theme::Terrain;
+                self.view = ViewMode::Atlas;
+                self.atlas = None;
+                self.globe_map_rgba = Arc::new(Vec::new());
+                self.globe_map_size = [self.world.width as u32, self.world.height as u32];
+                self.globe_lon = 0.0;
+                self.globe_lat = 0.0;
+                self.globe_exaggeration = 8.0;
+                self.zoom = 1.0;
+                self.atlas_fill_canvas = true;
+                self.pan_u = 0.5;
+                self.pan_v = 0.5;
+                self.picked = None;
+                self.selected_marker = None;
+                self.placing_marker = false;
+                self.terrain_brush = false;
+                self.terrain_raise = true;
+                self.terrain_radius = 7;
+                self.terrain_strength_m = 160.0;
+                self.active_stroke = TerrainStroke::default();
+                self.terrain_undo.clear();
+                self.terrain_redo.clear();
+                self.rebuild_derived_surfaces();
+                // The new world.json already persists its empty editing baseline.
+                self.changed = false;
+                self.new_project_error = None;
+                self.new_project_open = false;
+                self.status = format!(
+                    "Created blank editable world: {} ({}×{} flat ocean)",
+                    self.project_path.display(),
+                    self.world.width,
+                    self.world.height
+                );
+            }
+            Err(error) => self.new_project_error = Some(error),
+        }
+    }
+
+    fn new_project_dialog(&mut self, ctx: &egui::Context) {
+        if !self.new_project_open {
+            return;
+        }
+        let mut open = true;
+        let mut cancel = false;
+        let mut create = false;
+        egui::Window::new("New blank project")
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .default_width(420.0)
+            .show(ctx, |ui| {
+                ui.label("Start a separate world with no Aegaea geology, plates, or markers.");
+                ui.small("An editable 1024×512 flat ocean is created and saved immediately.");
+                ui.add_space(8.0);
+                ui.label("Project name");
+                ui.text_edit_singleline(&mut self.new_project_name);
+                ui.label("New project folder");
+                ui.text_edit_singleline(&mut self.new_project_folder);
+                ui.small("Relative folders are created under the current working directory.");
+                if self.changed {
+                    ui.separator();
+                    ui.colored_label(
+                        Color32::from_rgb(229, 188, 111),
+                        "The current project has unsaved changes.",
+                    );
+                    ui.checkbox(
+                        &mut self.discard_unsaved_changes,
+                        "Discard unsaved changes and create new project",
+                    );
+                }
+                if let Some(error) = &self.new_project_error {
+                    ui.colored_label(Color32::from_rgb(240, 145, 130), error);
+                }
+                ui.separator();
+                ui.horizontal(|ui| {
+                    if ui.button("Cancel").clicked() {
+                        cancel = true;
+                    }
+                    let can_create = !self.new_project_name.trim().is_empty()
+                        && !self.new_project_folder.trim().is_empty()
+                        && (!self.changed || self.discard_unsaved_changes);
+                    if ui
+                        .add_enabled(can_create, egui::Button::new("Create blank project"))
+                        .clicked()
+                    {
+                        create = true;
+                    }
+                });
+            });
+        if cancel || !open {
+            self.new_project_open = false;
+        } else if create {
+            self.create_new_blank_project();
+        }
+    }
+
     fn topbar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("top").show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -368,6 +503,9 @@ impl Studio {
                 );
                 ui.separator();
                 ui.label(egui::RichText::new(&self.project.name).strong());
+                if ui.button("New project…").clicked() {
+                    self.begin_new_project();
+                }
                 if self.changed {
                     ui.label(
                         egui::RichText::new("● Unsaved").color(Color32::from_rgb(229, 188, 111)),
@@ -653,8 +791,11 @@ impl Studio {
                 ui.colored_label(Color32::from_rgb(230,170,112),
                     "Elevation absent. Rain-shadow map requires a valid DEM.");
             }
-            if !self.world.has_any_source() {
-                ui.small("Blank world. Import geospatial layers to develop this project.");
+            if self.world.plate_ids.is_none()
+                && self.world.craton_ids.is_none()
+                && self.world.province_ids.is_none()
+            {
+                ui.small("Independent world. Sculpt terrain now; geology can be added later.");
             }
             ui.separator();
             ui.label(egui::RichText::new("DATA ETHICS").small().weak());
@@ -1065,6 +1206,7 @@ impl eframe::App for Studio {
         self.inspector(ctx);
         self.refresh_textures(ctx);
         self.canvas(ctx);
+        self.new_project_dialog(ctx);
         egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(&self.status).small().weak());
