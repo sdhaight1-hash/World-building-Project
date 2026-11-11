@@ -1,5 +1,6 @@
 //! Scientific source-data loading, source conventions, and editable world annotations.
 //! Data files are immutable; annotations use a separate JSON sidecar.
+use crate::map_layers::BoundarySegment;
 use crate::plate_kinematics::KinematicFields;
 use crate::rainshadow::WindFrom;
 use crate::terrain_edit::TerrainEdits;
@@ -150,6 +151,8 @@ pub struct World {
     pub plates: Vec<PlateInfo>,
     pub cratons: Vec<CratonInfo>,
     pub provinces: Vec<ProvinceInfo>,
+    /// User-drawn project-local tectonic contact classifications.
+    pub boundary_segments: Vec<BoundarySegment>,
 }
 
 impl World {
@@ -171,6 +174,7 @@ impl World {
             plates: Vec::new(),
             cratons: Vec::new(),
             provinces: Vec::new(),
+            boundary_segments: Vec::new(),
         }
     }
 
