@@ -148,6 +148,8 @@ pub struct World {
     pub crust_km: Option<Grid>,
     pub lithosphere_km: Option<Grid>,
     pub heatflow: Option<Grid>,
+    /// Author-defined areal heat capacity (MJ/m²/K), not inferred from DEM.
+    pub surface_heat_capacity: Option<Grid>,
     pub rain_shadow: Option<Grid>,
     /// Materialized monthly scientific fields; the selected time slice only.
     pub scientific_fields: BTreeMap<String, Grid>,
@@ -177,6 +179,7 @@ impl World {
             crust_km: None,
             lithosphere_km: None,
             heatflow: None,
+            surface_heat_capacity: None,
             rain_shadow: None,
             scientific_fields: BTreeMap::new(),
             scientific_provenance: BTreeMap::new(),
