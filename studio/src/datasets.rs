@@ -4,6 +4,7 @@
 //! are sparse authored overrides, not per-month full-resolution JSON arrays.
 //! Metadata records provenance and explicit dependency IDs, never guesses a
 //! physical simulation from a uniform author-created starting value.
+use crate::planetary::INSOLATION_ID;
 use crate::world::{geo_to_uv, Grid, World};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -59,7 +60,7 @@ impl ClimateField {
 
     pub fn annual_operator(self) -> &'static str {
         match self {
-            Self::Temperature => "equal_month_arithmetic_mean_of_12_monthly_means",
+            Self::Temperature => "calendar_day_weighted_mean_of_12_monthly_means",
             Self::Precipitation => "sum_of_12_monthly_totals",
         }
     }
@@ -204,7 +205,7 @@ impl DatasetRegistry {
             if !Self::valid_id(id) {
                 return Err(format!("Invalid dataset ID: {id}"));
             }
-            if ClimateField::ALL.iter().any(|kind| id == kind.annual_id()) {
+            if id == INSOLATION_ID || ClimateField::ALL.iter().any(|kind| id == kind.annual_id()) {
                 return Err(format!(
                     "Dataset ID '{id}' is reserved for computed annual climate maps"
                 ));
@@ -351,28 +352,28 @@ impl DatasetRegistry {
         self.activate(world, to)
     }
 
-    /// Deterministic reduction of a COMPLETE twelve-month input series.
-    /// Each temperature month is weighted equally, not by Earth-calendar days;
-    /// this is an explicit approximation until the planet calendar is defined.
-    /// Precipitation values are monthly totals, so their annual sum is exact
-    /// under the twelve-equal-period convention.
-    pub fn annual(&self, kind: ClimateField) -> Option<Grid> {
+    /// Annual temperature weights monthly means by explicitly declared solar
+    /// days; precipitation remains a sum of monthly totals.
+    pub fn annual(&self, kind: ClimateField, month_days: &[f64; 12]) -> Option<Grid> {
         let source = self.fields.get(kind.id())?;
         if !(1..=12).all(|month| source.months.contains_key(&month)) {
             return None;
         }
-        let divisor = match kind {
-            ClimateField::Temperature => 12.0,
-            ClimateField::Precipitation => 1.0,
+        let year_days: f64 = month_days.iter().sum();
+        let weight = |month: usize| -> f32 {
+            match kind {
+                ClimateField::Temperature => (month_days[month - 1] / year_days) as f32,
+                ClimateField::Precipitation => 1.0,
+            }
         };
         let baseline: f32 = (1..=12)
-            .map(|month| source.months[&month].base / divisor)
+            .map(|month| source.months[&(month as u8)].base * weight(month))
             .sum();
         let mut grid = Grid::new(source.size[0], source.size[1], baseline);
         for month in 1..=12 {
-            let snapshot = &source.months[&month];
+            let snapshot = &source.months[&(month as u8)];
             for (&index, &value) in &snapshot.overrides {
-                grid.cells[index] += (value - snapshot.base) / divisor;
+                grid.cells[index] += (value - snapshot.base) * weight(month);
             }
         }
         Some(grid)
@@ -389,6 +390,7 @@ impl DatasetRegistry {
             return Err("Month must be 1–12".into());
         }
         self.validate([world.width, world.height])?;
+        world.calendar.validate()?;
         let mut next: BTreeMap<String, Grid> = self
             .fields
             .iter()
@@ -401,17 +403,32 @@ impl DatasetRegistry {
             .map(|(id, data)| (id.clone(), data.provenance.clone()))
             .collect();
         for kind in ClimateField::ALL {
-            if let Some(grid) = self.annual(kind) {
+            if let Some(grid) = self.annual(kind, &world.calendar.month_days) {
                 next.insert(kind.annual_id().into(), grid);
                 provenance.insert(
                     kind.annual_id().into(),
                     Provenance::Derived {
                         operator: kind.annual_operator().into(),
-                        inputs: vec![kind.id().into()],
+                        inputs: if kind == ClimateField::Temperature {
+                            vec![kind.id().into(), "planet.calendar".into()]
+                        } else {
+                            vec![kind.id().into()]
+                        },
                     },
                 );
             }
         }
+        next.insert(
+            INSOLATION_ID.into(),
+            world.calendar.monthly_insolation(world.width, world.height, month)?,
+        );
+        provenance.insert(
+            INSOLATION_ID.into(),
+            Provenance::Derived {
+                operator: "circular_orbit_monthly_mean_daily_toa_irradiance_v1".into(),
+                inputs: vec!["planet.calendar".into()],
+            },
+        );
         world.scientific_fields = next;
         world.scientific_provenance = provenance;
         world.active_month = month;
@@ -588,8 +605,8 @@ mod tests {
                 )
                 .unwrap();
         }
-        assert!(registry.annual(ClimateField::Temperature).is_none());
-        assert!(registry.annual(ClimateField::Precipitation).is_none());
+        assert!(registry.annual(ClimateField::Temperature, &w.calendar.month_days).is_none());
+        assert!(registry.annual(ClimateField::Precipitation, &w.calendar.month_days).is_none());
         assert!(!w
             .scientific_fields
             .contains_key(ClimateField::Temperature.annual_id()));
@@ -792,7 +809,8 @@ mod tests {
             .copy_month(&mut w, ClimateField::Precipitation, 3, 4)
             .is_err());
         registry.activate(&mut w, 5).unwrap();
-        assert!(w.scientific_fields.is_empty());
+        assert!(!w.scientific_fields.contains_key(ClimateField::Precipitation.id()));
+        assert!(w.scientific_fields.contains_key(INSOLATION_ID));
     }
 
     #[test]
@@ -807,7 +825,7 @@ mod tests {
         let restored: DatasetRegistry = serde_json::from_slice(&bytes).unwrap();
         let mut other = world();
         restored.activate(&mut other, 1).unwrap();
-        assert_eq!(other.scientific_fields.len(), 2);
+        assert_eq!(other.scientific_fields.len(), 3);
         assert_eq!(
             other.scientific_fields[ClimateField::Precipitation.id()].at(0, 0),
             80.0
@@ -822,7 +840,7 @@ mod tests {
         assert!(wrong.activate(&mut other, 1).is_err());
         assert_eq!(
             other.scientific_fields.len(),
-            2,
+            3,
             "failed activation is transactional"
         );
         let mut corrupt = restored.clone();
