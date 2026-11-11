@@ -558,19 +558,19 @@ mod tests {
         let image = atlas_image(&world, &art, Theme::MonthlyInsolation);
         assert_eq!(image.size, [48, 24]);
         assert_eq!(art.legend(&world, Theme::MonthlyInsolation).len(), 7);
-        let path = std::env::temp_dir().join(format!(
-            "aegaea-solar-{}.png", std::process::id()
-        ));
+        let path = std::env::temp_dir().join(format!("aegaea-solar-{}.png", std::process::id()));
         export_atlas_png(&world, &art, Theme::MonthlyInsolation, &path).unwrap();
-        let meta: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(path.with_extension("json")).unwrap()
-        ).unwrap();
+        let meta: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(path.with_extension("json")).unwrap()).unwrap();
         assert_eq!(meta["month"], 2);
         assert_eq!(meta["units"], "W/m²");
         assert_eq!(meta["dataset_id"], crate::planetary::INSOLATION_ID);
         assert_eq!(meta["planetary_calendar"]["month_days"][0], 40.0);
         assert_eq!(meta["provenance"]["kind"], "derived");
-        assert!(meta["derived_from"].as_str().unwrap().contains("circular-orbit"));
+        assert!(meta["derived_from"]
+            .as_str()
+            .unwrap()
+            .contains("circular-orbit"));
         std::fs::remove_file(path.with_extension("json")).unwrap();
         std::fs::remove_file(path).unwrap();
     }
