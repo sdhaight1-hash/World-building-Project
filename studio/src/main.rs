@@ -1161,6 +1161,7 @@ impl Studio {
                     if self.placing_marker {
                         self.terrain_brush = false;
                         self.layer_brush = false;
+                        self.dataset_brush = false;
                         self.boundary_draw = false;
                         self.boundary_start = None;
                     }
@@ -1241,8 +1242,13 @@ impl Studio {
                 let text=if enabled { theme.name().to_string() } else { format!("{}  · needs source",theme.name()) };
                 if ui.add(egui::Button::selectable(self.theme==theme,text)).clicked() {
                     self.finish_layer_stroke();
+                    self.finish_dataset_stroke();
                     self.theme=theme;
                     self.layer_brush=false;
+                    self.dataset_brush=false;
+                    if let Some(field) = theme.climate_field() {
+                        self.dataset_paint_value = field.default_fill();
+                    }
                     self.boundary_draw=false;
                     self.boundary_start=None;
                     if let Some(kind)=source_for_theme(theme) {
@@ -1258,7 +1264,11 @@ impl Studio {
                 }
             }
             });
-            self.map_layer_workshop(ui);
+            if self.theme.climate_field().is_some() {
+                self.monthly_workshop(ui);
+            } else {
+                self.map_layer_workshop(ui);
+            }
             if !self.theme.available(&self.world) {
                 ui.colored_label(Color32::from_rgb(229, 188, 111),
                     "This map has no source data yet. Set up its input layer above.");
