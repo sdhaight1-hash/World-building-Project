@@ -1,6 +1,7 @@
 //! Aegaea Studio P0: a modern wgpu-backed desktop shell around physical-world maps.
 //! Purposefully scoped: shared atlas/globe source data, inspector, local point annotation.
 mod cartography;
+mod datasets;
 mod geology_diagnostics;
 mod globe3d;
 mod map_graph;
@@ -14,6 +15,7 @@ mod terrain_generation;
 mod world;
 
 use cartography::Cartography;
+use datasets::{month_name, ClimateField, DatasetStroke};
 use eframe::{
     egui,
     egui::{Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Vec2},
@@ -60,7 +62,8 @@ fn source_for_theme(theme: Theme) -> Option<LayerKind> {
         Theme::Crust => Some(LayerKind::Crust),
         Theme::Lithosphere => Some(LayerKind::Lithosphere),
         Theme::HeatFlow => Some(LayerKind::HeatFlow),
-        Theme::Terrain | Theme::Slope | Theme::RainShadow => None,
+        Theme::Terrain | Theme::Slope | Theme::RainShadow
+        | Theme::MonthlyTemperature | Theme::MonthlyPrecipitation => None,
     }
 }
 
@@ -73,6 +76,7 @@ enum ViewMode {
 /// Choose the authoritative elevation source before deriving map fields.
 fn activate_terrain(world: &mut World, project: &Project) -> Result<TerrainMode, String> {
     project.layers.apply(world)?;
+    project.datasets.activate(world, project.month)?;
     let has_edits = !project.terrain.overrides.is_empty() || project.terrain.base_fill_m.is_some();
     let mode = terrain_generation::resolve_mode(project.terrain_mode, world, has_edits);
     if mode == TerrainMode::Generated {
@@ -129,6 +133,13 @@ struct Studio {
     active_layer_stroke: LayerStroke,
     layer_undo: Vec<LayerStroke>,
     layer_redo: Vec<LayerStroke>,
+    dataset_brush: bool,
+    dataset_radius: u32,
+    dataset_paint_value: f32,
+    copy_from_month: u8,
+    active_dataset_stroke: DatasetStroke,
+    dataset_undo: Vec<DatasetStroke>,
+    dataset_redo: Vec<DatasetStroke>,
     boundary_draw: bool,
     boundary_class: u8,
     boundary_start: Option<(f64, f64)>,
@@ -227,6 +238,13 @@ impl Studio {
             active_layer_stroke: LayerStroke::default(),
             layer_undo: Vec::new(),
             layer_redo: Vec::new(),
+            dataset_brush: false,
+            dataset_radius: 5,
+            dataset_paint_value: 20.0,
+            copy_from_month: 1,
+            active_dataset_stroke: DatasetStroke::default(),
+            dataset_undo: Vec::new(),
+            dataset_redo: Vec::new(),
             boundary_draw: false,
             boundary_class: 2,
             boundary_start: None,
@@ -468,6 +486,13 @@ impl Studio {
                 self.active_layer_stroke = LayerStroke::default();
                 self.layer_undo.clear();
                 self.layer_redo.clear();
+                self.dataset_brush = false;
+                self.dataset_radius = 5;
+                self.dataset_paint_value = 20.0;
+                self.copy_from_month = 1;
+                self.active_dataset_stroke = DatasetStroke::default();
+                self.dataset_undo.clear();
+                self.dataset_redo.clear();
                 self.boundary_draw = false;
                 self.boundary_class = 2;
                 self.boundary_start = None;
