@@ -99,3 +99,7 @@ The output folder contains **slope_degrees.tif** and **rain_shadow_potential.tif
 ### Surface slope map
 
 Choose **Surface slope** in the map library to visualize true surface slope angle in degrees. The output is computed from the currently authored elevation grid through the same spherical slope calculation supported by the procedural map graph, and is recalculated when terrain changes. It is available in both 2D and 3D, the location inspector, native PNG export and SVG atlas sheets.
+
+### Geology input diagnostics
+
+Select **Geology consistency** → **Validate source layers** in the map sidebar, or run `cargo run -- --diagnose-world maps/diagnostics/geology-consistency.json`. The JSON report checks that source raster category IDs exist in source tables and measures where craton pixels disagree with their assigned parent plates. Results are warnings/diagnostics only; the application does not secretly alter tectonics to match a painted heightmap. Reports count grid cells, not physical square kilometres.

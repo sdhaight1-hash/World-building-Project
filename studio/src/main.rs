@@ -2,6 +2,7 @@
 //! Purposefully scoped: shared atlas/globe source data, inspector, local point annotation.
 mod cartography;
 mod globe3d;
+mod geology_diagnostics;
 mod map_graph;
 mod publication;
 mod rainshadow;
@@ -15,6 +16,7 @@ use eframe::{
     egui::{Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Vec2},
 };
 use globe3d::{GlobeCallback, GlobeMesh};
+use geology_diagnostics::Report as GeologyReport;
 use rainshadow::WindFrom;
 use render::{atlas_geo_from_fraction, forward_globe, globe_geo_from_fraction, Theme};
 use std::{
@@ -36,6 +38,7 @@ struct Studio {
     cartography: Cartography,
     project: Project,
     project_path: PathBuf,
+    geology_report: Option<GeologyReport>,
     theme: Theme,
     view: ViewMode,
     atlas: Option<TextureHandle>,
@@ -109,6 +112,7 @@ impl Studio {
             cartography,
             project,
             project_path: path,
+            geology_report: None,
             theme: Theme::Terrain,
             view: ViewMode::Atlas,
             atlas: None,
@@ -222,6 +226,17 @@ impl Studio {
             self.rebuild_derived_surfaces();
             self.status = "Redid terrain brush stroke".into();
         }
+    }
+
+    fn validate_geological_inputs(&mut self) {
+        let report=geology_diagnostics::examine(&self.world);
+        let warnings=report.warning_count();
+        let path=self.project_path.with_file_name("geology-consistency.json");
+        self.status=match report.write(&path) {
+            Ok(())=>format!("Geology diagnostics: {warnings} warnings/errors; report at {}",path.display()),
+            Err(error)=>format!("Could not save geology report: {error}"),
+        };
+        self.geology_report=Some(report);
     }
 
     fn save(&mut self) {
@@ -463,6 +478,27 @@ impl Studio {
                 ui.add(egui::Slider::new(&mut self.globe_exaggeration,1.0..=60.0).suffix("×"));
                 ui.small("Geometric elevation from the DEM; exaggerated to reveal relief on a planetary scale.");
             }
+            ui.separator();
+            ui.collapsing("Geology consistency",|ui| {
+                ui.small("Checks input plate, craton and province IDs. It never changes geology.");
+                if ui.button("Validate source layers").clicked() {
+                    self.validate_geological_inputs();
+                }
+                if let Some(ref report)=self.geology_report {
+                    ui.small(format!("{} warnings/errors · {} native cells",
+                        report.warning_count(),report.counts.total_cells));
+                    ui.small(format!("Craton/plate conflicts: {} cells",
+                        report.counts.conflicting_craton_plate_cells));
+                    for issue in &report.issues {
+                        ui.separator();
+                        ui.label(egui::RichText::new(&issue.code).strong().small());
+                        ui.small(&issue.description);
+                        if issue.affected_cells>0 {
+                            ui.monospace(format!("{} affected cells",issue.affected_cells));
+                        }
+                    }
+                }
+            });
             ui.separator();
             ui.label(egui::RichText::new("DATASET").small().weak());
             ui.small(format!("{} × {} native cells", self.world.width,self.world.height));
@@ -950,6 +986,18 @@ fn boot() -> (World, Project, PathBuf, String) {
 fn main() -> eframe::Result {
     let (mut world, project, path, status) = boot();
     let args = env::args().collect::<Vec<_>>();
+    if let Some(index)=args.iter().position(|a|a=="--diagnose-world") {
+        let target=args.get(index+1).map(PathBuf::from)
+            .unwrap_or_else(||PathBuf::from("maps/diagnostics/geology-consistency.json"));
+        let report=geology_diagnostics::examine(&world);
+        if let Err(error)=report.write(&target) {
+            eprintln!("Could not export geology diagnostics: {error}");
+            std::process::exit(2);
+        }
+        println!("Geology checked {} cells: {} warnings/errors; report: {}",
+            report.counts.total_cells,report.warning_count(),target.display());
+        return Ok(());
+    }
     // Reproducible node graph builds run headlessly, before the wgpu window.
     // The graph consumes exactly the same authored DEM that the editor displays.
     if let Some(index) = args.iter().position(|a| a == "--build-graph") {
