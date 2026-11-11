@@ -27,6 +27,22 @@ use std::{
 use terrain_edit::Stroke as TerrainStroke;
 use world::{geo_to_uv, Project, World};
 
+/// Return a scientifically unwarped cropped UV viewport for the native
+/// equirectangular raster, independent of desktop viewport proportions.
+fn atlas_crop_uv(data_aspect:f32,viewport_aspect:f32,zoom:f32,center:Pos2)->Rect {
+    let viewport_aspect=viewport_aspect.max(0.01);
+    let data_aspect=data_aspect.max(0.01);
+    let zoom=zoom.clamp(1.0,8.0);
+    let u_span=(viewport_aspect/data_aspect).min(1.0)/zoom;
+    let v_span=(data_aspect/viewport_aspect).min(1.0)/zoom;
+    let u=(center.x).clamp(u_span*0.5,1.0-u_span*0.5);
+    let v=(center.y).clamp(v_span*0.5,1.0-v_span*0.5);
+    Rect::from_min_max(
+        egui::pos2(u-u_span*0.5,v-v_span*0.5),
+        egui::pos2(u+u_span*0.5,v+v_span*0.5),
+    )
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ViewMode {
     Atlas,
@@ -53,6 +69,7 @@ struct Studio {
     globe_lon: f64,
     globe_lat: f64,
     zoom: f32,
+    atlas_fill_canvas: bool,
     pan_u: f32,
     pan_v: f32,
     picked: Option<(f64, f64)>,
@@ -121,12 +138,13 @@ impl Studio {
             globe_map_size,
             globe_map_version: 0,
             globe_target_format,
-            globe_exaggeration: 18.0,
+            globe_exaggeration: 8.0,
             atlas_dirty: true,
             globe_dirty: true,
             globe_lon: 0.0,
             globe_lat: 0.0,
             zoom: 1.0,
+            atlas_fill_canvas: true,
             pan_u: 0.5,
             pan_v: 0.5,
             picked: None,
@@ -156,11 +174,12 @@ impl Studio {
     fn refresh_textures(&mut self, ctx: &egui::Context) {
         if self.atlas_dirty {
             let image = render::atlas_image(&self.world, &self.cartography, self.theme);
-            let rgba = image
+            let mut rgba = image
                 .pixels
                 .iter()
                 .flat_map(|pixel| pixel.to_array())
                 .collect::<Vec<_>>();
+            globe3d::normalize_polar_texture(&mut rgba,image.size[0],image.size[1]);
             self.globe_map_size = [image.size[0] as u32, image.size[1] as u32];
             self.globe_map_rgba = Arc::new(rgba);
             self.globe_map_version = self.globe_map_version.wrapping_add(1);
@@ -461,9 +480,16 @@ impl Studio {
             ui.separator();
             ui.label(egui::RichText::new("VIEW CONTROLS").small().weak());
             if self.view==ViewMode::Atlas {
+                ui.checkbox(&mut self.atlas_fill_canvas,"Fill workspace");
                 ui.label("Zoom");
-                ui.add(egui::Slider::new(&mut self.zoom,1.0..=5.0).show_value(false));
-                ui.small("Drag to pan. Scroll or zoom controls will be expanded in the production editor.");
+                ui.add(egui::Slider::new(&mut self.zoom,1.0..=8.0));
+                if ui.button("Fit entire planet").clicked() {
+                    self.atlas_fill_canvas=false;
+                    self.zoom=1.0;
+                    self.pan_u=0.5;
+                    self.pan_v=0.5;
+                }
+                ui.small("Fill crops the map instead of distorting it. Drag to pan; scroll to zoom.");
             } else {
                 ui.label("Globe latitude");
                 if ui.add(egui::Slider::new(&mut self.globe_lat,-85.0..=85.0).suffix("°")).changed() {
@@ -647,39 +673,44 @@ impl Studio {
             });
     }
 
-    fn current_uv(&self) -> Rect {
-        let span = 1.0 / self.zoom;
-        let half = span * 0.5;
-        let u = self.pan_u.clamp(half, 1.0 - half);
-        let v = self.pan_v.clamp(half, 1.0 - half);
-        Rect::from_min_max(
-            egui::pos2(u - half, v - half),
-            egui::pos2(u + half, v + half),
+    fn current_uv(&self, viewport_aspect:f32) -> Rect {
+        let data_aspect=self.world.width as f32/self.world.height as f32;
+        atlas_crop_uv(
+            data_aspect,viewport_aspect,self.zoom,
+            egui::pos2(self.pan_u,self.pan_v)
         )
     }
 
     fn canvas(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
             let available = ui.available_size();
-            let ratio = if self.view == ViewMode::Globe {
-                1.0
-            } else {
-                self.world.width as f32 / self.world.height as f32
+            let usable_height=(available.y-52.0).max(5.0);
+            let ratio=self.world.width as f32/self.world.height as f32;
+            let (width,height)=match self.view {
+                ViewMode::Globe=>{
+                    let size=available.x.min(usable_height).max(5.0);
+                    (size,size)
+                },
+                ViewMode::Atlas if self.atlas_fill_canvas=>{
+                    (available.x.max(5.0),usable_height)
+                },
+                ViewMode::Atlas=>{
+                    let width=available.x.min(usable_height*ratio).max(5.0);
+                    (width,width/ratio)
+                }
             };
-            let width = available.x.min(available.y * ratio).max(5.0);
-            let height = width / ratio;
             ui.vertical_centered(|ui| {
                 ui.label(
                     egui::RichText::new(format!("{}  ·  {}", self.project.name, self.theme.name()))
                         .strong(),
                 );
                 let (rect, response) = ui.allocate_exact_size(
-                    egui::vec2(width, (height - 30.0).max(5.0)),
+                    egui::vec2(width, height),
                     Sense::click_and_drag(),
                 );
                 let painter = ui.painter_at(rect);
                 painter.rect_filled(rect, 4.0, Color32::from_rgb(17, 23, 33));
-                let uv = self.current_uv();
+                let uv = self.current_uv(rect.width()/rect.height());
                 match self.view {
                     ViewMode::Atlas => {
                         if let Some(ref image) = self.atlas {
@@ -766,8 +797,14 @@ impl Studio {
                 {
                     let delta = ui.input(|input| input.pointer.delta());
                     if delta != Vec2::ZERO {
-                        self.pan_u -= delta.x / rect.width() / self.zoom;
-                        self.pan_v -= delta.y / rect.height() / self.zoom;
+                        self.pan_u -= delta.x / rect.width()*uv.width();
+                        self.pan_v -= delta.y / rect.height()*uv.height();
+                    }
+                }
+                if !self.terrain_brush && self.view==ViewMode::Atlas && response.hovered() {
+                    let wheel=ui.input(|input|input.raw_scroll_delta.y);
+                    if wheel.abs()>0.0 {
+                        self.zoom=(self.zoom*(wheel*0.0015).exp()).clamp(1.0,8.0);
                     }
                 }
                 if self.terrain_brush && (response.clicked() || response.dragged()) {
@@ -1124,5 +1161,25 @@ mod graphics_backend_tests {
             backends.intersects(wgpu::Backends::DX12 | wgpu::Backends::VULKAN),
             "eframe's Wgpu renderer requires a compiled DX12 or Vulkan backend on Windows"
         );
+    }
+}
+
+#[cfg(test)]
+mod map_canvas_tests {
+    use super::*;
+    #[test]
+    fn fill_canvas_crops_map_without_stretching_geography() {
+        let uv=atlas_crop_uv(2.0,1.0,1.0,egui::pos2(0.5,0.5));
+        assert!((uv.width()-0.5).abs()<1e-6);
+        assert!((uv.height()-1.0).abs()<1e-6);
+        let fitted=atlas_crop_uv(2.0,2.0,1.0,egui::pos2(0.5,0.5));
+        assert!((fitted.width()-1.0).abs()<1e-6);
+        assert!((fitted.height()-1.0).abs()<1e-6);
+    }
+    #[test]
+    fn map_pan_stays_in_bounds_with_zoom_and_cropping() {
+        let uv=atlas_crop_uv(1.8,1.0,4.0,egui::pos2(1.5,-3.0));
+        assert!(uv.min.x>=0.0 && uv.max.x<=1.00001);
+        assert!(uv.min.y>=0.0 && uv.max.y<=1.00001);
     }
 }

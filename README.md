@@ -103,3 +103,11 @@ Choose **Surface slope** in the map library to visualize true surface slope angl
 ### Geology input diagnostics
 
 Select **Geology consistency** → **Validate source layers** in the map sidebar, or run `cargo run -- --diagnose-world maps/diagnostics/geology-consistency.json`. The JSON report checks that source raster category IDs exist in source tables and measures where craton pixels disagree with their assigned parent plates. Results are warnings/diagnostics only; the application does not secretly alter tectonics to match a painted heightmap. Reports count grid cells, not physical square kilometres.
+
+## Rendering quality checkpoint — gameplay/video visual QA
+
+The 2026-11-10 desktop recording exposed globe polar pinwheel geometry, dark double-shaded maps, aliased fake contours, a heavy single-pixel coastline and unused atlas work area. The first correctness pass (see `docs/RENDER_QUALITY.md`) addresses those specific issues **without replacing the geological source DEM**.
+
+Choose **Fill workspace** for an aspect-preserving cropped viewport with normal drag/scroll controls, or **Fit entire planet** for the original whole-map perspective. On the globe, triangles now have outward winding and the far hemisphere is GPU-culled; poles converge to a single elevation, and the globe-only color texture is harmonized near the geographic pole. The globe's second lighting pass is much lighter, keeping the thematic legend readable.
+
+**Not solved by this fix:** the source terrain still contains obvious procedural oval mountain belts, coarse landform morphology, and unrefined drainage/coastlines. Those need generation-model improvements and source-preserving derived terrain, not new palettes.

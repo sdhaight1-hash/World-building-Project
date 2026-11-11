@@ -40,6 +40,18 @@ impl GlobeMesh {
         let lon_segments = (world.width / 2).clamp(64, 720);
         let lat_segments = (world.height / 2).clamp(32, 360);
         let mut vertices = Vec::with_capacity((lon_segments + 1) * (lat_segments + 1));
+        // A geographic raster's first/last row represents a *single* physical
+        // point at each pole. Multiple elevations there create pinwheel peaks.
+        let pole_elevations = if let Some(ref dem)=world.elevation {
+            let mean_row=|y:usize| -> f32 {
+                let valid=(0..dem.width).map(|x|dem.at(x,y)).filter(|v|v.is_finite())
+                    .collect::<Vec<_>>();
+                if valid.is_empty(){0.0} else {
+                    valid.iter().sum::<f32>() / valid.len() as f32
+                }
+            };
+            [mean_row(0),mean_row(dem.height-1)]
+        } else {[0.0,0.0]};
         let mut indices = Vec::with_capacity(lon_segments * lat_segments * 6);
 
         // UV follows Aegaea's source convention, NOT Earth's north-up.
@@ -50,12 +62,13 @@ impl GlobeMesh {
             for x in 0..=lon_segments {
                 let u = x as f64 / lon_segments as f64;
                 let lon = 180.0 - 360.0 * u;
-                let elevation_m = world
-                    .elevation
-                    .as_ref()
-                    .map(|grid| grid.geo(lon, lat))
-                    .filter(|v| v.is_finite())
-                    .unwrap_or(0.0);
+                let elevation_m=if y==0 {pole_elevations[0]}
+                    else if y==lat_segments {pole_elevations[1]}
+                    else {
+                        world.elevation.as_ref()
+                            .map(|grid|grid.geo(lon,lat))
+                            .filter(|v|v.is_finite()).unwrap_or(0.0)
+                    };
                 vertices.push(GlobeVertex {
                     lon_lat: [(lon.to_radians()) as f32, (lat.to_radians()) as f32],
                     elevation_m,
@@ -71,7 +84,9 @@ impl GlobeMesh {
                 let b = a + 1;
                 let c = a + stride as u32;
                 let d = c + 1;
-                indices.extend_from_slice(&[a, b, c, b, d, c]);
+                // Outward-facing winding. From the fictional atlas x grows
+                // *westward*, and y grows northward, so a,b,c is inward.
+                indices.extend_from_slice(&[a, c, b, b, c, d]);
             }
         }
         Self {
@@ -243,7 +258,10 @@ impl GlobeGpu {
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList,
                 front_face: wgpu::FrontFace::Ccw,
-                cull_mode: None, // fragment discards the back hemisphere.
+                // Eliminate the far hemisphere *before rasterization*. The
+                // previous fragment-only discard allowed back-face triangles
+                // to paint through the near hemisphere (no depth attachment).
+                cull_mode: Some(wgpu::Face::Back),
                 ..Default::default()
             },
             depth_stencil: None, // egui's ordinary paint pass has no depth buffer.
@@ -260,6 +278,36 @@ impl GlobeGpu {
             texture,
             bindings,
             image_version: version,
+        }
+    }
+}
+
+/// Equirectangular textures contain multiple longitude samples for each
+/// physical pole. For the globe alone, blend the last ~5 degrees of latitude
+/// toward each row's mean color so they converge to a single visible point.
+/// The 2D atlas raster and underlying scientific fields remain untouched.
+pub fn normalize_polar_texture(pixels: &mut [u8],width:usize,height:usize) {
+    if width<2||height<8||pixels.len()!=width*height*4{return;}
+    let rows=(height/36).clamp(2,28);
+    for pole in 0..2 {
+        for offset in 0..rows {
+            let row=if pole==0 {offset} else {height-1-offset};
+            let base=row*width*4;
+            let mut total=[0u64;3];
+            for x in 0..width {
+                for channel in 0..3 {
+                    total[channel]+=pixels[base+x*4+channel] as u64;
+                }
+            }
+            let mean=total.map(|t|(t/width as u64) as u8);
+            let t=(1.0-offset as f32/rows as f32).powi(2);
+            for x in 0..width {
+                for channel in 0..3 {
+                    let index=base+x*4+channel;
+                    let original=pixels[index] as f32;
+                    pixels[index]=(original*(1.0-t)+mean[channel] as f32*t).round() as u8;
+                }
+            }
         }
     }
 }
@@ -414,6 +462,51 @@ mod tests {
         assert!((last.lon_lat[1] - std::f32::consts::FRAC_PI_2).abs() < 1e-5);
         assert!((first.uv[0] - 0.0).abs() < 1e-5);
         assert!((last.uv[0] - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn globe_triangles_are_outward_facing_at_equator() {
+        let world=World::empty(PathBuf::new());
+        let mesh=GlobeMesh::from_world(&world);
+        let stride=mesh.lon_segments+1;
+        let center=(mesh.lat_segments/2)*stride + mesh.lon_segments/2;
+        let vertex=|i:usize| {
+            let point=mesh.vertices[i].lon_lat;
+            [point[1].cos()*point[0].sin(),
+             point[1].sin(),
+             point[1].cos()*point[0].cos()]
+        };
+        let p=vertex(center);
+        let q=vertex(center+stride);
+        let r=vertex(center+1);
+        let u=[q[0]-p[0],q[1]-p[1],q[2]-p[2]];
+        let v=[r[0]-p[0],r[1]-p[1],r[2]-p[2]];
+        let cross=[u[1]*v[2]-u[2]*v[1],u[2]*v[0]-u[0]*v[2],u[0]*v[1]-u[1]*v[0]];
+        let outward=cross.iter().zip(p).map(|(a,b)|a*b).sum::<f32>();
+        assert!(outward>0.0,"globe triangles must face outward, not draw the back hemisphere");
+    }
+
+    #[test]
+    fn globe_pole_vertices_have_one_physical_elevation() {
+        let mut world=World::empty(PathBuf::new());
+        world.width=64;world.height=32;
+        let mut dem=Grid::new(64,32,0.0);
+        for x in 0..64 {dem.cells[x]=x as f32*50.0;}
+        world.elevation=Some(dem);
+        let mesh=GlobeMesh::from_world(&world);
+        let first=mesh.vertices[0].elevation_m;
+        assert!(first>0.0);
+        assert!(mesh.vertices[0..=mesh.lon_segments].iter()
+            .all(|v|v.elevation_m==first));
+    }
+
+    #[test]
+    fn globe_polar_texture_converges_without_touching_middle_latitudes() {
+        let mut rgba=(0..16*32).flat_map(|i|[(i%256) as u8,90,40,255]).collect::<Vec<_>>();
+        let original=rgba.clone();
+        normalize_polar_texture(&mut rgba,16,32);
+        assert!(rgba[0..16*4].chunks_exact(4).all(|p|p[0]==rgba[0]));
+        assert_eq!(&rgba[16*16*4..17*16*4],&original[16*16*4..17*16*4]);
     }
 
     #[test]

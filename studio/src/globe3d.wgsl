@@ -54,11 +54,14 @@ fn vs_main(v: InVertex) -> OutVertex {
 }
 @fragment
 fn fs_main(v: OutVertex) -> @location(0) vec4<f32> {
-    // No depth attachment in egui's UI pass. For this star-shaped globe the
-    // back hemisphere has no visible surface, so discard it before coloring.
-    if (v.visible_z < -0.005) { discard; }
+    // The GPU pipeline now culls back-facing triangles by their true
+    // outward winding, rather than trying to mask an overlapping sphere
+    // in this fragment pass. Reject only the silhouette's numerical fringe.
+    if (v.visible_z < -0.015) { discard; }
     let color = textureSample(surface_map, surface_sampler, v.uv);
     let lamp = normalize(vec3<f32>(-0.30, 0.45, 0.84));
-    let illum = clamp(0.67 + 0.34 * dot(normalize(v.world_normal), lamp), 0.38, 1.08);
+    // The atlas texture already contains relief lighting. Avoid applying a
+    // second heavy shadow pass which made geology and ocean maps unreadable.
+    let illum = 0.90 + 0.10 * max(dot(normalize(v.world_normal), lamp), 0.0);
     return vec4<f32>(color.rgb * illum, 1.0);
 }
