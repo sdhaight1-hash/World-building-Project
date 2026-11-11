@@ -658,3 +658,15 @@ fn main() -> eframe::Result {
         Box::new(move |cc| Ok(Box::new(Studio::new(cc, world, project, path, status)))),
     )
 }
+
+#[cfg(all(test, target_os = "windows"))]
+mod graphics_backend_tests {
+    #[test]
+    fn windows_build_has_a_native_wgpu_backend() {
+        let backends = wgpu::Instance::enabled_backend_features();
+        assert!(
+            backends.intersects(wgpu::Backends::DX12 | wgpu::Backends::VULKAN),
+            "eframe's Wgpu renderer requires a compiled DX12 or Vulkan backend on Windows"
+        );
+    }
+}
