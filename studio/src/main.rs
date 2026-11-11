@@ -66,7 +66,9 @@ fn source_for_theme(theme: Theme) -> Option<LayerKind> {
         | Theme::Slope
         | Theme::RainShadow
         | Theme::MonthlyTemperature
-        | Theme::MonthlyPrecipitation => None,
+        | Theme::MonthlyPrecipitation
+        | Theme::AnnualTemperature
+        | Theme::AnnualPrecipitation => None,
     }
 }
 
@@ -644,6 +646,11 @@ impl Studio {
     }
 
     fn refresh_dataset_map(&mut self) {
+        // Annual summaries depend on every edited monthly slice. Rebuild them
+        // after each committed stroke, undo, redo or month insertion.
+        if let Err(error) = self.project.datasets.activate(&mut self.world, self.project.month) {
+            self.status = format!("Climate data validation failed: {error}");
+        }
         self.atlas_dirty = true;
         self.globe_dirty = true;
         self.changed = true;
@@ -698,6 +705,35 @@ impl Studio {
                 );
             }
             Err(error) => self.status = format!("Could not select month: {error}"),
+        }
+    }
+
+    fn annual_workshop(&mut self, ui: &mut egui::Ui) {
+        let Some(kind) = self.theme.annual_field() else { return };
+        let count = self.project.datasets.fields.get(kind.id())
+            .map_or(0, |f| f.months.len());
+        ui.separator();
+        ui.label(egui::RichText::new("ANNUAL DATA DEPENDENCIES").strong().small());
+        ui.small(format!("{} of 12 monthly source periods available", count));
+        if count == 12 {
+            ui.small(match kind {
+                datasets::ClimateField::Temperature =>
+                    "Arithmetic mean of 12 monthly means. Equal-month weighting; not calibrated for planetary month lengths.",
+                datasets::ClimateField::Precipitation =>
+                    "Sum of 12 monthly precipitation totals. This is numeric aggregation, not predicted rainfall.",
+            });
+            ui.small("Computed from authored monthly data; changes update after each completed paint stroke.");
+        } else {
+            ui.small("All twelve distinct months are required. Missing months remain unavailable.");
+        }
+        if ui.button("Edit monthly inputs").clicked() {
+            self.theme = match kind {
+                datasets::ClimateField::Temperature => Theme::MonthlyTemperature,
+                datasets::ClimateField::Precipitation => Theme::MonthlyPrecipitation,
+            };
+            self.dataset_paint_value = kind.default_fill();
+            self.atlas_dirty = true;
+            self.globe_dirty = true;
         }
     }
 
@@ -1317,7 +1353,9 @@ impl Studio {
                 }
             }
             });
-            if self.theme.climate_field().is_some() {
+            if self.theme.annual_field().is_some() {
+                self.annual_workshop(ui);
+            } else if self.theme.climate_field().is_some() {
                 self.monthly_workshop(ui);
             } else {
                 self.map_layer_workshop(ui);
