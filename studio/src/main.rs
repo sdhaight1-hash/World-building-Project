@@ -1039,7 +1039,11 @@ impl Studio {
 
     fn transport_workshop(&mut self, ui: &mut egui::Ui) {
         ui.separator();
-        ui.label(egui::RichText::new("COUPLED ATMOSPHERIC MASS TEST").strong().small());
+        ui.label(
+            egui::RichText::new("COUPLED ATMOSPHERIC MASS TEST")
+                .strong()
+                .small(),
+        );
         ui.small("Read-only, conservative finite-volume transport of total moist air AND its water-vapor fraction. Horizontal winds remain author-specified; this does not solve momentum, vertical atmosphere, clouds or rainfall.");
         let mut selected = self.project.month;
         egui::ComboBox::from_id_salt("transport-month")
@@ -1056,16 +1060,24 @@ impl Studio {
         if !missing.is_empty() {
             ui.colored_label(
                 Color32::from_rgb(229, 188, 111),
-                format!("{} authored input(s) missing for this month.", missing.len()),
+                format!(
+                    "{} authored input(s) missing for this month.",
+                    missing.len()
+                ),
             );
             for (kind, theme) in [
                 (MonthlyField::Pressure, Theme::MonthlyPressure),
-                (MonthlyField::SpecificHumidity, Theme::MonthlySpecificHumidity),
+                (
+                    MonthlyField::SpecificHumidity,
+                    Theme::MonthlySpecificHumidity,
+                ),
                 (MonthlyField::WindEast, Theme::MonthlyWindEast),
                 (MonthlyField::WindNorth, Theme::MonthlyWindNorth),
             ] {
                 if missing.contains(&kind.id())
-                    && ui.button(format!("Author {} source", kind.name())).clicked()
+                    && ui
+                        .button(format!("Author {} source", kind.name()))
+                        .clicked()
                 {
                     self.theme = theme;
                     self.dataset_paint_value = kind.default_fill();
@@ -1104,7 +1116,8 @@ impl Studio {
         ui.label("Preview duration (seconds)");
         ui.add(
             egui::DragValue::new(&mut self.transport_seconds)
-                .range(0.01..=86_400.0).speed(5.0),
+                .range(0.01..=86_400.0)
+                .speed(5.0),
         );
         ui.small("A bounded outward Courant number controls the time step; unstable or excessive intervals are rejected.");
         if ui.button("Compute read-only coupled preview").clicked() {
@@ -1131,7 +1144,11 @@ impl Studio {
         }
         if let Some(report) = &self.world.moisture_transport_budget {
             ui.separator();
-            ui.label(egui::RichText::new("MASS-CONSERVATION BUDGET").strong().small());
+            ui.label(
+                egui::RichText::new("MASS-CONSERVATION BUDGET")
+                    .strong()
+                    .small(),
+            );
             ui.small(format!(
                 "{:.1} seconds · {} substeps · outward Courant {:.4}",
                 report.elapsed_seconds, report.substeps, report.max_outflow_courant
@@ -1140,16 +1157,24 @@ impl Studio {
                 "Total moist air: {:.6e} → {:.6e} kg",
                 report.air_kg_before, report.air_kg_after
             ));
-            ui.small(format!("Air residual: {:.3e}", report.air_relative_mass_error));
+            ui.small(format!(
+                "Air residual: {:.3e}",
+                report.air_relative_mass_error
+            ));
             ui.small(format!(
                 "Water vapor: {:.6e} → {:.6e} kg",
                 report.water_kg_before, report.water_kg_after
             ));
-            ui.small(format!("Water residual: {:.3e}", report.relative_mass_error));
+            ui.small(format!(
+                "Water residual: {:.3e}",
+                report.relative_mass_error
+            ));
             ui.small(format!(
                 "Pressure: {:.2}–{:.2} hPa · specific humidity: {:.2}–{:.2} g/kg",
-                report.minimum_pressure_hpa, report.maximum_pressure_hpa,
-                report.minimum_humidity_g_kg, report.maximum_humidity_g_kg
+                report.minimum_pressure_hpa,
+                report.maximum_pressure_hpa,
+                report.minimum_humidity_g_kg,
+                report.maximum_humidity_g_kg
             ));
             ui.small(format!(
                 "Vapor-column proxy: {:.2}–{:.2} kg/m²",
@@ -1158,12 +1183,14 @@ impl Studio {
             ui.small("Three available outputs: pressure, humidity, vapor column. Select a diagnostic map from Map library.");
             if ui.button("Export air + water budget JSON").clicked() {
                 let path = self.project_path.with_file_name(format!(
-                    "{}-budget.json", map_export_stem(self.theme, self.project.month)
+                    "{}-budget.json",
+                    map_export_stem(self.theme, self.project.month)
                 ));
                 self.status = match serde_json::to_vec_pretty(report)
                     .map_err(|error| error.to_string())
-                    .and_then(|bytes| std::fs::write(&path, bytes).map_err(|error| error.to_string()))
-                {
+                    .and_then(|bytes| {
+                        std::fs::write(&path, bytes).map_err(|error| error.to_string())
+                    }) {
                     Ok(()) => format!("Exported mass budget: {}", path.display()),
                     Err(error) => format!("Could not export mass budget: {error}"),
                 };
