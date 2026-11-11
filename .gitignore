@@ -1,0 +1,5 @@
+/target/
+**/*.rs.bk
+/projects/
+**/.DS_Store
+*.tmp
