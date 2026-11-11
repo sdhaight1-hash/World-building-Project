@@ -2712,9 +2712,38 @@ mod terrain_activation_tests {
             .contains_key(datasets::ClimateField::Precipitation.id()));
         assert!(second
             .scientific_provenance
-            .values()
+            .iter()
             .filter(|(id, _)| id.as_str() != planetary::INSOLATION_ID)
             .all(|(_, p)| matches!(p, datasets::Provenance::Authored { .. })));
+    }
+
+    #[test]
+    fn authored_calendar_survives_json_and_rebuilds_sunlight_without_aegaea() {
+        let mut project = Project::new("Seasonal independent world");
+        project.calendar.month_days[0] = 45.0;
+        project.calendar.axial_tilt_deg = 38.0;
+        project.month = 7;
+        let saved = serde_json::to_string(&project).unwrap();
+        let reopened: Project = serde_json::from_str(&saved).unwrap();
+        assert_eq!(reopened.calendar.month_days[0], 45.0);
+        assert_eq!(reopened.calendar.year_days(), 375.0);
+        let mut world = World::empty(PathBuf::from("independent-orbit"));
+        world.width = 48;
+        world.height = 24;
+        activate_terrain(&mut world, &reopened).unwrap();
+        assert!(world.plates.is_empty());
+        assert_eq!(world.active_month, 7);
+        assert_eq!(world.calendar, reopened.calendar);
+        assert!(world.scientific_fields.contains_key(planetary::INSOLATION_ID));
+        let july = world.scientific_fields[planetary::INSOLATION_ID].cells.clone();
+        reopened.datasets.activate(&mut world, 1).unwrap();
+        assert_ne!(world.scientific_fields[planetary::INSOLATION_ID].cells, july);
+        assert!(world.scientific_provenance[planetary::INSOLATION_ID].label() == "Derived");
+
+        let legacy = serde_json::json!({"name":"Older saved world","month":2});
+        let legacy: Project = serde_json::from_value(legacy).unwrap();
+        assert_eq!(legacy.calendar, PlanetCalendar::default());
+        assert_eq!(legacy.month, 2);
     }
 
     #[test]
