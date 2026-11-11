@@ -1,6 +1,7 @@
 //! Aegaea Studio P0: a modern wgpu-backed desktop shell around physical-world maps.
 //! Purposefully scoped: shared atlas/globe source data, inspector, local point annotation.
 mod cartography;
+mod globe3d;
 mod publication;
 mod rainshadow;
 mod render;
@@ -11,11 +12,13 @@ use eframe::{
     egui,
     egui::{Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Vec2},
 };
+use globe3d::{GlobeCallback, GlobeMesh};
 use rainshadow::WindFrom;
 use render::{atlas_geo_from_fraction, forward_globe, globe_geo_from_fraction, Theme};
 use std::{
     env,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 use world::{geo_to_uv, Project, World};
 
@@ -33,7 +36,12 @@ struct Studio {
     theme: Theme,
     view: ViewMode,
     atlas: Option<TextureHandle>,
-    globe: Option<TextureHandle>,
+    gpu_mesh: Arc<GlobeMesh>,
+    globe_map_rgba: Arc<Vec<u8>>,
+    globe_map_size: [u32; 2],
+    globe_map_version: u64,
+    globe_target_format: wgpu::TextureFormat,
+    globe_exaggeration: f32,
     atlas_dirty: bool,
     globe_dirty: bool,
     globe_lon: f64,
@@ -72,6 +80,13 @@ impl Studio {
             .as_ref()
             .map(|dem| rainshadow::derive(dem, project.wind_from));
         let cartography = Cartography::new(&world);
+        let gpu_mesh = Arc::new(GlobeMesh::from_world(&world));
+        let globe_map_size = [world.width as u32, world.height as u32];
+        let globe_target_format = cc
+            .wgpu_render_state
+            .as_ref()
+            .map(|state| state.target_format)
+            .unwrap_or(wgpu::TextureFormat::Bgra8Unorm);
         let mut app = Self {
             world,
             cartography,
@@ -80,7 +95,12 @@ impl Studio {
             theme: Theme::Terrain,
             view: ViewMode::Atlas,
             atlas: None,
-            globe: None,
+            gpu_mesh,
+            globe_map_rgba: Arc::new(Vec::new()),
+            globe_map_size,
+            globe_map_version: 0,
+            globe_target_format,
+            globe_exaggeration: 18.0,
             atlas_dirty: true,
             globe_dirty: true,
             globe_lon: 0.0,
@@ -107,25 +127,20 @@ impl Studio {
 
     fn refresh_textures(&mut self, ctx: &egui::Context) {
         if self.atlas_dirty {
-            self.atlas = Some(ctx.load_texture(
-                "world-atlas",
-                render::atlas_image(&self.world, &self.cartography, self.theme),
-                egui::TextureOptions::LINEAR,
-            ));
+            let image = render::atlas_image(&self.world, &self.cartography, self.theme);
+            let rgba = image
+                .pixels
+                .iter()
+                .flat_map(|pixel| pixel.to_array())
+                .collect::<Vec<_>>();
+            self.globe_map_size = [image.size[0] as u32, image.size[1] as u32];
+            self.globe_map_rgba = Arc::new(rgba);
+            self.globe_map_version = self.globe_map_version.wrapping_add(1);
+            self.atlas = Some(ctx.load_texture("world-atlas", image, egui::TextureOptions::LINEAR));
             self.atlas_dirty = false;
         }
-        if self.globe_dirty && self.view == ViewMode::Globe {
-            self.globe = Some(ctx.load_texture(
-                "world-globe",
-                render::globe_image(
-                    &self.world,
-                    &self.cartography,
-                    self.theme,
-                    self.globe_lon,
-                    self.globe_lat,
-                ),
-                egui::TextureOptions::LINEAR,
-            ));
+        if self.globe_dirty {
+            ctx.request_repaint();
             self.globe_dirty = false;
         }
     }
@@ -308,6 +323,9 @@ impl Studio {
                     self.globe_lat=0.0; self.globe_lon=0.0; self.globe_dirty=true;
                 }
                 ui.small("Drag the globe to rotate.");
+                ui.label("Height exaggeration");
+                ui.add(egui::Slider::new(&mut self.globe_exaggeration,1.0..=60.0).suffix("×"));
+                ui.small("Geometric elevation from the DEM; exaggerated to reveal relief on a planetary scale.");
             }
             ui.separator();
             ui.label(egui::RichText::new("DATASET").small().weak());
@@ -487,14 +505,19 @@ impl Studio {
                         }
                     }
                     ViewMode::Globe => {
-                        if let Some(ref image) = self.globe {
-                            painter.image(
-                                image.id(),
-                                rect,
-                                Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
-                                Color32::WHITE,
-                            );
-                        }
+                        painter.add(egui_wgpu::Callback::new_paint_callback(
+                            rect,
+                            GlobeCallback {
+                                mesh: Arc::clone(&self.gpu_mesh),
+                                map_rgba: Arc::clone(&self.globe_map_rgba),
+                                map_size: self.globe_map_size,
+                                map_version: self.globe_map_version,
+                                target_format: self.globe_target_format,
+                                center_lon_deg: self.globe_lon,
+                                center_lat_deg: self.globe_lat,
+                                vertical_exaggeration: self.globe_exaggeration,
+                            },
+                        ));
                     }
                 }
                 for (i, marker) in self.project.markers.iter().enumerate() {

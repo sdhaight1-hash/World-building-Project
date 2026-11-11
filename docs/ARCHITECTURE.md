@@ -71,3 +71,9 @@ The `cartography.rs` module builds an immutable rendering cache from the geologi
 `render.rs` projects this same classified field onto the 2D native atlas and an orthographic spherical preview. The **UI and export paths share the exact same map palette and legend generator**. PNG outputs are accompanied by JSON legends and metadata. This replaces the old 1024-wide and 512-wide downsampled previews (globe is now 896 px).
 
 This is **not** a new terrain generator, fully reconstructed geological simulation or textured 3D terrain mesh. The physical relief comes from Aegaea's existing synthetic elevation DEM. The cartographic output includes modeled geological interpretations and should be labeled accordingly.
+
+## Real GPU globe (next milestone)
+
+`globe3d.rs` tessellates a spherical surface from latitude, longitude and the same elevation raster used by the 2D atlas. `globe3d.wgsl` rotates and vertically displaces mesh vertices on the GPU, and samples the same native-resolution cartographic image texture as the flat map. A custom egui-wgpu paint callback draws the mesh directly through the existing wgpu backend. Mesh indices, native coordinate orientation and shader validity are tested without opening a window.
+
+This is true **GPU triangle-mesh geometry** with height displacement, not a software-projected circular texture. It is an initial static lat/lon mesh: no quadtree LOD, terrain-normal lighting, topological crust modeling or full depth-buffered camera yet. A star-shaped globe can cull its back hemisphere in the fragment shader, but high-exaggeration mountain silhouettes may show depth-order artifacts without a depth attachment. The world surface and geology remain provisional scientific data.
