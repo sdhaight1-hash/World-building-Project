@@ -485,6 +485,19 @@ mod tests {
     }
 
     #[test]
+    fn exact_coriolis_rotation_preserves_speed_when_pressure_is_uniform() {
+        let world = fixture(32, 16, 1013.25, 0.0, 30.0, 40.0);
+        // One short step: pressure acceleration is zero at the start.
+        let result = preview(&world, 6371.0, 9.80665, 1.0, 60.0).unwrap();
+        assert_eq!(result.mass.budget.substeps, 1);
+        for i in 0..result.wind_east_m_s.cells.len() {
+            let u = result.wind_east_m_s.cells[i] as f64;
+            let v = result.wind_north_m_s.cells[i] as f64;
+            assert!((u.hypot(v) - 50.0).abs() < 2.0e-5);
+        }
+    }
+
+    #[test]
     fn changing_calendar_day_changes_derived_coriolis_turning_rate() {
         let world = fixture(20, 20, 1013.25, 10.0, 30.0, 0.0);
         let fast = preview(&world, 6371.0, 9.80665, 60.0, 50.0).unwrap();
