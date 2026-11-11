@@ -226,7 +226,10 @@ fn climate_ramp(theme: Theme) -> &'static [(f32, [u8; 3])] {
         Theme::MonthlyInsolation => &INSOLATION_RAMP,
         Theme::MonthlyPressure | Theme::TransportedPressure => &PRESSURE_RAMP,
         Theme::MonthlySpecificHumidity | Theme::TransportedSpecificHumidity => &HUMIDITY_RAMP,
-        Theme::MonthlyWindEast | Theme::MonthlyWindNorth => &WIND_COMPONENT_RAMP,
+        Theme::MonthlyWindEast
+        | Theme::MonthlyWindNorth
+        | Theme::EvolvingWindEast
+        | Theme::EvolvingWindNorth => &WIND_COMPONENT_RAMP,
         Theme::TransportedVaporColumn => &VAPOR_COLUMN_RAMP,
         _ => &[],
     }
@@ -608,7 +611,9 @@ impl Cartography {
             | Theme::MonthlyWindNorth
             | Theme::TransportedVaporColumn
             | Theme::TransportedPressure
-            | Theme::TransportedSpecificHumidity => {
+            | Theme::TransportedSpecificHumidity
+            | Theme::EvolvingWindEast
+            | Theme::EvolvingWindNorth => {
                 if let Some(id) = theme.scientific_id() {
                     if let Some(grid) = w.scientific_fields.get(id) {
                         blend(gradient(grid.at(x, y), climate_ramp(theme)), base, 0.07)
@@ -785,7 +790,9 @@ impl Cartography {
             | Theme::MonthlyWindNorth
             | Theme::TransportedVaporColumn
             | Theme::TransportedPressure
-            | Theme::TransportedSpecificHumidity => climate_ramp(theme)
+            | Theme::TransportedSpecificHumidity
+            | Theme::EvolvingWindEast
+            | Theme::EvolvingWindNorth => climate_ramp(theme)
                 .iter()
                 .map(|&(value, rgb)| (format!("{value:.0} {}", theme.units()), rgb))
                 .collect(),
