@@ -123,3 +123,7 @@ cargo run --release -- --generate-terrain maps/geology-generated
 ```
 
 See [generation contract, provenance and limitations](docs/TERRAIN_GENERATION.md). **The first generator is heuristic, not a validated tectonic + erosion simulator.**
+
+### Euler-based plate motion forcing
+
+The source `plates.csv` already provides Euler poles and signed rotation rates. The terrain pipeline now computes present-day relative velocity at real plate contacts and classifies normal convergence, normal opening and tangential slip, exporting all three fields as numeric TIFFs alongside the separately identified *hypothetical* resulting relief. The calculations work without the legacy DEM; they are **instantaneous kinematics**, not simulated deep-time evolution, slab polarity or erosion. See [terrain generation](docs/TERRAIN_GENERATION.md).
