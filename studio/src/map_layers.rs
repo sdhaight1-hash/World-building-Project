@@ -14,17 +14,19 @@ pub enum LayerKind {
     Crust,
     Lithosphere,
     HeatFlow,
+    SurfaceHeatCapacity,
 }
 
 impl LayerKind {
     #[cfg(test)]
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Plates,
         Self::Cratons,
         Self::Provinces,
         Self::Crust,
         Self::Lithosphere,
         Self::HeatFlow,
+        Self::SurfaceHeatCapacity,
     ];
 
     pub fn name(self) -> &'static str {
@@ -35,6 +37,7 @@ impl LayerKind {
             Self::Crust => "Crust thickness",
             Self::Lithosphere => "Lithosphere depth",
             Self::HeatFlow => "Surface heat flow",
+            Self::SurfaceHeatCapacity => "Surface areal heat capacity",
         }
     }
 
@@ -43,6 +46,7 @@ impl LayerKind {
             Self::Plates | Self::Cratons | Self::Provinces => "category ID",
             Self::Crust | Self::Lithosphere => "km",
             Self::HeatFlow => "mW/m²",
+            Self::SurfaceHeatCapacity => "MJ/(m²·K)",
         }
     }
 
@@ -53,6 +57,7 @@ impl LayerKind {
             Self::Crust => 7.0,
             Self::Lithosphere => 100.0,
             Self::HeatFlow => 60.0,
+            Self::SurfaceHeatCapacity => 2.0,
         }
     }
 
@@ -66,6 +71,7 @@ impl LayerKind {
             Self::Crust => (0.0..=100.0).contains(&value),
             Self::Lithosphere => (0.0..=450.0).contains(&value),
             Self::HeatFlow => (0.0..=500.0).contains(&value),
+            Self::SurfaceHeatCapacity => (0.01..=2000.0).contains(&value),
         }
     }
 
@@ -81,6 +87,7 @@ impl LayerKind {
             Self::Crust => &world.crust_km,
             Self::Lithosphere => &world.lithosphere_km,
             Self::HeatFlow => &world.heatflow,
+            Self::SurfaceHeatCapacity => &world.surface_heat_capacity,
         }
     }
 
@@ -92,6 +99,7 @@ impl LayerKind {
             Self::Crust => &mut world.crust_km,
             Self::Lithosphere => &mut world.lithosphere_km,
             Self::HeatFlow => &mut world.heatflow,
+            Self::SurfaceHeatCapacity => &mut world.surface_heat_capacity,
         }
     }
 }
