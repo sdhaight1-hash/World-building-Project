@@ -2,6 +2,7 @@
 //! Purposefully scoped: shared atlas/globe source data, inspector, local point annotation.
 mod cartography;
 mod globe3d;
+mod map_graph;
 mod publication;
 mod rainshadow;
 mod render;
@@ -933,6 +934,50 @@ fn boot() -> (World, Project, PathBuf, String) {
 fn main() -> eframe::Result {
     let (mut world, project, path, status) = boot();
     let args = env::args().collect::<Vec<_>>();
+    // Reproducible node graph builds run headlessly, before the wgpu window.
+    // The graph consumes exactly the same authored DEM that the editor displays.
+    if let Some(index) = args.iter().position(|a| a == "--build-graph") {
+        let Some(input) = args.get(index + 1) else {
+            eprintln!("Usage: --build-graph RECIPE.json OUTPUT_DIRECTORY");
+            std::process::exit(2);
+        };
+        let outdir = args
+            .get(index + 2)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("maps/generated"));
+        if let Err(error) = project.terrain.apply(&mut world) {
+            eprintln!("Could not apply authored terrain to graph input: {error}");
+            std::process::exit(2);
+        }
+        let graph = match map_graph::MapGraph::from_json(Path::new(input)) {
+            Ok(recipe) => recipe,
+            Err(error) => {
+                eprintln!("Invalid graph recipe: {error}");
+                std::process::exit(2);
+            }
+        };
+        let build = match graph.build(&world) {
+            Ok(result) => result,
+            Err(error) => {
+                eprintln!("Map graph build failed: {error}");
+                std::process::exit(2);
+            }
+        };
+        match map_graph::export_outputs(&graph, &build, &outdir) {
+            Ok(count) => println!(
+                "Graph '{}' evaluated {} nodes and exported {} numeric maps to {}",
+                graph.name,
+                build.evaluated_nodes,
+                count,
+                outdir.display()
+            ),
+            Err(error) => {
+                eprintln!("Graph export failed: {error}");
+                std::process::exit(2);
+            }
+        }
+        return Ok(());
+    }
     if let Some(index) = args.iter().position(|a| a == "--export-maps") {
         if let Err(error) = project.terrain.apply(&mut world) {
             eprintln!("Authored terrain overrides could not be applied: {error}");

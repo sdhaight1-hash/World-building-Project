@@ -36,6 +36,14 @@ jobs:
         run: cargo check --workspace --all-targets
       - name: Export native Aegaea cartographic maps
         run: cargo run -p aegaea-studio -- --export-maps maps/aegaea
+      - name: Build derived numeric maps from example graph
+        run: cargo run -p aegaea-studio -- --build-graph docs/examples/aegaea-map-graph.json maps/derived
+      - name: Publish graph field outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: aegaea-derived-fields
+          path: maps/derived
+          retention-days: 14
       - name: Publish map previews from native data
         uses: actions/upload-artifact@v4
         with:
