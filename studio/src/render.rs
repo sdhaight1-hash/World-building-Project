@@ -193,7 +193,9 @@ pub fn sample_rgb(world: &World, theme: Theme, x: usize, y: usize) -> [u8; 3] {
             .map(|g| mix(base, ramp(g.at(x, y), 20.0, 150.0), 0.85))
             .unwrap_or(base),
         Theme::RainShadow => {
-            let Some(map) = &world.rain_shadow else { return base; };
+            let Some(map) = &world.rain_shadow else {
+                return base;
+            };
             let value = map.at(x, y);
             if value.is_nan() {
                 return [19, 57, 86]; // ocean / missing DEM

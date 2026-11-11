@@ -63,7 +63,10 @@ impl Studio {
             style.spacing.button_padding = Vec2::new(12.0, 6.0);
         });
         // Compute once from the restored/source DEM; never alter source geology.
-        world.rain_shadow = world.elevation.as_ref().map(|dem| rainshadow::derive(dem, project.wind_from));
+        world.rain_shadow = world
+            .elevation
+            .as_ref()
+            .map(|dem| rainshadow::derive(dem, project.wind_from));
         let mut app = Self {
             world,
             project,

@@ -35,8 +35,7 @@ impl Grid {
     }
 
     fn from_reader<R: Read + Seek>(reader: R, path: &Path) -> Result<Self, String> {
-        let mut decoder =
-            Decoder::new(reader).map_err(|e| format!("{}: {e}", path.display()))?;
+        let mut decoder = Decoder::new(reader).map_err(|e| format!("{}: {e}", path.display()))?;
         let (width, height) = decoder
             .dimensions()
             .map_err(|e| format!("{}: {e}", path.display()))?;
@@ -240,10 +239,16 @@ fn optional_grid(root: &Path, name: &str) -> Result<Option<Grid>, String> {
     let mut bytes = Vec::new();
     for index in 0..10_000usize {
         let part = root.join(format!(".binary-parts/{name}.part{index:03}"));
-        if !part.exists() { break; }
+        if !part.exists() {
+            break;
+        }
         bytes.extend_from_slice(&fs::read(&part).map_err(|e| format!("{}: {e}", part.display()))?);
     }
-    if bytes.is_empty() { Ok(None) } else { Grid::from_tiff_bytes(bytes, &path).map(Some) }
+    if bytes.is_empty() {
+        Ok(None)
+    } else {
+        Grid::from_tiff_bytes(bytes, &path).map(Some)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
