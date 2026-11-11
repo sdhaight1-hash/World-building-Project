@@ -81,7 +81,6 @@ impl ClimateField {
     }
 }
 
-
 /// Persisted monthly input quantities. These are *authored sources*, not a
 /// pressure, water-vapor or circulation model. Wind components use geographic
 /// east-positive / north-positive directions irrespective of atlas mirroring.
