@@ -1,0 +1,10 @@
+province_id,province,possible_systems,required_processes,confidence
+4,Archean shields,greenstone-hosted gold; banded iron formations; komatiite-associated Ni-Cu; diamond potential if deep root survives,"ancient volcanism, metamorphic fluids, root stabilization","low: requires ages, geochemistry, fluid paths, burial history"
+5,Craton platforms,uranium in unconformity settings; sediment-hosted copper; evaporites; hydrocarbons conditional on source rock,"sedimentary burial, diagenesis, unconformity fluids",low: no basin burial or maturity model
+6,Paleo-mobile belts,orogenic gold; VMS systems; metamorphic graphite and industrial minerals,deformation and metamorphism near old sutures,low: suture ages are unspecified
+7,Collision orogens,orogenic gold; tin-tungsten granites; metamorphic gemstones,"crust thickening, plutonism, fluid circulation",low: no melt differentiation or metamorphic P-T path
+8,Arc volcano belts,porphyry Cu-Mo-Au; epithermal Au-Ag; VMS potential,"water-flux melting, arc magmatism, hydrothermal circulation","medium as broad association, zero local evidence"
+9,Continental rifts,Ni-Cu-PGE intrusions; REE carbonatites; sedimentary Cu; geothermal potential,"lithospheric thinning, decompression melting, extensional basins",low: magma chemistry not modeled
+10,Transform shear,geothermal reservoirs in releasing bends; fault-hosted hydrothermal systems,fault permeability and hydrothermal circulation,low: actual permeability not modeled
+1,Spreading centers,seafloor massive sulfide Cu-Zn; hydrothermal vent systems,oceanic magmatism and hydrothermal circulation,"medium for genetic setting, no deposit prediction"
+2,Deep subduction trenches,trench turbidites; accretionary-prism dewatering,"subduction, sediment accretion and underplating",low: sediment supply not simulated

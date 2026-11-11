@@ -1,0 +1,105 @@
+MAP_STATS {
+  "title": "Aegaea fictional tectonic and crustal dataset v1.0",
+  "planetary_reference_radius_km": 6371.0,
+  "grid_width": 1672,
+  "grid_height": 941,
+  "eight_k_display_note": "8K display files are interpolated; these arrays have native 1672x941 cells",
+  "total_planet_surface_million_km2": 510.0645,
+  "mapped_land_million_km2": 206.3403,
+  "mapped_land_fraction": 0.4045,
+  "craton_core_land_area_million_km2": 65.174,
+  "craton_share_land_fraction": 0.3159,
+  "plate_count": 17,
+  "craton_count": 13,
+  "contact_pair_class_count": 120,
+  "total_boundary_length_km_est": 234923.9,
+  "boundary_lengths_km_by_class": {
+    "subduction": 64498.5,
+    "continental_collision": 28120.3,
+    "divergent_spreading": 97675.6,
+    "transform": 44629.5
+  },
+  "plate_polygon_features": 21,
+  "craton_polygon_features": 48,
+  "boundary_linestring_features": 4681,
+  "elevation_land_percentile_m": {
+    "0": 8.0,
+    "10": 8.0,
+    "25": 198.0,
+    "50": 479.4,
+    "75": 866.8,
+    "90": 1898.6,
+    "99": 4883.7,
+    "100": 6700.0
+  },
+  "bathymetry_ocean_percentile_m": {
+    "0": -8481.2,
+    "10": -5160.2,
+    "25": -4612.7,
+    "50": -3884.7,
+    "75": -2338.5,
+    "90": -1037.1,
+    "99": -375.9,
+    "100": -149.2
+  },
+  "georeference": {
+    "convention": "fictional inverted and horizontally mirrored equirectangular atlas",
+    "screen_x_to_lon": "lon=180-360*x/1672",
+    "screen_y_to_lat": "lat=-90+180*y/941",
+    "longitude_wrap": "at left/right boundary",
+    "important": "Coordinates are synthetic atlas degrees; DO NOT overlay with real-world EPSG:4326 data; GeoTIFF CRS omitted deliberately"
+  },
+  "uncertainty": {
+    "direct_from_previous_assets": [
+      "17 Euler poles and speeds",
+      "present plate seed geometry",
+      "13 craton seeds and basement ages",
+      "land/coast shape",
+      "synthetic elevation grid",
+      "source shield & paleo-mobile masks"
+    ],
+    "derived_calculations": [
+      "per-cell plate ID",
+      "contact class and relative motion",
+      "plate/craton area on sphere",
+      "boundary length",
+      "craton share per plate"
+    ],
+    "scenario_assumptions": [
+      "crustal thickness",
+      "thermal lithosphere thickness",
+      "heat flow",
+      "province classification thresholds",
+      "relative hazard tendency",
+      "vertical temperature profiles",
+      "deep-time chronology",
+      "mineral-system associations"
+    ],
+    "missing_physics": [
+      "time-integrated plate motions, subducted slabs and mantle convection",
+      "fully coupled crustal thickening and isostasy",
+      "sediment transport and erosion",
+      "paleomagnetic/stratigraphic constraints",
+      "3D thermal and stress solution",
+      "explicit conservation of area at evolving ridges/trenches"
+    ]
+  },
+  "units": {
+    "plate_motion": "cm/year",
+    "plate_rotation": "signed degrees per Ma",
+    "length": "km",
+    "area": "million km2",
+    "ages": "Ma or Ga before fictional present",
+    "depth": "km below local surface",
+    "height": "metres relative to arbitrary sea-level datum"
+  },
+  "validation": {
+    "unique_plate_ids": 17,
+    "all_cratons_on_land": true,
+    "no_craton_straddles_current_plate": true,
+    "area_conserves_sphere": true,
+    "native_elevation_match": true
+  },
+  "evidence_level": "Conditional synthetic reconstruction; numerical summaries of design, not scientifically observed geology."
+}
+FILES [('plate_contacts_by_type.csv', 0.03), ('atlas_field_dictionary.json', 0.0), ('GEOLOGICAL_SYNTHESIS.md', 0.03), ('heatflow_mWm2.tif', 2.1), ('crustal_provinces.csv', 0.0), ('crust_km.tif', 0.29), ('make_report.py', 0.03), ('elevation_m.tif', 4.55), ('craton_polygons.geojson', 0.26), ('mineral_system_hypotheses.csv', 0.0), ('tectonic_data_atlas.png', 1.16), ('summary.json', 0.0), ('README.md', 0.01), ('boundary_segments.geojson', 1.54), ('craton_id.tif', 0.02), ('tectonic_history_scenario.csv', 0.0), ('aegaea_geology_native_1672x941.npz', 32.47), ('build_dataset.py', 0.04), ('reference_vertical_columns.json', 0.06), ('build_log.txt', 0.0), ('plate_polygons.geojson', 0.57), ('tectonic_boundaries_and_cratons.png', 5.49), ('plates.csv', 0.0), ('render_geology_atlas.py', 0.0), ('lithosphere_km.tif', 2.24), ('requirements.txt', 0.0), ('plate_id.tif', 0.03), ('cratons.csv', 0.0), ('MANIFEST.sha256', 0.0), ('province_id.tif', 0.08)]
