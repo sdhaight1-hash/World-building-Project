@@ -38,6 +38,14 @@ jobs:
         run: cargo run -p aegaea-studio -- --export-maps maps/aegaea
       - name: Build derived numeric maps from example graph
         run: cargo run -p aegaea-studio -- --build-graph docs/examples/aegaea-map-graph.json maps/derived
+      - name: Validate geospatial category consistency
+        run: cargo run -p aegaea-studio -- --diagnose-world maps/diagnostics/geology-consistency.json
+      - name: Publish source consistency report
+        uses: actions/upload-artifact@v4
+        with:
+          name: aegaea-geology-diagnostics
+          path: maps/diagnostics
+          retention-days: 14
       - name: Publish graph field outputs
         uses: actions/upload-artifact@v4
         with:

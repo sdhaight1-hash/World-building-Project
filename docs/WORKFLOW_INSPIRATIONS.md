@@ -47,3 +47,7 @@ Aegaea has an existing fictional native raster orientation: **top south, bottom 
 The current terrain edit mechanism recomputes dependent maps synchronously at stroke completion; Gaea/World Machine-style tiled caching would address this. The current rain-shadow operator is a signed terrain-only heuristic, **not precipitation simulation**. Globe and map data should retain the same scientifically typed inputs.
 
 **Out of scope:** voxel terrain, human geography, polities, campaigns, NPCs, economics, full galaxy simulation and copying any proprietary generator.
+
+### Implemented from Gleba's import-consistency lesson
+
+Aegaea now exposes a source-category validation pass. A loaded heightfield and a colored plate map can be individually renderable without describing the same geology. The checker specifically compares classified plate IDs, craton IDs, province IDs and craton metadata's assigned plate names; it reports conflicts rather than synthesizing new geometry. This is a limited **data-integrity check**, not proof of realistic geology. Terrain/crust physical plausibility, time-aware plate reconstruction, and coastline/crust consistency remain separate scientific models and future tests.
