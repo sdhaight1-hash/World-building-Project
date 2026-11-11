@@ -1635,13 +1635,18 @@ impl Studio {
             };
             ui.vertical_centered(|ui| {
                 ui.label(
-                    egui::RichText::new(format!("{}  ·  {}", self.project.name, self.theme.name()))
+                    egui::RichText::new(if self.theme.climate_field().is_some() {
+                        format!("{} · {} · {}", self.project.name, self.theme.name(),
+                            month_name(self.project.month))
+                    } else {
+                        format!("{} · {}", self.project.name, self.theme.name())
+                    })
                         .strong(),
                 );
                 if !self.theme.available(&self.world) {
                     ui.colored_label(
                         Color32::from_rgb(229, 188, 111),
-                        "Map data not initialized; use Map Layer Workshop on the left.",
+                        "Map data for this view is missing; use the source workshop on the left.",
                     );
                 }
                 let (rect, response) =
@@ -1723,6 +1728,7 @@ impl Studio {
                 }
                 if !self.terrain_brush
                     && !self.layer_brush
+                    && !self.dataset_brush
                     && self.view == ViewMode::Globe
                     && response.dragged()
                 {
@@ -1737,6 +1743,7 @@ impl Studio {
                     }
                 } else if !self.terrain_brush
                     && !self.layer_brush
+                    && !self.dataset_brush
                     && self.view == ViewMode::Atlas
                     && response.dragged()
                 {
@@ -1748,6 +1755,7 @@ impl Studio {
                 }
                 if !self.terrain_brush
                     && !self.layer_brush
+                    && !self.dataset_brush
                     && self.view == ViewMode::Atlas
                     && response.hovered()
                 {
@@ -1846,6 +1854,50 @@ impl Studio {
                 if self.layer_brush && (response.clicked() || response.drag_stopped()) {
                     self.finish_layer_stroke();
                 }
+                if self.dataset_brush && (response.clicked() || response.dragged()) {
+                    if let (Some(kind), Some(pos)) = (
+                        self.theme.climate_field(),
+                        response.interact_pointer_pos(),
+                    ) {
+                        let fx = ((pos.x - rect.left()) / rect.width()) as f64;
+                        let fy = ((pos.y - rect.top()) / rect.height()) as f64;
+                        let geo = match self.view {
+                            ViewMode::Atlas => Some(atlas_geo_from_fraction(
+                                uv.min.x as f64 + fx * uv.width() as f64,
+                                uv.min.y as f64 + fy * uv.height() as f64,
+                            )),
+                            ViewMode::Globe => globe_geo_from_fraction(
+                                fx, fy, self.globe_lon, self.globe_lat
+                            ),
+                        };
+                        if let Some((lon, lat)) = geo {
+                            match self.project.datasets.paint(
+                                &mut self.world, kind, self.project.month,
+                                lon, lat, self.dataset_radius, self.dataset_paint_value
+                            ) {
+                                Ok(dab) => {
+                                    if !dab.is_empty() {
+                                        self.active_dataset_stroke.merge(dab);
+                                        self.changed = true;
+                                        self.picked = Some((lon, lat));
+                                    }
+                                }
+                                Err(error) => self.status = format!("Climate paint failed: {error}"),
+                            }
+                        }
+                    }
+                }
+                if self.dataset_brush && (response.clicked() || response.drag_stopped()) {
+                    self.finish_dataset_stroke();
+                }
+                if self.dataset_brush && response.hovered() {
+                    if let Some(pos) = response.hover_pos() {
+                        painter.circle_stroke(
+                            pos, 10.0, Stroke::new(1.5_f32, Color32::from_rgb(102, 185, 231))
+                        );
+                    }
+                }
+
                 if self.layer_brush && response.hovered() {
                     if let Some(pos) = response.hover_pos() {
                         painter.circle_stroke(
@@ -1865,7 +1917,7 @@ impl Studio {
                         );
                     }
                 }
-                if !self.terrain_brush && !self.layer_brush && response.clicked() {
+                if !self.terrain_brush && !self.layer_brush && !self.dataset_brush && response.clicked() {
                     if let Some(pos) = response.interact_pointer_pos() {
                         let fraction_x = ((pos.x - rect.left()) / rect.width()) as f64;
                         let fraction_y = ((pos.y - rect.top()) / rect.height()) as f64;
