@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub enum Unit {
     Celsius,
     MillimetersPerMonth,
+    MillimetersPerYear,
     Hectopascals,
     MetersPerSecond,
     PracticalSalinity,
@@ -24,6 +25,7 @@ impl Unit {
         match self {
             Self::Celsius => "°C",
             Self::MillimetersPerMonth => "mm/month",
+            Self::MillimetersPerYear => "mm/year",
             Self::Hectopascals => "hPa",
             Self::MetersPerSecond => "m/s",
             Self::PracticalSalinity => "PSU",
@@ -45,6 +47,20 @@ impl ClimateField {
         match self {
             Self::Temperature => "climate.air_temperature",
             Self::Precipitation => "climate.precipitation",
+        }
+    }
+
+    pub fn annual_id(self) -> &'static str {
+        match self {
+            Self::Temperature => "climate.annual_temperature",
+            Self::Precipitation => "climate.annual_precipitation",
+        }
+    }
+
+    pub fn annual_operator(self) -> &'static str {
+        match self {
+            Self::Temperature => "equal_month_arithmetic_mean_of_12_monthly_means",
+            Self::Precipitation => "sum_of_12_monthly_totals",
         }
     }
 
@@ -105,7 +121,11 @@ pub fn month_name(month: u8) -> &'static str {
 pub enum Provenance {
     Authored { note: String },
     Imported { reference: String },
-    Derived { operator: String },
+    Derived {
+        operator: String,
+        #[serde(default)]
+        inputs: Vec<String>,
+    },
 }
 
 impl Provenance {
@@ -179,6 +199,11 @@ impl DatasetRegistry {
         for (id, field) in &self.fields {
             if !Self::valid_id(id) {
                 return Err(format!("Invalid dataset ID: {id}"));
+            }
+            if ClimateField::ALL.iter().any(|kind| id == kind.annual_id()) {
+                return Err(format!(
+                    "Dataset ID '{id}' is reserved for computed annual climate maps"
+                ));
             }
             if field.name.trim().is_empty() || field.size != size {
                 return Err(format!(
@@ -322,6 +347,33 @@ impl DatasetRegistry {
         self.activate(world, to)
     }
 
+    /// Deterministic reduction of a COMPLETE twelve-month input series.
+    /// Each temperature month is weighted equally, not by Earth-calendar days;
+    /// this is an explicit approximation until the planet calendar is defined.
+    /// Precipitation values are monthly totals, so their annual sum is exact
+    /// under the twelve-equal-period convention.
+    pub fn annual(&self, kind: ClimateField) -> Option<Grid> {
+        let source = self.fields.get(kind.id())?;
+        if !(1..=12).all(|month| source.months.contains_key(&month)) {
+            return None;
+        }
+        let divisor = match kind {
+            ClimateField::Temperature => 12.0,
+            ClimateField::Precipitation => 1.0,
+        };
+        let baseline: f32 = (1..=12)
+            .map(|month| source.months[&month].base / divisor)
+            .sum();
+        let mut grid = Grid::new(source.size[0], source.size[1], baseline);
+        for month in 1..=12 {
+            let snapshot = &source.months[&month];
+            for (&index, &value) in &snapshot.overrides {
+                grid.cells[index] += (value - snapshot.base) / divisor;
+            }
+        }
+        Some(grid)
+    }
+
     pub fn has_month(&self, kind: ClimateField, month: u8) -> bool {
         self.fields
             .get(kind.id())
@@ -333,17 +385,29 @@ impl DatasetRegistry {
             return Err("Month must be 1–12".into());
         }
         self.validate([world.width, world.height])?;
-        let next: BTreeMap<String, Grid> = self
+        let mut next: BTreeMap<String, Grid> = self
             .fields
             .iter()
             .filter_map(|(id, dataset)| dataset.materialize(month).map(|g| (id.clone(), g)))
             .collect();
-        let provenance = self
+        let mut provenance: BTreeMap<String, Provenance> = self
             .fields
             .iter()
             .filter(|(id, _)| next.contains_key(*id))
             .map(|(id, data)| (id.clone(), data.provenance.clone()))
             .collect();
+        for kind in ClimateField::ALL {
+            if let Some(grid) = self.annual(kind) {
+                next.insert(kind.annual_id().into(), grid);
+                provenance.insert(
+                    kind.annual_id().into(),
+                    Provenance::Derived {
+                        operator: kind.annual_operator().into(),
+                        inputs: vec![kind.id().into()],
+                    },
+                );
+            }
+        }
         world.scientific_fields = next;
         world.scientific_provenance = provenance;
         world.active_month = month;
@@ -501,6 +565,110 @@ mod tests {
         w.width = 48;
         w.height = 24;
         w
+    }
+
+    #[test]
+    fn annual_climate_requires_all_months_and_respects_monthly_units() {
+        let mut w = world();
+        let mut registry = DatasetRegistry::default();
+        for month in 1..=11u8 {
+            registry.create_month(&mut w, ClimateField::Temperature, month, month as f32).unwrap();
+            registry.create_month(&mut w, ClimateField::Precipitation, month, 10.0 * month as f32).unwrap();
+        }
+        assert!(registry.annual(ClimateField::Temperature).is_none());
+        assert!(registry.annual(ClimateField::Precipitation).is_none());
+        assert!(!w.scientific_fields.contains_key(ClimateField::Temperature.annual_id()));
+
+        registry.create_month(&mut w, ClimateField::Temperature, 12, 12.0).unwrap();
+        assert!(w.scientific_fields.contains_key(ClimateField::Temperature.annual_id()));
+        assert!(!w.scientific_fields.contains_key(ClimateField::Precipitation.annual_id()));
+        registry.create_month(&mut w, ClimateField::Precipitation, 12, 120.0).unwrap();
+
+        let mean = &w.scientific_fields[ClimateField::Temperature.annual_id()];
+        let annual_rain = &w.scientific_fields[ClimateField::Precipitation.annual_id()];
+        assert!((mean.at(0, 0) - 6.5).abs() < 0.0001);
+        assert!((annual_rain.at(0, 0) - 780.0).abs() < 0.001);
+
+        registry.activate(&mut w, 3).unwrap();
+        let dab = registry.paint(
+            &mut w, ClimateField::Temperature, 3, 0.0, 0.0, 1, 15.0
+        ).unwrap();
+        assert!(!dab.is_empty());
+        registry.paint(&mut w, ClimateField::Precipitation, 3, 0.0, 0.0, 1, 300.0).unwrap();
+        registry.activate(&mut w, 3).unwrap();
+        let new_mean = &w.scientific_fields[ClimateField::Temperature.annual_id()];
+        let new_rain = &w.scientific_fields[ClimateField::Precipitation.annual_id()];
+        assert!(new_mean.cells.iter().any(|&v| (v - 7.5).abs() < 0.001));
+        assert!(new_rain.cells.iter().any(|&v| (v - 1050.0).abs() < 0.01));
+        registry.activate(&mut w, 9).unwrap();
+        assert!(w.scientific_fields[ClimateField::Temperature.annual_id()]
+            .cells.iter().any(|&v| (v - 7.5).abs() < 0.001));
+        assert_eq!(w.scientific_provenance[ClimateField::Precipitation.annual_id()],
+            Provenance::Derived {
+                operator: "sum_of_12_monthly_totals".into(),
+                inputs: vec![ClimateField::Precipitation.id().into()],
+            });
+    }
+
+
+    #[test]
+    fn annual_climate_is_rebuilt_from_sparse_months_after_json_roundtrip() {
+        let mut source = world();
+        let mut registry = DatasetRegistry::default();
+        for month in 1..=12u8 {
+            registry
+                .create_month(&mut source, ClimateField::Temperature, month, 16.0)
+                .unwrap();
+            registry
+                .create_month(&mut source, ClimateField::Precipitation, month, 100.0)
+                .unwrap();
+        }
+
+        registry.activate(&mut source, 4).unwrap();
+        registry
+            .paint(&mut source, ClimateField::Temperature, 4, 0.0, 0.0, 1, 28.0)
+            .unwrap();
+        registry
+            .paint(&mut source, ClimateField::Precipitation, 4, 0.0, 0.0, 1, 250.0)
+            .unwrap();
+        registry.activate(&mut source, 4).unwrap();
+
+        let temperature = source.scientific_fields[ClimateField::Temperature.annual_id()]
+            .cells
+            .clone();
+        let precipitation = source.scientific_fields[ClimateField::Precipitation.annual_id()]
+            .cells
+            .clone();
+        assert!(temperature.iter().any(|value| (*value - 17.0).abs() < 0.001));
+        assert!(precipitation.iter().any(|value| (*value - 1350.0).abs() < 0.001));
+
+        let json = serde_json::to_string(&registry).unwrap();
+        assert!(!json.contains(ClimateField::Temperature.annual_id()));
+        assert!(!json.contains(ClimateField::Precipitation.annual_id()));
+        let restored: DatasetRegistry = serde_json::from_str(&json).unwrap();
+        let mut reopened = world();
+        restored.activate(&mut reopened, 10).unwrap();
+        assert_eq!(
+            reopened.scientific_fields[ClimateField::Temperature.annual_id()].cells,
+            temperature
+        );
+        assert_eq!(
+            reopened.scientific_fields[ClimateField::Precipitation.annual_id()].cells,
+            precipitation
+        );
+    }
+
+    #[test]
+    fn annual_derived_ids_cannot_be_overwritten_by_authored_sources() {
+        let mut w = world();
+        let mut registry = DatasetRegistry::default();
+        registry
+            .create_month(&mut w, ClimateField::Temperature, 1, 15.0)
+            .unwrap();
+        let synthetic = registry.fields[ClimateField::Temperature.id()].clone();
+        registry.fields.insert(ClimateField::Temperature.annual_id().into(), synthetic);
+        let error = registry.validate([w.width, w.height]).unwrap_err();
+        assert!(error.contains("reserved"), "{error}");
     }
 
     #[test]

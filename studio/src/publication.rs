@@ -81,17 +81,15 @@ pub fn export_sheet(
     let map_bottom = MAP_Y + map_h;
     let key_x = 1820.0;
 
-    let source_text = if let Some(field) = theme.climate_field() {
-        let source = world
-            .scientific_provenance
-            .get(field.id())
-            .map(|p| p.label())
-            .unwrap_or("Undeclared source");
-        escape_xml(&format!(
-            "Source: {source} · {} · {}",
-            field.id(),
+    let source_text = if let Some(id) = theme.scientific_id() {
+        let provenance = world.scientific_provenance.get(id);
+        let source = provenance.map(|p| p.label()).unwrap_or("Undeclared source");
+        let period = if theme.climate_field().is_some() {
             month_name(world.active_month)
-        ))
+        } else {
+            "twelve-month aggregation"
+        };
+        escape_xml(&format!("Source: {source} · {id} · {period}"))
     } else {
         "Source: native planetary dataset · classified and styled programmatically".into()
     };
