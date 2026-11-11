@@ -80,8 +80,17 @@ fn energy(mass: &[f64], axial: &[f64], north_m: &[f64],
         let u = axial[i] / mass[i] / arm - omega * arm;
         let v = north_m[i] / mass[i];
         kinetic += 0.5 * mass[i] * (u * u + v * v);
-        let column = mass[i] / areas[y];
-        compressional += c2 * mass[i] * (column / reference_column).ln();
+        let delta = mass[i] / (areas[y] * reference_column) - 1.0;
+        // Positive relative isothermal potential energy. Subtracting the
+        // mass-constant linear term makes a resting uniform column numerically
+        // zero instead of subtracting enormous nearly equal global energies.
+        let entropy = if delta.abs() < 1.0e-4 {
+            let d2 = delta * delta;
+            d2 * (0.5 - delta / 6.0 + d2 / 12.0)
+        } else {
+            (1.0 + delta) * delta.ln_1p() - delta
+        };
+        compressional += c2 * reference_column * areas[y] * entropy;
     }
     (kinetic, compressional)
 }
