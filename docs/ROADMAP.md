@@ -30,3 +30,7 @@ In P0, a **software-projected** orthographic globe texture (displayed using wgpu
 ## P0.3 — Publication sheets
 
 Reusable `publication.rs` exports self-contained SVG atlas pages from each physical-world map. Vector labels, thematic legends, a coordinate graticule and an equator-only scale bar are composed with the same native raster. No embedded font assets or GPU window required. This is the initial print layout foundation, not an editable print-layout engine.
+
+## GPU globe milestone P0.4
+
+Use `egui-wgpu` paint callbacks to render a DEM-displaced spherical triangle mesh in WGSL. Share the atlas layer texture, and preserve source coordinate orientation, selection and camera parameters. Acceptance: exact mesh counts; validation of the shader with Naga in headless tests; compilation on Windows; subsequent desktop visual verification on GTX 2060. Further LOD and custom planet radius metadata remain future phases.

@@ -16,7 +16,7 @@ The existing geological source files remain under [`data/aegaea/tectonics/v1/`](
 The `studio/` directory contains an **initial desktop vertical slice**, not a complete mapping suite. It provides:
 
 - A dark, map-first Rust/egui desktop interface backed by **wgpu**.
-- A 2D atlas and an orthographic globe **rendered programmatically from the same native geological fields**, with derived terrain hillshade and source-classified tectonic boundaries.
+- A 2D atlas and a **wgpu-rendered height-displaced 3D globe mesh** using the same underlying native geological fields, terrain DEM, and thematic styles. No voxel engine.
 - **Ten map styles** including physical relief/bathymetry, tectonic plates, classified plate contacts, craton IDs, craton basement age, named crustal provinces, crust thickness, lithosphere thickness, heat flow and rain-shadow exposure.
 - Built-in legends, native-resolution **PNG + JSON map metadata**, and self-contained **publication SVG sheets** with vector titles, legends, graticules, equatorial scale annotations, and provenance.
 - Thematic display of terrain, plate IDs, cratons, crustal provinces and selected numeric geophysical fields.
