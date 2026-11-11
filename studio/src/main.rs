@@ -185,12 +185,20 @@ impl Studio {
                     self.save();
                 }
                 if ui.button("Export atlas sheet SVG").clicked() {
-                    let target=self.project_path.with_file_name(format!("{}-atlas.svg",self.theme.slug()));
+                    let target = self
+                        .project_path
+                        .with_file_name(format!("{}-atlas.svg", self.theme.slug()));
                     match publication::export_sheet(
-                        &self.world,&self.cartography,self.theme,&self.project.name,&target
+                        &self.world,
+                        &self.cartography,
+                        self.theme,
+                        &self.project.name,
+                        &target,
                     ) {
-                        Ok(())=>self.status=format!("Exported atlas sheet: {}",target.display()),
-                        Err(error)=>self.status=format!("Atlas export failed: {error}"),
+                        Ok(()) => {
+                            self.status = format!("Exported atlas sheet: {}", target.display())
+                        }
+                        Err(error) => self.status = format!("Atlas export failed: {error}"),
                     }
                 }
                 if ui.button("Export map PNG").clicked() {
@@ -731,9 +739,11 @@ fn main() -> eframe::Result {
                 eprintln!("Failed to export {}: {}", theme.name(), error);
                 return Ok(());
             }
-            let sheet=output.join(format!("{}-atlas.svg",theme.slug()));
-            if let Err(error)=publication::export_sheet(&world,&art,theme,&project.name,&sheet) {
-                eprintln!("Could not export SVG sheet for {}: {}",theme.name(),error);
+            let sheet = output.join(format!("{}-atlas.svg", theme.slug()));
+            if let Err(error) =
+                publication::export_sheet(&world, &art, theme, &project.name, &sheet)
+            {
+                eprintln!("Could not export SVG sheet for {}: {}", theme.name(), error);
                 return Ok(());
             }
             println!(
