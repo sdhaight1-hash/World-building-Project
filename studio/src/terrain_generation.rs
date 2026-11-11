@@ -8,7 +8,10 @@
 //! v1 is a reproducible terrain *hypothesis* using tectonic-class forcing,
 //! distance-to-coast shelves and seam-safe spherical multiscale variation.
 //! It is not a solved tectonics, isostasy, or erosion simulation.
-use crate::world::{Grid, World};
+use crate::{
+    plate_kinematics::{self, KinematicFields},
+    world::{Grid, World},
+};
 use serde::{Deserialize, Serialize};
 use std::{collections::VecDeque, fs::File, path::Path};
 use tiff::encoder::{colortype, TiffEncoder};
@@ -69,6 +72,10 @@ pub struct GeneratedTerrain {
     pub tectonic_forcing_m: Grid,
     /// 1 = land, 0 = ocean, as constrained by *province class*, not old DEM.
     pub land_mask: Grid,
+    /// Present-day relative plate motion; absent for worlds without Euler data.
+    pub kinematics: Option<KinematicFields>,
+    /// Explicitly heuristic height response to present-day boundary motion.
+    pub kinematic_forcing_m: Grid,
 }
 
 pub fn available(world: &World) -> bool {
@@ -310,9 +317,22 @@ pub fn generate(world: &World, recipe: &TerrainRecipe) -> Result<GeneratedTerrai
         }
     }
     let planet_scale = (recipe.planet_radius_km / 6371.0) as f32;
+    // Velocity is calculated from Euler poles and actual plate-ID contacts,
+    // independently of imported elevations and inherited province outlines.
+    let kinematics = plate_kinematics::derive(world, recipe.planet_radius_km)?;
+    let (compression, extension, slip) = if let Some(fields) = &kinematics {
+        (
+            smooth_mask(&fields.convergence_cm_yr.cells, width, height, 4),
+            smooth_mask(&fields.divergence_cm_yr.cells, width, height, 4),
+            smooth_mask(&fields.shear_cm_yr.cells, width, height, 4),
+        )
+    } else {
+        (vec![0.0; len], vec![0.0; len], vec![0.0; len])
+    };
     let mut result = Grid::new(width, height, 0.0);
     let mut land_mask = Grid::new(width, height, 0.0);
     let mut uplift = Grid::new(width, height, 0.0);
+    let mut kinematic_forcing_m = Grid::new(width, height, 0.0);
     for y in 0..height {
         let lat =
             -std::f64::consts::FRAC_PI_2 + std::f64::consts::PI * (y as f64 + 0.5) / height as f64;
@@ -375,6 +395,16 @@ pub fn generate(world: &World, recipe: &TerrainRecipe) -> Result<GeneratedTerrai
             let arc_response = sample_warped(&arcs, width, height, px, py);
             let forcing_here =
                 sample_warped(&forcing, width, height, px, py) * recipe.relief_strength;
+            // Motion-derived regional response is NOT time-integrated uplift,
+            // subduction polarity, isostasy or an erosion solution.
+            let close = (compression[i] / 6.0).clamp(0.0, 1.5);
+            let open = (extension[i] / 6.0).clamp(0.0, 1.5);
+            let kinematic_here = (if land[i] {
+                1000.0 * close - 320.0 * open
+            } else {
+                // Without slab polarity, do not invent one-sided trenches.
+                420.0 * open - 200.0 * close
+            }) * recipe.relief_strength;
             let detail = noise3(
                 sx * 170.0 * planet_scale + 14.0,
                 sy * 170.0 * planet_scale,
@@ -388,7 +418,10 @@ pub fn generate(world: &World, recipe: &TerrainRecipe) -> Result<GeneratedTerrai
                 .as_ref()
                 .is_some_and(|g| g.width == width && g.height == height && g.at(x, y) > 0.0);
             let roughness = if shield { 0.65 } else { 1.0 };
-            let texture = (620.0 + 280.0 * near_boundary + 360.0 * orogen_response)
+            let texture = (620.0
+                + 280.0 * near_boundary
+                + 360.0 * orogen_response
+                + 120.0 * (slip[i] / 6.0).clamp(0.0, 1.0))
                 * structure
                 * roughness
                 * recipe.relief_strength;
@@ -402,18 +435,21 @@ pub fn generate(world: &World, recipe: &TerrainRecipe) -> Result<GeneratedTerrai
                     + crust_uplift
                     + if shield { 100.0 } else { 0.0 }
                     + forcing_here
+                    + kinematic_here
                     + texture
                     + ridge_detail;
                 let coast = 1.0 - (-(from_ocean[i] as f32) / 3.2).exp();
                 (55.0 + (base - 55.0) * coast).clamp(10.0, 8000.0)
             } else {
                 let ocean_base =
-                    -4450.0 + forcing_here + (350.0 * structure) * recipe.relief_strength;
+                    -4450.0 + forcing_here + kinematic_here
+                    + (350.0 * structure) * recipe.relief_strength;
                 let shelf = 1.0 - (-(from_land[i] as f32) / 5.8).exp();
                 (-60.0 + (ocean_base + 60.0) * shelf).clamp(-10500.0, -20.0)
             };
             result.cells[i] = sea_level;
-            uplift.cells[i] = forcing_here;
+            uplift.cells[i] = forcing_here + kinematic_here;
+            kinematic_forcing_m.cells[i] = kinematic_here;
         }
     }
     // Every longitude shares the same geometric pole. Average the narrow
@@ -424,11 +460,16 @@ pub fn generate(world: &World, recipe: &TerrainRecipe) -> Result<GeneratedTerrai
         result.cells[start..start + width].fill(mean);
         let up_mean = uplift.cells[start..start + width].iter().sum::<f32>() / width as f32;
         uplift.cells[start..start + width].fill(up_mean);
+        let kin_mean = kinematic_forcing_m.cells[start..start + width]
+            .iter().sum::<f32>() / width as f32;
+        kinematic_forcing_m.cells[start..start + width].fill(kin_mean);
     }
     Ok(GeneratedTerrain {
         elevation: result,
         tectonic_forcing_m: uplift,
         land_mask,
+        kinematics,
+        kinematic_forcing_m,
     })
 }
 
@@ -454,19 +495,33 @@ pub fn export_generation(
         &result.tectonic_forcing_m,
     )?;
     write_float_tiff(&dir.join("geology-land-mask.tif"), &result.land_mask)?;
+    write_float_tiff(&dir.join("kinematic-forcing_m.tif"), &result.kinematic_forcing_m)?;
+    if let Some(fields) = &result.kinematics {
+        write_float_tiff(&dir.join("plate-convergence_cm_yr.tif"), &fields.convergence_cm_yr)?;
+        write_float_tiff(&dir.join("plate-divergence_cm_yr.tif"), &fields.divergence_cm_yr)?;
+        write_float_tiff(&dir.join("plate-shear_cm_yr.tif"), &fields.shear_cm_yr)?;
+    }
     let metadata = serde_json::json!({
         "generator":"geology-constrained-terrain-v1",
         "recipe":recipe,
         "outputs":{
             "generated-elevation_m.tif":"metres relative to fictional sea level",
             "tectonic-forcing_m.tif":"hypothetical province-class elevation contribution, metres",
-            "geology-land-mask.tif":"categorical 0 ocean, 1 continent"
+            "geology-land-mask.tif":"categorical 0 ocean, 1 continent",
+            "kinematic-forcing_m.tif":"heuristic elevation response to plate motion, metres"
         },
         "input_fields":["province_id.tif","crust_km.tif","plate_id.tif",
-                        "optional craton_id.tif"],
+                        "optional craton_id.tif", "optional plates.csv Euler pole and signed rotation rate"],
         "old_elevation_used":false,
+        "plate_motion_available":result.kinematics.is_some(),
+        "optional_kinematic_outputs":{
+            "plate-convergence_cm_yr.tif":"positive closure at contacts, cm/year",
+            "plate-divergence_cm_yr.tif":"positive opening at contacts, cm/year",
+            "plate-shear_cm_yr.tif":"tangential relative motion at contacts, cm/year"
+        },
         "geometry":"native mirrored/inverted longitude +180 to -180, latitude -90 to +90",
-        "status":"reproducible geology-constrained heuristic, NOT a validated dynamic tectonic or erosion simulation",
+        "status":"reproducible geology-constrained heuristic plus instantaneous Euler boundary velocities; NOT a validated dynamic tectonic or erosion simulation",
+        "kinematic_limitation":"No tectonic time integration, subducting-side polarity, conservative crustal flux, physical uplift rates, or erosion; vertical response coefficients are artistic hypotheses",
         "important_limitation":"Source crust/province classes may themselves have inherited assumptions from the legacy elevation generator"
     });
     std::fs::write(
@@ -610,6 +665,39 @@ mod tests {
     }
 
     #[test]
+    fn euler_motion_changes_forcing_but_never_changes_geology_or_legacy_dem() {
+        use crate::world::PlateInfo;
+        let mut w = fixture();
+        w.plates = vec![
+            PlateInfo {
+                plate_id: 0, plate: "A".into(), color_rgb: String::new(),
+                euler_pole_lon_deg: Some(0.0),
+                euler_pole_lat_deg: Some(90.0),
+                signed_rate_deg_per_ma: Some(0.5),
+            },
+            PlateInfo {
+                plate_id: 1, plate: "B".into(), color_rgb: String::new(),
+                euler_pole_lon_deg: Some(0.0),
+                euler_pole_lat_deg: Some(90.0),
+                signed_rate_deg_per_ma: Some(-0.5),
+            },
+        ];
+        let original_provinces = w.province_ids.as_ref().unwrap().cells.clone();
+        let moving = generate(&w, &TerrainRecipe::default()).unwrap();
+        assert!(moving.kinematics.is_some());
+        assert!(moving.kinematic_forcing_m.cells.iter().any(|&v| v != 0.0));
+        w.elevation = Some(Grid::new(w.width, w.height, -999_999.0));
+        let same = generate(&w, &TerrainRecipe::default()).unwrap();
+        assert_eq!(moving.elevation.cells, same.elevation.cells);
+        assert_eq!(original_provinces, w.province_ids.as_ref().unwrap().cells);
+        for plate in &mut w.plates {
+            *plate.signed_rate_deg_per_ma.as_mut().unwrap() *= -1.0;
+        }
+        let reversed = generate(&w, &TerrainRecipe::default()).unwrap();
+        assert_ne!(moving.kinematic_forcing_m.cells, reversed.kinematic_forcing_m.cells);
+    }
+
+    #[test]
     fn reference_world_can_generate_without_any_elevation_grid() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/aegaea/tectonics/v1");
         let mut world = World::load(root).unwrap();
@@ -618,5 +706,8 @@ mod tests {
         assert_eq!((r.elevation.width, r.elevation.height), (1672, 941));
         assert!(r.elevation.cells.iter().any(|v| *v > 3000.0));
         assert!(r.elevation.cells.iter().any(|v| *v < -3000.0));
+        let kinetics = r.kinematics.as_ref().expect("Aegaea Euler metadata exists");
+        assert!(kinetics.convergence_cm_yr.cells.iter().any(|&v| v > 0.0));
+        assert!(kinetics.divergence_cm_yr.cells.iter().any(|&v| v > 0.0));
     }
 }
