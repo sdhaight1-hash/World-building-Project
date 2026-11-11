@@ -45,7 +45,7 @@ The active atlas and wgpu globe use the same newly generated numeric fields, wit
 
 **Interpretation:** The values are localized at sampled plate contacts. A zero may indicate no contact, a transform-dominated boundary, or a zero component; it is not proof of geological inactivity. No subduction polarity, deep-time integration, plate reconstruction, erosion or earthquake rate has been inferred.
 
-## Independent-world authoring for the fourteen current map styles
+## Independent-world authoring for the original fourteen map styles
 
 A new blank world does not inherit Aegaea's geology. Select any style in **Map library**, including those labeled *needs source*, and use **Map Layer Workshop** to create and paint the input fields. Six input families are stored as sparse project-local typed rasters, with explicit initial author assumptions and editable records for named entities. The `world.json` overlay is separate from immutable source TIFFs; the same authored fields render in the atlas and displaced globe.
 
@@ -67,3 +67,13 @@ A new blank world does not inherit Aegaea's geology. Select any style in **Map l
 **Boundary authoring:** Select **Plate boundary classes**, initialize **Plate IDs** if needed, then use **Classified contacts → Draw classified contact (two clicks)**. Choose subduction (polarity unspecified), continental collision, divergent spreading, or transform; click start and end in either projection. These are user assertions stored in `world.json`, not deductions from plate IDs. Unclassified contacts retain their own neutral legend until a classified record exists. Use **Remove last contact** to retract the most recent user segment.
 
 **Integrity constraints:** Categorical paint values must match named records, scalar paint values have finite domain bounds, painted changes can be undone and persisted, and created/source rasters retain fixed project resolution. An unclassified boundary or absent Euler rotation stays unclassified/unavailable. All mapped values remain explicitly distinguished from modeled science. Future ocean, atmosphere, monthly climate, hydrology, soils, ecosystems, resources and hazards require new **typed source layers** plus separate derivation operators and cannot be provided by relabeling unrelated rasters.
+
+## Monthly climate authoring — first typed scientific dataset extension
+
+The additional **Monthly air temperature** and **Monthly precipitation** themes make **16 map styles** available in the Studio map library. They are separate source fields with units **°C** and **mm/month**; uniform starting values and painted edits are **author specifications**, not generated temperature, humidity or rain. A month exists only after its values are explicitly created or copied. Unsupported months remain unavailable. Both data maps are rendered from the same currently selected month in the 2D atlas and wgpu globe.
+
+The new `DatasetRegistry` stores field IDs, names, typed units, validation intervals, raster dimensions, explicit `authored/imported/derived` provenance declarations, dependency references, and 1–12 keyed temporal slices. Only the selected month's two source grids are materialized; the project stores a compact baseline + sparse edited-cell overlay. The dataset dependency graph rejects missing references, cycles, mismatched grid dimensions and invalid numeric cells before activation. The renderer exports the declared provenance and time slice into the PNG metadata sidecar.
+
+A dependency declaration describes *what the field claims to depend on*. It does not evaluate a scientific equation. Only explicitly authored values can currently be created in the Studio UI. A future coupled climate model must add an actual physical operator, validated quantity conversions and conservation/energy gates before marking its output `derived`.
+
+**Calendar caveat:** the first temporal interface uses twelve named Earth-calendar months as an indexing convention; arbitrary planet day/year length, seasonal forcing and length-weighted statistics are future features. No Köppen class or annual climate is inferred from incomplete monthly data.
