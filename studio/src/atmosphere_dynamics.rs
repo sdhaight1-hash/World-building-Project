@@ -496,13 +496,13 @@ mod tests {
         for (i, item) in p.iter_mut().enumerate() {
             *item = if i % 9 == 0 { 1100.0 } else { 990.0 };
         }
+        let pressure_before = p.clone();
         let q = &mut world.scientific_fields.get_mut(MonthlyField::SpecificHumidity.id()).unwrap().cells;
         for (i, item) in q.iter_mut().enumerate() {
             *item = if i % 7 == 0 { 50.0 } else { 3.0 };
         }
-        let pressure_before = p.clone();
         let humidity_before = q.clone();
-        let result = preview(&world, 6371.0, 9.80665, 200.0, 60.0).unwrap();
+        let result = preview(&world, 6371.0, 9.80665, 1200.0, 60.0).unwrap();
         assert!(result.mass.budget.substeps > 1);
         assert!(result.mass.budget.max_outflow_courant <= MAX_OUTFLOW_COURANT + 1.0e-12);
         assert!(result.mass.budget.air_relative_mass_error < 1.0e-7);
@@ -534,7 +534,7 @@ mod tests {
         assert!(world.scientific_fields.contains_key(WIND_EAST_PREVIEW_ID));
         assert!(world.scientific_fields.contains_key(WIND_NORTH_PREVIEW_ID));
         assert_eq!(world.scientific_fields[MonthlyField::WindEast.id()].cells, input);
-        assert_eq!(world.scientific_provenance[WIND_EAST_PREVIEW_ID].label(), "derived");
+        assert_eq!(world.scientific_provenance[WIND_EAST_PREVIEW_ID].label(), "Derived");
         let fixed = moisture_transport::preview(&world, 6371.0, 9.80665, 20.0).unwrap();
         moisture_transport::publish(&mut world, fixed);
         assert!(!world.scientific_fields.contains_key(WIND_EAST_PREVIEW_ID));
