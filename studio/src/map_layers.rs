@@ -17,6 +17,7 @@ pub enum LayerKind {
 }
 
 impl LayerKind {
+    #[cfg(test)]
     pub const ALL: [Self; 6] = [
         Self::Plates,
         Self::Cratons,
