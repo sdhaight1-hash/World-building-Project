@@ -4,6 +4,7 @@ mod cartography;
 mod geology_diagnostics;
 mod globe3d;
 mod map_graph;
+mod plate_kinematics;
 mod publication;
 mod rainshadow;
 mod render;

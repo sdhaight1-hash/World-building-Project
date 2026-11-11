@@ -106,6 +106,12 @@ pub struct PlateInfo {
     pub plate_id: u8,
     pub plate: String,
     pub color_rgb: String,
+    #[serde(default)]
+    pub euler_pole_lon_deg: Option<f64>,
+    #[serde(default)]
+    pub euler_pole_lat_deg: Option<f64>,
+    #[serde(default, rename = "signed_rate_deg_per_Ma")]
+    pub signed_rate_deg_per_ma: Option<f64>,
 }
 
 #[derive(Debug, Deserialize)]
