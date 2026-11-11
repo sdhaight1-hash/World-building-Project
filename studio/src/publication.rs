@@ -82,15 +82,26 @@ pub fn export_sheet(
     let key_x = 1820.0;
 
     let source_text = if let Some(field) = theme.climate_field() {
-        let source = world.scientific_provenance.get(field.id())
-            .map(|p| p.label()).unwrap_or("Undeclared source");
-        escape_xml(&format!("Source: {source} · {} · {}", field.id(), month_name(world.active_month)))
+        let source = world
+            .scientific_provenance
+            .get(field.id())
+            .map(|p| p.label())
+            .unwrap_or("Undeclared source");
+        escape_xml(&format!(
+            "Source: {source} · {} · {}",
+            field.id(),
+            month_name(world.active_month)
+        ))
     } else {
         "Source: native planetary dataset · classified and styled programmatically".into()
     };
     let heading = escape_xml(world_name);
     let title = if theme.climate_field().is_some() {
-        escape_xml(&format!("{} · {}", theme.name(), month_name(world.active_month)))
+        escape_xml(&format!(
+            "{} · {}",
+            theme.name(),
+            month_name(world.active_month)
+        ))
     } else {
         escape_xml(theme.name())
     };
@@ -234,14 +245,25 @@ mod tests {
         world.width = 48;
         world.height = 24;
         let mut registry = crate::datasets::DatasetRegistry::default();
-        registry.create_month(
-            &mut world, crate::datasets::ClimateField::Temperature, 2, 16.0
-        ).unwrap();
+        registry
+            .create_month(
+                &mut world,
+                crate::datasets::ClimateField::Temperature,
+                2,
+                16.0,
+            )
+            .unwrap();
         let art = Cartography::new(&world);
-        let path = std::env::temp_dir().join(format!(
-            "aegaea-climate-sheet-{}.svg", std::process::id()
-        ));
-        export_sheet(&world, &art, Theme::MonthlyTemperature, "Example world", &path).unwrap();
+        let path =
+            std::env::temp_dir().join(format!("aegaea-climate-sheet-{}.svg", std::process::id()));
+        export_sheet(
+            &world,
+            &art,
+            Theme::MonthlyTemperature,
+            "Example world",
+            &path,
+        )
+        .unwrap();
         let source = std::fs::read_to_string(&path).unwrap();
         assert!(source.contains("Monthly air temperature · February"));
         assert!(source.contains("Author-specified"));
