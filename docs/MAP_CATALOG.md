@@ -32,3 +32,7 @@ One formation polygon may participate in bedrock-age, lithology, resource, and t
 ## Dedicated rain-shadow map (implemented terrain-only P0)
 
 The standalone **Rain Shadow** thematic map takes a DEM and a user-selected wind direction and calculates a dimensionless signed exposure index. Blue is orographic/windward uplift potential; red is leeward barrier shelter. Displayed and sampled in both map projections; exportable as a floating-point TIFF + metadata JSON. It does **not** predict precipitation totals. See [the scientific and engineering contract](RAIN_SHADOW.md).
+
+## Surface slope (implemented map)
+
+The **Surface Slope** map is a scalar raster computed from the elevation DEM by the same spherical gradient operator in `map_graph.rs`. Units are **degrees**, with latitude-aware physical distances between raster cells, wraparound at the longitude seam, and an explicit palette/legend. Available interactively in the atlas and true mesh globe, inspectable at a selected location, and exported as PNG/SVG by the existing map pipeline. It automatically updates following authored DEM edits. The reference spherical radius is 6,371 km and must be parameterized in future arbitrary-planet projects.

@@ -129,6 +129,7 @@ pub struct World {
     pub width: usize,
     pub height: usize,
     pub elevation: Option<Grid>,
+    pub slope_deg: Option<Grid>,
     pub plate_ids: Option<Grid>,
     pub craton_ids: Option<Grid>,
     pub province_ids: Option<Grid>,
@@ -148,6 +149,7 @@ impl World {
             width: 1024,
             height: 512,
             elevation: None,
+            slope_deg: None,
             plate_ids: None,
             craton_ids: None,
             province_ids: None,
@@ -371,6 +373,7 @@ mod tests {
         assert!(blank.plates.is_empty());
         assert!(blank.cratons.is_empty());
         assert!(blank.provinces.is_empty());
+        assert!(blank.slope_deg.is_none());
         assert!(!blank.has_any_source());
     }
 

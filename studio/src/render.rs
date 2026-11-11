@@ -11,6 +11,7 @@ use std::{f64::consts::PI, path::Path};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Theme {
     Terrain,
+    Slope,
     Plates,
     Boundaries,
     Cratons,
@@ -23,8 +24,9 @@ pub enum Theme {
 }
 
 impl Theme {
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::Terrain,
+        Self::Slope,
         Self::Plates,
         Self::Boundaries,
         Self::Cratons,
@@ -39,6 +41,7 @@ impl Theme {
     pub fn name(self) -> &'static str {
         match self {
             Self::Terrain => "Physical relief + bathymetry",
+            Self::Slope => "Surface slope",
             Self::Plates => "Tectonic plates",
             Self::Boundaries => "Plate boundary classes",
             Self::Cratons => "Cratonic basement",
@@ -54,6 +57,7 @@ impl Theme {
     pub fn slug(self) -> &'static str {
         match self {
             Self::Terrain => "physical-relief",
+            Self::Slope => "surface-slope",
             Self::Plates => "tectonic-plates",
             Self::Boundaries => "plate-boundaries",
             Self::Cratons => "cratons",
@@ -69,6 +73,7 @@ impl Theme {
     pub fn available(self, w: &World) -> bool {
         match self {
             Self::Terrain => w.elevation.is_some(),
+            Self::Slope => w.slope_deg.is_some(),
             Self::Plates | Self::Boundaries => w.plate_ids.is_some(),
             Self::Cratons => w.craton_ids.is_some(),
             Self::BasementAge => w.craton_ids.is_some() && !w.cratons.is_empty(),
@@ -83,6 +88,7 @@ impl Theme {
     pub fn units(self) -> &'static str {
         match self {
             Self::Terrain => "m above/below datum",
+            Self::Slope => "degrees",
             Self::BasementAge => "Ga",
             Self::Crust | Self::Lithosphere => "km",
             Self::HeatFlow => "mW/m²",
@@ -275,6 +281,22 @@ mod tests {
         assert!(meta.contains("Divergent spreading"));
         let _ = std::fs::remove_file(path.with_extension("json"));
         let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
+    fn slope_map_uses_derived_numeric_field_at_native_resolution() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../data/aegaea/tectonics/v1");
+        let mut world=World::load(root).unwrap();
+        world.slope_deg=world.elevation.as_ref()
+            .map(|dem|crate::map_graph::slope_degrees(dem,6371.0).unwrap());
+        let art=Cartography::new(&world);
+        assert!(Theme::Slope.available(&world));
+        assert_eq!(Theme::Slope.units(),"degrees");
+        assert_eq!(art.legend(&world,Theme::Slope).len(),6);
+        let image=atlas_image(&world,&art,Theme::Slope);
+        assert_eq!(image.size,[1672,941]);
+        assert!(world.slope_deg.as_ref().unwrap().cells.iter().any(|v|*v>0.0));
     }
 
     #[test]
