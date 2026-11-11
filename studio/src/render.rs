@@ -29,10 +29,11 @@ pub enum Theme {
     MonthlyPrecipitation,
     AnnualTemperature,
     AnnualPrecipitation,
+    MonthlyInsolation,
 }
 
 impl Theme {
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 19] = [
         Self::Terrain,
         Self::Slope,
         Self::Plates,
@@ -51,6 +52,7 @@ impl Theme {
         Self::MonthlyPrecipitation,
         Self::AnnualTemperature,
         Self::AnnualPrecipitation,
+        Self::MonthlyInsolation,
     ];
 
     pub fn name(self) -> &'static str {
@@ -71,8 +73,9 @@ impl Theme {
             Self::RainShadow => "Rain shadow",
             Self::MonthlyTemperature => "Monthly air temperature",
             Self::MonthlyPrecipitation => "Monthly precipitation",
-            Self::AnnualTemperature => "Annual air temperature · equal-month mean",
+            Self::AnnualTemperature => "Annual air temperature · day-weighted mean",
             Self::AnnualPrecipitation => "Annual precipitation total",
+            Self::MonthlyInsolation => "Monthly top-of-atmosphere sunlight",
         }
     }
 
@@ -96,6 +99,7 @@ impl Theme {
             Self::MonthlyPrecipitation => "monthly-precipitation",
             Self::AnnualTemperature => "annual-air-temperature",
             Self::AnnualPrecipitation => "annual-precipitation",
+            Self::MonthlyInsolation => "monthly-toa-insolation",
         }
     }
 
@@ -117,7 +121,8 @@ impl Theme {
             Self::MonthlyTemperature
             | Self::MonthlyPrecipitation
             | Self::AnnualTemperature
-            | Self::AnnualPrecipitation => self
+            | Self::AnnualPrecipitation
+            | Self::MonthlyInsolation => self
                 .scientific_id()
                 .is_some_and(|id| w.scientific_fields.contains_key(id)),
         }
@@ -140,9 +145,17 @@ impl Theme {
     }
 
     pub fn scientific_id(self) -> Option<&'static str> {
-        self.climate_field()
-            .map(|kind| kind.id())
-            .or_else(|| self.annual_field().map(|kind| kind.annual_id()))
+        if self == Self::MonthlyInsolation {
+            Some(crate::planetary::INSOLATION_ID)
+        } else {
+            self.climate_field()
+                .map(|kind| kind.id())
+                .or_else(|| self.annual_field().map(|kind| kind.annual_id()))
+        }
+    }
+
+    pub fn is_monthly(self) -> bool {
+        self.climate_field().is_some() || self == Self::MonthlyInsolation
     }
 
     pub fn units(self) -> &'static str {
@@ -157,6 +170,7 @@ impl Theme {
             Self::MonthlyPrecipitation => "mm/month",
             Self::AnnualTemperature => "°C",
             Self::AnnualPrecipitation => "mm/year",
+            Self::MonthlyInsolation => "W/m²",
             Self::PlateConvergence | Self::PlateDivergence | Self::PlateShear => "cm/year",
             _ => "named categories",
         }
@@ -243,7 +257,6 @@ pub fn export_atlas_png(
             })
         })
         .collect::<Vec<_>>();
-    let climate = theme.climate_field();
     let scientific_id = theme.scientific_id();
     let provenance = scientific_id.and_then(|id| world.scientific_provenance.get(id));
     let meta = serde_json::json!({
@@ -256,10 +269,13 @@ pub fn export_atlas_png(
             "not_Earth_EPSG_4326":true,
         },
         "dataset_id":scientific_id,
-        "month":climate.map(|_| world.active_month),
-        "month_name":climate.map(|_| month_name(world.active_month)),
+        "month":theme.is_monthly().then_some(world.active_month),
+        "month_name":theme.is_monthly().then(|| month_name(world.active_month)),
+        "planetary_calendar":(theme == Theme::MonthlyInsolation || theme == Theme::AnnualTemperature).then_some(&world.calendar),
         "provenance":provenance,
-        "derived_from":if theme.annual_field().is_some() {
+        "derived_from":if theme == Theme::MonthlyInsolation {
+            "planetary calendar and circular-orbit solar geometry; no atmosphere or climate solver"
+        } else if theme.annual_field().is_some() {
             "calculated from all twelve authored monthly source slices; see provenance"
         } else if climate.is_some() {
             "project-local monthly scientific dataset; see provenance"
@@ -267,8 +283,10 @@ pub fn export_atlas_png(
             "native map fields, source geology and/or authored geometry"
         },
         "legend":legend,
-        "scientific_status":if theme.annual_field().is_some() {
-            "deterministic monthly aggregation, not a climate model; annual temperature is an equal-month mean"
+        "scientific_status":if theme == Theme::MonthlyInsolation {
+            "daily-mean top-of-atmosphere irradiance integrated over configured month; circular orbit, no weather or climate model"
+        } else if theme.annual_field().is_some() {
+            "deterministic monthly aggregation, not a climate model; annual temperature weighted by calendar solar days"
         } else if climate.is_some() {
             "source-defined values; no precipitation or temperature simulation is implied"
         } else {
