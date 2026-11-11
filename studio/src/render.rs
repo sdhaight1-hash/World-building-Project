@@ -561,26 +561,37 @@ mod tests {
         world.height = 24;
         let mut registry = crate::datasets::DatasetRegistry::default();
         for field in [
-            MonthlyField::Pressure, MonthlyField::SpecificHumidity,
-            MonthlyField::WindEast, MonthlyField::WindNorth,
+            MonthlyField::Pressure,
+            MonthlyField::SpecificHumidity,
+            MonthlyField::WindEast,
+            MonthlyField::WindNorth,
         ] {
-            registry.create_month(&mut world, field, 3, field.default_fill()).unwrap();
+            registry
+                .create_month(&mut world, field, 3, field.default_fill())
+                .unwrap();
         }
-        registry.paint(&mut world, MonthlyField::WindEast, 3, 0.0, 0.0, 2, -22.0).unwrap();
+        registry
+            .paint(&mut world, MonthlyField::WindEast, 3, 0.0, 0.0, 2, -22.0)
+            .unwrap();
         let art = Cartography::new(&world);
         for theme in [
-            Theme::MonthlyPressure, Theme::MonthlySpecificHumidity,
-            Theme::MonthlyWindEast, Theme::MonthlyWindNorth,
+            Theme::MonthlyPressure,
+            Theme::MonthlySpecificHumidity,
+            Theme::MonthlyWindEast,
+            Theme::MonthlyWindNorth,
         ] {
             assert!(theme.available(&world));
             assert_eq!(atlas_image(&world, &art, theme).size, [48, 24]);
             assert_eq!(art.legend(&world, theme).len(), 7);
             let path = std::env::temp_dir().join(format!(
-                "aegaea-atmosphere-{}-{}.png", std::process::id(), theme.slug()
+                "aegaea-atmosphere-{}-{}.png",
+                std::process::id(),
+                theme.slug()
             ));
             export_atlas_png(&world, &art, theme, &path).unwrap();
             let meta: serde_json::Value =
-                serde_json::from_slice(&std::fs::read(path.with_extension("json")).unwrap()).unwrap();
+                serde_json::from_slice(&std::fs::read(path.with_extension("json")).unwrap())
+                    .unwrap();
             assert_eq!(meta["month"], 3);
             assert_eq!(meta["dataset_id"], theme.scientific_id().unwrap());
             assert_eq!(meta["units"], theme.units());
@@ -590,10 +601,15 @@ mod tests {
         }
         registry.activate(&mut world, 4).unwrap();
         for theme in [
-            Theme::MonthlyPressure, Theme::MonthlySpecificHumidity,
-            Theme::MonthlyWindEast, Theme::MonthlyWindNorth,
+            Theme::MonthlyPressure,
+            Theme::MonthlySpecificHumidity,
+            Theme::MonthlyWindEast,
+            Theme::MonthlyWindNorth,
         ] {
-            assert!(!theme.available(&world), "Missing months must not be inferred");
+            assert!(
+                !theme.available(&world),
+                "Missing months must not be inferred"
+            );
         }
     }
 
@@ -605,8 +621,19 @@ mod tests {
         world.height = 16;
         assert!(!Theme::SurfaceHeatCapacity.available(&world));
         let mut layers = ProjectLayers::default();
-        layers.create(&mut world, LayerKind::SurfaceHeatCapacity, 2.0).unwrap();
-        layers.paint(&mut world, LayerKind::SurfaceHeatCapacity, 0.0, 0.0, 2, 200.0).unwrap();
+        layers
+            .create(&mut world, LayerKind::SurfaceHeatCapacity, 2.0)
+            .unwrap();
+        layers
+            .paint(
+                &mut world,
+                LayerKind::SurfaceHeatCapacity,
+                0.0,
+                0.0,
+                2,
+                200.0,
+            )
+            .unwrap();
         assert!(Theme::SurfaceHeatCapacity.available(&world));
         let art = Cartography::new(&world);
         assert_eq!(art.legend(&world, Theme::SurfaceHeatCapacity).len(), 7);
