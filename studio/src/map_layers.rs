@@ -14,17 +14,19 @@ pub enum LayerKind {
     Crust,
     Lithosphere,
     HeatFlow,
+    SurfaceHeatCapacity,
 }
 
 impl LayerKind {
     #[cfg(test)]
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 7] = [
         Self::Plates,
         Self::Cratons,
         Self::Provinces,
         Self::Crust,
         Self::Lithosphere,
         Self::HeatFlow,
+        Self::SurfaceHeatCapacity,
     ];
 
     pub fn name(self) -> &'static str {
@@ -35,6 +37,7 @@ impl LayerKind {
             Self::Crust => "Crust thickness",
             Self::Lithosphere => "Lithosphere depth",
             Self::HeatFlow => "Surface heat flow",
+            Self::SurfaceHeatCapacity => "Surface areal heat capacity",
         }
     }
 
@@ -43,6 +46,7 @@ impl LayerKind {
             Self::Plates | Self::Cratons | Self::Provinces => "category ID",
             Self::Crust | Self::Lithosphere => "km",
             Self::HeatFlow => "mW/m²",
+            Self::SurfaceHeatCapacity => "MJ/(m²·K)",
         }
     }
 
@@ -53,6 +57,7 @@ impl LayerKind {
             Self::Crust => 7.0,
             Self::Lithosphere => 100.0,
             Self::HeatFlow => 60.0,
+            Self::SurfaceHeatCapacity => 2.0,
         }
     }
 
@@ -66,6 +71,7 @@ impl LayerKind {
             Self::Crust => (0.0..=100.0).contains(&value),
             Self::Lithosphere => (0.0..=450.0).contains(&value),
             Self::HeatFlow => (0.0..=500.0).contains(&value),
+            Self::SurfaceHeatCapacity => (0.01..=2000.0).contains(&value),
         }
     }
 
@@ -81,6 +87,7 @@ impl LayerKind {
             Self::Crust => &world.crust_km,
             Self::Lithosphere => &world.lithosphere_km,
             Self::HeatFlow => &world.heatflow,
+            Self::SurfaceHeatCapacity => &world.surface_heat_capacity,
         }
     }
 
@@ -92,6 +99,7 @@ impl LayerKind {
             Self::Crust => &mut world.crust_km,
             Self::Lithosphere => &mut world.lithosphere_km,
             Self::HeatFlow => &mut world.heatflow,
+            Self::SurfaceHeatCapacity => &mut world.surface_heat_capacity,
         }
     }
 }
@@ -466,7 +474,7 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn authoring_all_six_sources_and_reload() {
+    fn authoring_all_seven_sources_and_reload() {
         let mut world = World::empty(PathBuf::from("independent"));
         let mut layers = ProjectLayers::default();
         for kind in LayerKind::ALL {
@@ -523,6 +531,79 @@ mod tests {
         }
         assert_eq!(reloaded.plates.len(), 2);
         assert_eq!(reloaded.cratons.len(), 1);
+    }
+
+    #[test]
+    fn heat_capacity_source_is_painted_reloaded_and_validated_without_inference() {
+        let mut original = World::empty(PathBuf::from("independent"));
+        original.width = 48;
+        original.height = 24;
+        let mut layers = ProjectLayers::default();
+        assert!(original.surface_heat_capacity.is_none());
+        layers
+            .create(&mut original, LayerKind::SurfaceHeatCapacity, 2.0)
+            .unwrap();
+        assert_eq!(
+            original.surface_heat_capacity.as_ref().unwrap().at(0, 0),
+            2.0
+        );
+        let stroke = layers
+            .paint(
+                &mut original,
+                LayerKind::SurfaceHeatCapacity,
+                179.9,
+                0.0,
+                2,
+                200.0,
+            )
+            .unwrap();
+        assert!(!stroke.is_empty());
+        assert!(original
+            .surface_heat_capacity
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .any(|&v| v == 200.0));
+        stroke.undo(&mut original, &mut layers);
+        assert!(original
+            .surface_heat_capacity
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .all(|&v| v == 2.0));
+        stroke.redo(&mut original, &mut layers);
+        assert!(layers
+            .paint(
+                &mut original,
+                LayerKind::SurfaceHeatCapacity,
+                0.0,
+                0.0,
+                1,
+                0.0
+            )
+            .is_err());
+        assert!(layers
+            .paint(
+                &mut original,
+                LayerKind::SurfaceHeatCapacity,
+                0.0,
+                0.0,
+                1,
+                f32::NAN
+            )
+            .is_err());
+        let saved = serde_json::to_string(&layers).unwrap();
+        let reopened: ProjectLayers = serde_json::from_str(&saved).unwrap();
+        let mut independent = World::empty(PathBuf::from("independent"));
+        independent.width = 48;
+        independent.height = 24;
+        reopened.apply(&mut independent).unwrap();
+        assert_eq!(
+            independent.surface_heat_capacity.as_ref().unwrap().cells,
+            original.surface_heat_capacity.as_ref().unwrap().cells
+        );
     }
 
     #[test]

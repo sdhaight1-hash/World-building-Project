@@ -64,6 +64,7 @@ fn source_for_theme(theme: Theme) -> Option<LayerKind> {
         Theme::Crust => Some(LayerKind::Crust),
         Theme::Lithosphere => Some(LayerKind::Lithosphere),
         Theme::HeatFlow => Some(LayerKind::HeatFlow),
+        Theme::SurfaceHeatCapacity => Some(LayerKind::SurfaceHeatCapacity),
         Theme::Terrain
         | Theme::Slope
         | Theme::RainShadow
@@ -71,7 +72,11 @@ fn source_for_theme(theme: Theme) -> Option<LayerKind> {
         | Theme::MonthlyPrecipitation
         | Theme::AnnualTemperature
         | Theme::AnnualPrecipitation
-        | Theme::MonthlyInsolation => None,
+        | Theme::MonthlyInsolation
+        | Theme::MonthlyPressure
+        | Theme::MonthlySpecificHumidity
+        | Theme::MonthlyWindEast
+        | Theme::MonthlyWindNorth => None,
     }
 }
 
@@ -695,7 +700,7 @@ impl Studio {
             stroke.undo(&mut self.world, &mut self.project.datasets);
             self.dataset_redo.push(stroke);
             self.refresh_dataset_map();
-            self.status = "Undid monthly map stroke".into();
+            self.status = "Undid monthly input stroke".into();
         }
     }
 
@@ -705,7 +710,7 @@ impl Studio {
             stroke.redo(&mut self.world, &mut self.project.datasets);
             self.dataset_undo.push(stroke);
             self.refresh_dataset_map();
-            self.status = "Redid monthly map stroke".into();
+            self.status = "Redid monthly input stroke".into();
         }
     }
 
@@ -867,7 +872,7 @@ impl Studio {
     }
 
     fn monthly_workshop(&mut self, ui: &mut egui::Ui) {
-        let Some(kind) = self.theme.climate_field() else {
+        let Some(kind) = self.theme.monthly_source() else {
             return;
         };
         ui.separator();
@@ -877,7 +882,7 @@ impl Studio {
                 .small(),
         );
         ui.small(
-            "Authored climate values only. No atmosphere, rainfall or energy-balance simulation.",
+            "Explicitly authored monthly source, not an atmospheric circulation or climate simulation.",
         );
         let mut selected = self.project.month;
         egui::ComboBox::from_id_salt("active-month")
@@ -1008,7 +1013,7 @@ impl Studio {
             if ui
                 .add_enabled(
                     !self.dataset_undo.is_empty(),
-                    egui::Button::new("Undo climate"),
+                    egui::Button::new("Undo monthly input"),
                 )
                 .clicked()
             {
@@ -1017,7 +1022,7 @@ impl Studio {
             if ui
                 .add_enabled(
                     !self.dataset_redo.is_empty(),
-                    egui::Button::new("Redo climate"),
+                    egui::Button::new("Redo monthly input"),
                 )
                 .clicked()
             {
@@ -1143,6 +1148,17 @@ impl Studio {
                 }
                 _ => {
                     ui.label(format!("Paint value ({})", kind.units()));
+                    if kind == LayerKind::SurfaceHeatCapacity {
+                        ui.horizontal(|ui| {
+                            if ui.button("Land-like · 2").clicked() {
+                                self.layer_paint_value = 2.0;
+                            }
+                            if ui.button("Ocean mixed layer · 200").clicked() {
+                                self.layer_paint_value = 200.0;
+                            }
+                        });
+                        ui.small("Illustrative MJ/(m²·K) brush presets only. Paint each area yourself; coastlines and ocean depth are not inferred.");
+                    }
                     ui.add(egui::DragValue::new(&mut self.layer_paint_value).speed(0.5));
                     if !kind.valid_value(self.layer_paint_value) {
                         ui.colored_label(
@@ -1464,7 +1480,7 @@ impl Studio {
                     self.theme=theme;
                     self.layer_brush=false;
                     self.dataset_brush=false;
-                    if let Some(field) = theme.climate_field() {
+                    if let Some(field) = theme.monthly_source() {
                         self.dataset_paint_value = field.default_fill();
                     }
                     self.boundary_draw=false;
@@ -1484,7 +1500,7 @@ impl Studio {
             });
             if self.theme.annual_field().is_some() {
                 self.annual_workshop(ui);
-            } else if self.theme.climate_field().is_some() {
+            } else if self.theme.monthly_source().is_some() {
                 self.monthly_workshop(ui);
             } else if self.theme == Theme::MonthlyInsolation {
                 self.insolation_workshop(ui);
@@ -1727,6 +1743,16 @@ impl Studio {
                                     }
                                 }
                             }
+                            if self.theme == Theme::SurfaceHeatCapacity {
+                                if let Some(ref grid) = self.world.surface_heat_capacity {
+                                    ui.label("Surface areal heat capacity");
+                                    ui.monospace(format!("{:.2} MJ/(m²·K)", grid.geo(lon, lat)));
+                                    ui.end_row();
+                                    ui.label("Provenance");
+                                    ui.label("Authored source · not simulated");
+                                    ui.end_row();
+                                }
+                            }
                             if self.theme == Theme::Slope {
                                 if let Some(ref field) = self.world.slope_deg {
                                     ui.label("Surface slope");
@@ -1881,7 +1907,7 @@ impl Studio {
             };
             ui.vertical_centered(|ui| {
                 ui.label(
-                    egui::RichText::new(if self.theme.climate_field().is_some() {
+                    egui::RichText::new(if self.theme.monthly_source().is_some() {
                         format!("{} · {} · {}", self.project.name, self.theme.name(),
                             month_name(self.project.month))
                     } else {
@@ -2102,7 +2128,7 @@ impl Studio {
                 }
                 if self.dataset_brush && (response.clicked() || response.dragged()) {
                     if let (Some(kind), Some(pos)) = (
-                        self.theme.climate_field(),
+                        self.theme.monthly_source(),
                         response.interact_pointer_pos(),
                     ) {
                         let fx = ((pos.x - rect.left()) / rect.width()) as f64;
@@ -2774,6 +2800,91 @@ mod terrain_activation_tests {
         let legacy: Project = serde_json::from_value(legacy).unwrap();
         assert_eq!(legacy.calendar, PlanetCalendar::default());
         assert_eq!(legacy.month, 2);
+    }
+
+    #[test]
+    fn blank_project_reopens_atmospheric_and_surface_thermal_sources_without_aegaea() {
+        use datasets::MonthlyField;
+        let mut authored = World::empty(PathBuf::from("independent-atmosphere"));
+        authored.width = 48;
+        authored.height = 24;
+        let mut project = Project::new("Independent atmosphere");
+        project.terrain_mode = TerrainMode::Imported;
+        project
+            .terrain
+            .create_flat_world(&mut authored, -2000.0)
+            .unwrap();
+        project
+            .layers
+            .create(&mut authored, LayerKind::SurfaceHeatCapacity, 2.0)
+            .unwrap();
+        project
+            .layers
+            .paint(
+                &mut authored,
+                LayerKind::SurfaceHeatCapacity,
+                0.0,
+                0.0,
+                2,
+                200.0,
+            )
+            .unwrap();
+        for field in [
+            MonthlyField::Pressure,
+            MonthlyField::SpecificHumidity,
+            MonthlyField::WindEast,
+            MonthlyField::WindNorth,
+        ] {
+            project
+                .datasets
+                .create_month(&mut authored, field, 2, field.default_fill())
+                .unwrap();
+        }
+        project
+            .datasets
+            .paint(&mut authored, MonthlyField::WindEast, 2, 0.0, 0.0, 2, -15.0)
+            .unwrap();
+        project.month = 2;
+        let saved = serde_json::to_string(&project).unwrap();
+        let restored: Project = serde_json::from_str(&saved).unwrap();
+        let mut reloaded = World::empty(PathBuf::from("independent-atmosphere"));
+        reloaded.width = 48;
+        reloaded.height = 24;
+        activate_terrain(&mut reloaded, &restored).unwrap();
+        assert!(reloaded.plates.is_empty());
+        assert!(reloaded.plate_ids.is_none());
+        assert!(reloaded
+            .surface_heat_capacity
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .any(|&v| v == 200.0));
+        assert!(reloaded.scientific_fields[MonthlyField::WindEast.id()]
+            .cells
+            .iter()
+            .any(|&v| v == -15.0));
+        assert_eq!(
+            reloaded.scientific_fields[MonthlyField::Pressure.id()].at(0, 0),
+            1013.25
+        );
+        assert!(reloaded.scientific_fields[MonthlyField::WindNorth.id()]
+            .cells
+            .iter()
+            .all(|&v| v == 0.0));
+        let mut missing = restored;
+        missing.month = 3;
+        activate_terrain(&mut reloaded, &missing).unwrap();
+        assert!(!reloaded
+            .scientific_fields
+            .contains_key(MonthlyField::Pressure.id()));
+        assert!(reloaded
+            .surface_heat_capacity
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .any(|&v| v == 200.0));
     }
 
     #[test]

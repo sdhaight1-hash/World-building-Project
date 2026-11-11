@@ -3,7 +3,7 @@
 //! The globe is a projection of the same fields, not a separately painted texture.
 use crate::{
     cartography::Cartography,
-    datasets::{month_name, ClimateField},
+    datasets::{month_name, ClimateField, MonthlyField},
     world::{uv_to_geo, World},
 };
 use eframe::egui;
@@ -30,10 +30,15 @@ pub enum Theme {
     AnnualTemperature,
     AnnualPrecipitation,
     MonthlyInsolation,
+    MonthlyPressure,
+    MonthlySpecificHumidity,
+    MonthlyWindEast,
+    MonthlyWindNorth,
+    SurfaceHeatCapacity,
 }
 
 impl Theme {
-    pub const ALL: [Self; 19] = [
+    pub const ALL: [Self; 24] = [
         Self::Terrain,
         Self::Slope,
         Self::Plates,
@@ -53,6 +58,11 @@ impl Theme {
         Self::AnnualTemperature,
         Self::AnnualPrecipitation,
         Self::MonthlyInsolation,
+        Self::MonthlyPressure,
+        Self::MonthlySpecificHumidity,
+        Self::MonthlyWindEast,
+        Self::MonthlyWindNorth,
+        Self::SurfaceHeatCapacity,
     ];
 
     pub fn name(self) -> &'static str {
@@ -76,6 +86,11 @@ impl Theme {
             Self::AnnualTemperature => "Annual air temperature · day-weighted mean",
             Self::AnnualPrecipitation => "Annual precipitation total",
             Self::MonthlyInsolation => "Monthly top-of-atmosphere sunlight",
+            Self::MonthlyPressure => "Monthly surface pressure",
+            Self::MonthlySpecificHumidity => "Monthly specific humidity",
+            Self::MonthlyWindEast => "Monthly wind · eastward component",
+            Self::MonthlyWindNorth => "Monthly wind · northward component",
+            Self::SurfaceHeatCapacity => "Surface areal heat capacity",
         }
     }
 
@@ -100,6 +115,11 @@ impl Theme {
             Self::AnnualTemperature => "annual-air-temperature",
             Self::AnnualPrecipitation => "annual-precipitation",
             Self::MonthlyInsolation => "monthly-toa-insolation",
+            Self::MonthlyPressure => "monthly-surface-pressure",
+            Self::MonthlySpecificHumidity => "monthly-specific-humidity",
+            Self::MonthlyWindEast => "monthly-wind-east",
+            Self::MonthlyWindNorth => "monthly-wind-north",
+            Self::SurfaceHeatCapacity => "surface-heat-capacity",
         }
     }
 
@@ -117,21 +137,30 @@ impl Theme {
             Self::Crust => w.crust_km.is_some(),
             Self::Lithosphere => w.lithosphere_km.is_some(),
             Self::HeatFlow => w.heatflow.is_some(),
+            Self::SurfaceHeatCapacity => w.surface_heat_capacity.is_some(),
             Self::RainShadow => w.rain_shadow.is_some(),
             Self::MonthlyTemperature
             | Self::MonthlyPrecipitation
             | Self::AnnualTemperature
             | Self::AnnualPrecipitation
-            | Self::MonthlyInsolation => self
+            | Self::MonthlyInsolation
+            | Self::MonthlyPressure
+            | Self::MonthlySpecificHumidity
+            | Self::MonthlyWindEast
+            | Self::MonthlyWindNorth => self
                 .scientific_id()
                 .is_some_and(|id| w.scientific_fields.contains_key(id)),
         }
     }
 
-    pub fn climate_field(self) -> Option<ClimateField> {
+    pub fn monthly_source(self) -> Option<MonthlyField> {
         match self {
-            Self::MonthlyTemperature => Some(ClimateField::Temperature),
-            Self::MonthlyPrecipitation => Some(ClimateField::Precipitation),
+            Self::MonthlyTemperature => Some(MonthlyField::Temperature),
+            Self::MonthlyPrecipitation => Some(MonthlyField::Precipitation),
+            Self::MonthlyPressure => Some(MonthlyField::Pressure),
+            Self::MonthlySpecificHumidity => Some(MonthlyField::SpecificHumidity),
+            Self::MonthlyWindEast => Some(MonthlyField::WindEast),
+            Self::MonthlyWindNorth => Some(MonthlyField::WindNorth),
             _ => None,
         }
     }
@@ -148,14 +177,14 @@ impl Theme {
         if self == Self::MonthlyInsolation {
             Some(crate::planetary::INSOLATION_ID)
         } else {
-            self.climate_field()
+            self.monthly_source()
                 .map(|kind| kind.id())
                 .or_else(|| self.annual_field().map(|kind| kind.annual_id()))
         }
     }
 
     pub fn is_monthly(self) -> bool {
-        self.climate_field().is_some() || self == Self::MonthlyInsolation
+        self.monthly_source().is_some() || self == Self::MonthlyInsolation
     }
 
     pub fn units(self) -> &'static str {
@@ -171,6 +200,10 @@ impl Theme {
             Self::AnnualTemperature => "°C",
             Self::AnnualPrecipitation => "mm/year",
             Self::MonthlyInsolation => "W/m²",
+            Self::MonthlyPressure => "hPa",
+            Self::MonthlySpecificHumidity => "g/kg",
+            Self::MonthlyWindEast | Self::MonthlyWindNorth => "m/s",
+            Self::SurfaceHeatCapacity => "MJ/(m²·K)",
             Self::PlateConvergence | Self::PlateDivergence | Self::PlateShear => "cm/year",
             _ => "named categories",
         }
@@ -257,7 +290,7 @@ pub fn export_atlas_png(
             })
         })
         .collect::<Vec<_>>();
-    let climate = theme.climate_field();
+    let monthly_source = theme.monthly_source();
     let scientific_id = theme.scientific_id();
     let provenance = scientific_id.and_then(|id| world.scientific_provenance.get(id));
     let meta = serde_json::json!({
@@ -269,26 +302,38 @@ pub fn export_atlas_png(
             "lat_at_y":"-90 + 180*(y+0.5)/height",
             "not_Earth_EPSG_4326":true,
         },
-        "dataset_id":scientific_id,
+        "dataset_id":if theme == Theme::SurfaceHeatCapacity {
+            Some("surface.areal_heat_capacity")
+        } else {
+            scientific_id
+        },
         "month":theme.is_monthly().then_some(world.active_month),
         "month_name":theme.is_monthly().then(|| month_name(world.active_month)),
         "planetary_calendar":(theme == Theme::MonthlyInsolation || theme == Theme::AnnualTemperature).then_some(&world.calendar),
-        "provenance":provenance,
-        "derived_from":if theme == Theme::MonthlyInsolation {
+        "provenance":if theme == Theme::SurfaceHeatCapacity {
+            serde_json::json!({"kind":"authored","note":"Project-local hand-authored stationary heat capacity; not derived from land/ocean mask"})
+        } else {
+            serde_json::json!(provenance)
+        },
+        "derived_from":if theme == Theme::SurfaceHeatCapacity {
+            "project-local explicitly authored surface areal heat capacity; land/ocean status is not inferred"
+        } else if theme == Theme::MonthlyInsolation {
             "planetary calendar and circular-orbit solar geometry; no atmosphere or climate solver"
         } else if theme.annual_field().is_some() {
             "calculated from all twelve authored monthly source slices; see provenance"
-        } else if climate.is_some() {
+        } else if monthly_source.is_some() {
             "project-local monthly scientific dataset; see provenance"
         } else {
             "native map fields, source geology and/or authored geometry"
         },
         "legend":legend,
-        "scientific_status":if theme == Theme::MonthlyInsolation {
+        "scientific_status":if theme == Theme::SurfaceHeatCapacity {
+            "author-specified areal heat capacity input, not computed ocean or soil thermal physics"
+        } else if theme == Theme::MonthlyInsolation {
             "daily-mean top-of-atmosphere irradiance integrated over configured month; circular orbit, no weather or climate model"
         } else if theme.annual_field().is_some() {
             "deterministic monthly aggregation, not a climate model; annual temperature weighted by calendar solar days"
-        } else if climate.is_some() {
+        } else if monthly_source.is_some() {
             "source-defined values; no precipitation or temperature simulation is implied"
         } else {
             "fictional world scientific and authored fields; provenance must be checked per source"
@@ -406,7 +451,7 @@ mod tests {
     }
 
     #[test]
-    fn independently_authored_world_can_render_all_nineteen_existing_maps() {
+    fn independently_authored_world_can_render_all_twenty_four_maps() {
         use crate::map_layers::{LayerKind, ProjectLayers};
         use crate::world::Grid;
 
@@ -447,12 +492,11 @@ mod tests {
         ));
         let mut monthly = crate::datasets::DatasetRegistry::default();
         for month in 1..=12 {
-            monthly
-                .create_month(&mut world, ClimateField::Temperature, month, 18.0)
-                .unwrap();
-            monthly
-                .create_month(&mut world, ClimateField::Precipitation, month, 100.0)
-                .unwrap();
+            for kind in crate::datasets::MonthlyField::ALL {
+                monthly
+                    .create_month(&mut world, kind, month, kind.default_fill())
+                    .unwrap();
+            }
         }
         let art = Cartography::new(&world);
         for theme in Theme::ALL {
@@ -492,13 +536,109 @@ mod tests {
             let metadata = std::fs::read_to_string(path.with_extension("json")).unwrap();
             assert!(metadata.contains(r#""month": 2"#));
             assert!(metadata.contains("author"));
-            assert!(metadata.contains(theme.climate_field().unwrap().id()));
+            assert!(metadata.contains(theme.monthly_source().unwrap().id()));
             std::fs::remove_file(path.with_extension("json")).unwrap();
             std::fs::remove_file(path).unwrap();
         }
         datasets.activate(&mut world, 3).unwrap();
         assert!(!Theme::MonthlyTemperature.available(&world));
         assert!(!Theme::MonthlyPrecipitation.available(&world));
+    }
+
+    #[test]
+    fn atmospheric_maps_export_correct_month_units_and_authored_source() {
+        use crate::datasets::MonthlyField;
+        let mut world = World::empty(PathBuf::from("atmosphere"));
+        world.width = 48;
+        world.height = 24;
+        let mut registry = crate::datasets::DatasetRegistry::default();
+        for field in [
+            MonthlyField::Pressure,
+            MonthlyField::SpecificHumidity,
+            MonthlyField::WindEast,
+            MonthlyField::WindNorth,
+        ] {
+            registry
+                .create_month(&mut world, field, 3, field.default_fill())
+                .unwrap();
+        }
+        registry
+            .paint(&mut world, MonthlyField::WindEast, 3, 0.0, 0.0, 2, -22.0)
+            .unwrap();
+        let art = Cartography::new(&world);
+        for theme in [
+            Theme::MonthlyPressure,
+            Theme::MonthlySpecificHumidity,
+            Theme::MonthlyWindEast,
+            Theme::MonthlyWindNorth,
+        ] {
+            assert!(theme.available(&world));
+            assert_eq!(atlas_image(&world, &art, theme).size, [48, 24]);
+            assert_eq!(art.legend(&world, theme).len(), 7);
+            let path = std::env::temp_dir().join(format!(
+                "aegaea-atmosphere-{}-{}.png",
+                std::process::id(),
+                theme.slug()
+            ));
+            export_atlas_png(&world, &art, theme, &path).unwrap();
+            let meta: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(path.with_extension("json")).unwrap())
+                    .unwrap();
+            assert_eq!(meta["month"], 3);
+            assert_eq!(meta["dataset_id"], theme.scientific_id().unwrap());
+            assert_eq!(meta["units"], theme.units());
+            assert_eq!(meta["provenance"]["kind"], "authored");
+            std::fs::remove_file(path.with_extension("json")).unwrap();
+            std::fs::remove_file(path).unwrap();
+        }
+        registry.activate(&mut world, 4).unwrap();
+        for theme in [
+            Theme::MonthlyPressure,
+            Theme::MonthlySpecificHumidity,
+            Theme::MonthlyWindEast,
+            Theme::MonthlyWindNorth,
+        ] {
+            assert!(
+                !theme.available(&world),
+                "Missing months must not be inferred"
+            );
+        }
+    }
+
+    #[test]
+    fn surface_heat_capacity_exports_explicit_static_provenance() {
+        use crate::map_layers::{LayerKind, ProjectLayers};
+        let mut world = World::empty(PathBuf::from("thermal"));
+        world.width = 32;
+        world.height = 16;
+        assert!(!Theme::SurfaceHeatCapacity.available(&world));
+        let mut layers = ProjectLayers::default();
+        layers
+            .create(&mut world, LayerKind::SurfaceHeatCapacity, 2.0)
+            .unwrap();
+        layers
+            .paint(
+                &mut world,
+                LayerKind::SurfaceHeatCapacity,
+                0.0,
+                0.0,
+                2,
+                200.0,
+            )
+            .unwrap();
+        assert!(Theme::SurfaceHeatCapacity.available(&world));
+        let art = Cartography::new(&world);
+        assert_eq!(art.legend(&world, Theme::SurfaceHeatCapacity).len(), 7);
+        let path = std::env::temp_dir().join(format!("aegaea-thermal-{}.png", std::process::id()));
+        export_atlas_png(&world, &art, Theme::SurfaceHeatCapacity, &path).unwrap();
+        let meta: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(path.with_extension("json")).unwrap()).unwrap();
+        assert_eq!(meta["month"], serde_json::Value::Null);
+        assert_eq!(meta["dataset_id"], "surface.areal_heat_capacity");
+        assert_eq!(meta["units"], "MJ/(m²·K)");
+        assert_eq!(meta["provenance"]["kind"], "authored");
+        std::fs::remove_file(path.with_extension("json")).unwrap();
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]

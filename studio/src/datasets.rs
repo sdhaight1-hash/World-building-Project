@@ -19,6 +19,7 @@ pub enum Unit {
     MetersPerSecond,
     PracticalSalinity,
     Fraction,
+    GramsPerKilogram,
 }
 
 impl Unit {
@@ -31,6 +32,7 @@ impl Unit {
             Self::MetersPerSecond => "m/s",
             Self::PracticalSalinity => "PSU",
             Self::Fraction => "fraction",
+            Self::GramsPerKilogram => "g/kg",
         }
     }
 }
@@ -45,10 +47,7 @@ impl ClimateField {
     pub const ALL: [Self; 2] = [Self::Temperature, Self::Precipitation];
 
     pub fn id(self) -> &'static str {
-        match self {
-            Self::Temperature => "climate.air_temperature",
-            Self::Precipitation => "climate.precipitation",
-        }
+        MonthlyField::from(self).id()
     }
 
     pub fn annual_id(self) -> &'static str {
@@ -65,10 +64,62 @@ impl ClimateField {
         }
     }
 
+    pub fn default_fill(self) -> f32 {
+        MonthlyField::from(self).default_fill()
+    }
+}
+
+/// Persisted monthly input quantities. These are *authored sources*, not a
+/// pressure, water-vapor or circulation model. Wind components use geographic
+/// east-positive / north-positive directions irrespective of atlas mirroring.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MonthlyField {
+    Temperature,
+    Precipitation,
+    Pressure,
+    SpecificHumidity,
+    WindEast,
+    WindNorth,
+}
+
+impl From<ClimateField> for MonthlyField {
+    fn from(value: ClimateField) -> Self {
+        match value {
+            ClimateField::Temperature => Self::Temperature,
+            ClimateField::Precipitation => Self::Precipitation,
+        }
+    }
+}
+
+impl MonthlyField {
+    pub const ALL: [Self; 6] = [
+        Self::Temperature,
+        Self::Precipitation,
+        Self::Pressure,
+        Self::SpecificHumidity,
+        Self::WindEast,
+        Self::WindNorth,
+    ];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Temperature => "climate.air_temperature",
+            Self::Precipitation => "climate.precipitation",
+            Self::Pressure => "atmosphere.surface_pressure",
+            Self::SpecificHumidity => "atmosphere.specific_humidity",
+            Self::WindEast => "atmosphere.wind_east",
+            Self::WindNorth => "atmosphere.wind_north",
+        }
+    }
+
     pub fn name(self) -> &'static str {
         match self {
             Self::Temperature => "Monthly air temperature",
             Self::Precipitation => "Monthly precipitation",
+            Self::Pressure => "Monthly surface pressure",
+            Self::SpecificHumidity => "Monthly specific humidity",
+            Self::WindEast => "Monthly eastward wind",
+            Self::WindNorth => "Monthly northward wind",
         }
     }
 
@@ -76,6 +127,9 @@ impl ClimateField {
         match self {
             Self::Temperature => Unit::Celsius,
             Self::Precipitation => Unit::MillimetersPerMonth,
+            Self::Pressure => Unit::Hectopascals,
+            Self::SpecificHumidity => Unit::GramsPerKilogram,
+            Self::WindEast | Self::WindNorth => Unit::MetersPerSecond,
         }
     }
 
@@ -83,6 +137,9 @@ impl ClimateField {
         match self {
             Self::Temperature => 20.0,
             Self::Precipitation => 100.0,
+            Self::Pressure => 1013.25,
+            Self::SpecificHumidity => 10.0,
+            Self::WindEast | Self::WindNorth => 0.0,
         }
     }
 
@@ -90,6 +147,9 @@ impl ClimateField {
         match self {
             Self::Temperature => [-100.0, 65.0],
             Self::Precipitation => [0.0, 10_000.0],
+            Self::Pressure => [100.0, 1200.0],
+            Self::SpecificHumidity => [0.0, 60.0],
+            Self::WindEast | Self::WindNorth => [-150.0, 150.0],
         }
     }
 }
@@ -181,7 +241,7 @@ impl Dataset {
 }
 
 /// Unknown future datasets may be stored with their own units and dependencies.
-/// The UI currently exposes the two validated climate quantities above.
+/// Monthly sources include climate and atmospheric inputs.
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct DatasetRegistry {
@@ -207,7 +267,7 @@ impl DatasetRegistry {
             }
             if id == INSOLATION_ID || ClimateField::ALL.iter().any(|kind| id == kind.annual_id()) {
                 return Err(format!(
-                    "Dataset ID '{id}' is reserved for computed annual climate maps"
+                    "Dataset ID '{id}' is reserved for computed planetary maps"
                 ));
             }
             if field.name.trim().is_empty() || field.size != size {
@@ -219,7 +279,7 @@ impl DatasetRegistry {
             if !low.is_finite() || !high.is_finite() || low >= high {
                 return Err(format!("Dataset '{id}' has invalid numeric limits"));
             }
-            for kind in ClimateField::ALL {
+            for kind in MonthlyField::ALL {
                 if id == kind.id()
                     && (field.unit != kind.unit() || field.valid_range != kind.bounds())
                 {
@@ -279,10 +339,11 @@ impl DatasetRegistry {
     pub fn create_month(
         &mut self,
         world: &mut World,
-        kind: ClimateField,
+        kind: impl Into<MonthlyField>,
         month: u8,
         fill: f32,
     ) -> Result<(), String> {
+        let kind = kind.into();
         if !(1..=12).contains(&month)
             || !fill.is_finite()
             || fill < kind.bounds()[0]
@@ -297,7 +358,7 @@ impl DatasetRegistry {
             valid_range: kind.bounds(),
             size: [world.width, world.height],
             provenance: Provenance::Authored {
-                note: "Uniform initial author assumption; not computed climate".into(),
+                note: "Author-specified initial value; no atmospheric or climate solver".into(),
             },
             dependencies: vec![],
             months: BTreeMap::new(),
@@ -329,10 +390,11 @@ impl DatasetRegistry {
     pub fn copy_month(
         &mut self,
         world: &mut World,
-        kind: ClimateField,
+        kind: impl Into<MonthlyField>,
         from: u8,
         to: u8,
     ) -> Result<(), String> {
+        let kind = kind.into();
         if !(1..=12).contains(&from) || !(1..=12).contains(&to) {
             return Err("Month must be 1–12".into());
         }
@@ -379,7 +441,8 @@ impl DatasetRegistry {
         Some(grid)
     }
 
-    pub fn has_month(&self, kind: ClimateField, month: u8) -> bool {
+    pub fn has_month(&self, kind: impl Into<MonthlyField>, month: u8) -> bool {
+        let kind = kind.into();
         self.fields
             .get(kind.id())
             .is_some_and(|d| d.months.contains_key(&month))
@@ -440,13 +503,14 @@ impl DatasetRegistry {
     pub fn paint(
         &mut self,
         world: &mut World,
-        kind: ClimateField,
+        kind: impl Into<MonthlyField>,
         month: u8,
         longitude: f64,
         latitude: f64,
         radius: u32,
         value: f32,
     ) -> Result<DatasetStroke, String> {
+        let kind = kind.into();
         if world.active_month != month {
             return Err("Activate the requested month before painting".into());
         }
@@ -783,6 +847,124 @@ mod tests {
             .activate(&mut w, 7)
             .unwrap_err()
             .contains("reserved"));
+    }
+
+    #[test]
+    fn atmospheric_sources_are_month_isolated_sparse_and_signed() {
+        let mut w = world();
+        let mut registry = DatasetRegistry::default();
+        for field in [
+            MonthlyField::Pressure,
+            MonthlyField::SpecificHumidity,
+            MonthlyField::WindEast,
+            MonthlyField::WindNorth,
+        ] {
+            registry
+                .create_month(&mut w, field, 1, field.default_fill())
+                .unwrap();
+        }
+        registry
+            .create_month(&mut w, MonthlyField::WindEast, 7, 7.0)
+            .unwrap();
+        registry.activate(&mut w, 1).unwrap();
+        let stroke = registry
+            .paint(&mut w, MonthlyField::WindEast, 1, 179.9, 0.0, 2, -12.0)
+            .unwrap();
+        assert!(!stroke.is_empty());
+        let wind = &w.scientific_fields[MonthlyField::WindEast.id()];
+        assert!(wind.cells.iter().any(|&v| v == -12.0));
+        assert!(wind.at(0, 12) == -12.0 || wind.at(47, 12) == -12.0);
+        stroke.undo(&mut w, &mut registry);
+        assert!(w.scientific_fields[MonthlyField::WindEast.id()]
+            .cells
+            .iter()
+            .all(|&v| v == 0.0));
+        stroke.redo(&mut w, &mut registry);
+        registry.activate(&mut w, 7).unwrap();
+        assert!(w.scientific_fields[MonthlyField::WindEast.id()]
+            .cells
+            .iter()
+            .all(|&v| v == 7.0));
+        assert!(!w
+            .scientific_fields
+            .contains_key(MonthlyField::Pressure.id()));
+        registry.activate(&mut w, 1).unwrap();
+        assert!(w.scientific_fields[MonthlyField::WindEast.id()]
+            .cells
+            .iter()
+            .any(|&v| v == -12.0));
+
+        let stored = serde_json::to_vec(&registry).unwrap();
+        let reopened: DatasetRegistry = serde_json::from_slice(&stored).unwrap();
+        let mut independent = world();
+        reopened.activate(&mut independent, 1).unwrap();
+        assert_eq!(
+            independent.scientific_fields[MonthlyField::WindEast.id()].cells,
+            w.scientific_fields[MonthlyField::WindEast.id()].cells
+        );
+        assert_eq!(
+            independent.scientific_fields[MonthlyField::Pressure.id()].at(0, 0),
+            1013.25
+        );
+        assert_eq!(
+            independent.scientific_provenance[MonthlyField::SpecificHumidity.id()].label(),
+            "Author-specified"
+        );
+    }
+
+    #[test]
+    fn atmospheric_units_and_invalid_bounds_are_enforced_without_annual_fabrication() {
+        let mut w = world();
+        let mut registry = DatasetRegistry::default();
+        assert!(registry
+            .create_month(&mut w, MonthlyField::Pressure, 0, 1000.0)
+            .is_err());
+        assert!(registry
+            .create_month(&mut w, MonthlyField::Pressure, 1, 50.0)
+            .is_err());
+        assert!(registry
+            .create_month(&mut w, MonthlyField::SpecificHumidity, 1, 61.0)
+            .is_err());
+        assert!(registry
+            .create_month(&mut w, MonthlyField::WindEast, 1, f32::NAN)
+            .is_err());
+        registry
+            .create_month(&mut w, MonthlyField::Pressure, 1, 1010.0)
+            .unwrap();
+        registry
+            .create_month(&mut w, MonthlyField::SpecificHumidity, 1, 9.0)
+            .unwrap();
+        registry
+            .create_month(&mut w, MonthlyField::WindEast, 1, -25.0)
+            .unwrap();
+        registry
+            .create_month(&mut w, MonthlyField::WindNorth, 1, 14.0)
+            .unwrap();
+        assert!(registry
+            .paint(&mut w, MonthlyField::SpecificHumidity, 1, 0.0, 0.0, 1, -0.1)
+            .is_err());
+        assert!(registry
+            .paint(&mut w, MonthlyField::WindNorth, 1, 0.0, 0.0, 1, 200.0)
+            .is_err());
+        assert!(!w
+            .scientific_fields
+            .contains_key(ClimateField::Temperature.annual_id()));
+        assert!(!w
+            .scientific_fields
+            .contains_key(ClimateField::Precipitation.annual_id()));
+        let mut invalid = registry.clone();
+        invalid
+            .fields
+            .get_mut(MonthlyField::Pressure.id())
+            .unwrap()
+            .unit = Unit::Celsius;
+        assert!(invalid.activate(&mut w, 1).is_err());
+        assert_eq!(
+            w.scientific_fields[MonthlyField::Pressure.id()].at(0, 0),
+            1010.0
+        );
+        assert_eq!(MonthlyField::SpecificHumidity.unit().label(), "g/kg");
+        assert_eq!(MonthlyField::WindNorth.unit().label(), "m/s");
     }
 
     #[test]

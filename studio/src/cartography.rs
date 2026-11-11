@@ -169,12 +169,52 @@ const INSOLATION_RAMP: [(f32, [u8; 3]); 7] = [
     (550.0, [209, 81, 67]),
 ];
 
+const PRESSURE_RAMP: [(f32, [u8; 3]); 7] = [
+    (850.0, [68, 70, 145]),
+    (950.0, [80, 121, 173]),
+    (990.0, [125, 184, 185]),
+    (1013.25, [190, 203, 158]),
+    (1030.0, [227, 197, 110]),
+    (1050.0, [226, 139, 82]),
+    (1150.0, [166, 70, 98]),
+];
+const HUMIDITY_RAMP: [(f32, [u8; 3]); 7] = [
+    (0.0, [188, 148, 100]),
+    (2.0, [212, 190, 131]),
+    (5.0, [177, 200, 153]),
+    (10.0, [112, 186, 171]),
+    (20.0, [72, 154, 187]),
+    (35.0, [59, 103, 171]),
+    (60.0, [75, 58, 134]),
+];
+const WIND_COMPONENT_RAMP: [(f32, [u8; 3]); 7] = [
+    (-60.0, [56, 69, 146]),
+    (-30.0, [75, 125, 179]),
+    (-10.0, [121, 174, 197]),
+    (0.0, [198, 202, 191]),
+    (10.0, [212, 180, 139]),
+    (30.0, [223, 125, 99]),
+    (60.0, [160, 67, 94]),
+];
+const THERMAL_CAPACITY_RAMP: [(f32, [u8; 3]); 7] = [
+    (0.1, [168, 122, 93]),
+    (1.0, [213, 162, 104]),
+    (2.0, [230, 193, 125]),
+    (10.0, [155, 187, 144]),
+    (50.0, [94, 171, 178]),
+    (200.0, [67, 113, 183]),
+    (1000.0, [61, 64, 140]),
+];
+
 fn climate_ramp(theme: Theme) -> &'static [(f32, [u8; 3])] {
     match theme {
         Theme::MonthlyTemperature | Theme::AnnualTemperature => &TEMPERATURE_RAMP,
         Theme::MonthlyPrecipitation => &MONTHLY_RAIN_RAMP,
         Theme::AnnualPrecipitation => &ANNUAL_RAIN_RAMP,
         Theme::MonthlyInsolation => &INSOLATION_RAMP,
+        Theme::MonthlyPressure => &PRESSURE_RAMP,
+        Theme::MonthlySpecificHumidity => &HUMIDITY_RAMP,
+        Theme::MonthlyWindEast | Theme::MonthlyWindNorth => &WIND_COMPONENT_RAMP,
         _ => &[],
     }
 }
@@ -536,11 +576,23 @@ impl Cartography {
                     base_relief
                 }
             }
+            Theme::SurfaceHeatCapacity => {
+                if let Some(ref grid) = w.surface_heat_capacity {
+                    let tint = gradient(grid.at(x, y), &THERMAL_CAPACITY_RAMP);
+                    blend(tint, base, 0.07)
+                } else {
+                    [54, 66, 79]
+                }
+            }
             Theme::MonthlyTemperature
             | Theme::MonthlyPrecipitation
             | Theme::AnnualTemperature
             | Theme::AnnualPrecipitation
-            | Theme::MonthlyInsolation => {
+            | Theme::MonthlyInsolation
+            | Theme::MonthlyPressure
+            | Theme::MonthlySpecificHumidity
+            | Theme::MonthlyWindEast
+            | Theme::MonthlyWindNorth => {
                 if let Some(id) = theme.scientific_id() {
                     if let Some(grid) = w.scientific_fields.get(id) {
                         blend(gradient(grid.at(x, y), climate_ramp(theme)), base, 0.07)
@@ -702,11 +754,19 @@ impl Cartography {
                 ("Neutral · near zero".into(), [172, 181, 175]),
                 ("Leeward · positive index".into(), [218, 92, 52]),
             ],
+            Theme::SurfaceHeatCapacity => THERMAL_CAPACITY_RAMP
+                .iter()
+                .map(|&(value, rgb)| (format!("{value:.1} {}", theme.units()), rgb))
+                .collect(),
             Theme::MonthlyTemperature
             | Theme::MonthlyPrecipitation
             | Theme::AnnualTemperature
             | Theme::AnnualPrecipitation
-            | Theme::MonthlyInsolation => climate_ramp(theme)
+            | Theme::MonthlyInsolation
+            | Theme::MonthlyPressure
+            | Theme::MonthlySpecificHumidity
+            | Theme::MonthlyWindEast
+            | Theme::MonthlyWindNorth => climate_ramp(theme)
                 .iter()
                 .map(|&(value, rgb)| (format!("{value:.0} {}", theme.units()), rgb))
                 .collect(),
