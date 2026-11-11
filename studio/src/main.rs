@@ -962,7 +962,8 @@ impl Studio {
     }
 
     fn layers_panel(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::left("layers").default_width(225.0).min_width(185.0).show(ctx, |ui| {
+        egui::SidePanel::left("layers").default_width(250.0).min_width(205.0).show(ctx, |ui| {
+            egui::ScrollArea::vertical().id_salt("layer-workspace-scroll").show(ui, |ui| {
             ui.heading("Map library");
             ui.label(egui::RichText::new("THEMATIC VIEW").small().weak());
             ui.add_space(8.0);
@@ -1174,6 +1175,7 @@ impl Studio {
             ui.separator();
             ui.label(egui::RichText::new("DATA ETHICS").small().weak());
             ui.small("Geological values are fictional scenario data, not measured Earth observations.");
+            });
         });
     }
 
