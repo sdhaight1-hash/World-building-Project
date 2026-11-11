@@ -23,6 +23,8 @@ The `studio/` directory contains an **initial desktop vertical slice**, not a co
 - **Dedicated Rain Shadow map**: DEM-derived windward/leeward exposure, selectable incoming wind, inspector, legend, TIFF + metadata export. This is not a precipitation simulation.
 - Geographic coordinate picking and a data inspector; plate and craton names come from CSV records.
 - User-authored geographic point annotations stored separately from the read-only source dataset.
+- **Non-destructive terrain brush:** sculpt or raise/lower a DEM directly in either 2D or 3D, undo/redo strokes, persist sparse project-local height overrides, and export edited numeric TIFF data without changing the original DEM.
+- **Blank world terrain initialization:** create a 1024×512 editable flat-ocean DEM in a new world, then sculpt and save it.
 - An empty-project path to verify that the application is not coupled to Aegaea.
 - Core mathematical/data tests and a Windows GitHub Actions workflow.
 
@@ -75,3 +77,9 @@ Generated, imported, hypothetical and manually authored information must remain 
 ## Working agreement
 
 Changes to editors and models should be exercised on two fixtures: (1) Aegaea (complex imported data) and (2) a blank independent world. Every implemented generator should eventually deliver a reusable tool **and** a corresponding documented Aegaea map. Keep code narrow, verify changes, and never silently overwrite authored work.
+
+### Terrain authoring workflow
+
+Choose **Terrain brush** in the left sidebar, then **Raise** or **Lower**, adjust radius and strength, and drag on either map view. Each drag is one undoable stroke, with Ctrl+Z / Ctrl+Y shortcuts. Changes are saved to your project JSON and applied over the immutable elevation raster on load. **Export authored DEM TIFF** writes a numeric floating-point raster plus metadata; the original source is not modified.
+
+The artist's brush is not a validated geophysical terrain generator. Contours, relief, the 3D mesh, and the terrain-only rain-shadow index are recalculated when a stroke completes. On large worlds this may briefly interrupt interaction; incremental recomputation is a later optimization. See [terrain authoring specification](docs/TERRAIN_EDITOR.md).

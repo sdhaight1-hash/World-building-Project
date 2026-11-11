@@ -1,6 +1,7 @@
 //! Scientific source-data loading, source conventions, and editable world annotations.
 //! Data files are immutable; annotations use a separate JSON sidecar.
 use crate::rainshadow::WindFrom;
+use crate::terrain_edit::TerrainEdits;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File},
@@ -286,6 +287,8 @@ pub struct Project {
     pub markers: Vec<Marker>,
     #[serde(default)]
     pub wind_from: WindFrom,
+    #[serde(default)]
+    pub terrain: TerrainEdits,
 }
 
 impl Project {
@@ -294,6 +297,7 @@ impl Project {
             name: name.to_owned(),
             markers: Vec::new(),
             wind_from: WindFrom::default(),
+            terrain: TerrainEdits::default(),
         }
     }
 
