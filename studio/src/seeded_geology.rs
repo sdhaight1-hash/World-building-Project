@@ -12,7 +12,8 @@
 use crate::{
     map_layers::PROVINCE_CLASSES,
     plate_kinematics,
-    world::{CratonInfo, Grid, PlateInfo, ProvinceInfo, World},
+    terrain_generation::{self, TerrainMode},
+    world::{CratonInfo, Grid, PlateInfo, Project, ProvinceInfo, World},
 };
 use serde::Serialize;
 use std::{f64::consts::{FRAC_PI_2, PI, TAU}, fs, path::Path};
@@ -360,6 +361,38 @@ impl SeededGeology {
     }
 }
 
+/// Initialize source-empty projects only, preserving explicitly blank worlds
+/// unless the user invokes the action. Precompute terrain before touching disk.
+/// The original flat-ocean baseline is superseded, not added to generated DEM.
+pub fn initialize_project(
+    world: &mut World,
+    project: &mut Project,
+) -> Result<f64, String> {
+    if !can_initialize(world)
+        || !project.layers.grids.is_empty()
+        || !project.terrain.overrides.is_empty()
+        || world.root.join("elevation_m.tif").exists()
+        || project.terrain.base_fill_m.is_some_and(|v| v != -2_000.0)
+    {
+        return Err("Seeded geology requires an unmodified source-empty project. Existing geology, imported terrain and painted edits are preserved.".into());
+    }
+    let seeded = generate(world, project.terrain_recipe.seed, project.terrain_recipe.planet_radius_km)?;
+    let land_fraction = seeded.land_fraction;
+    let mut trial = World::empty(world.root.clone());
+    trial.width = world.width;
+    trial.height = world.height;
+    seeded.clone().install(&mut trial)?;
+    let terrain = terrain_generation::generate(&trial, &project.terrain_recipe)?;
+    seeded.persist(&world.root)?;
+    seeded.install(world)?;
+    world.elevation = Some(terrain.elevation);
+    world.plate_motion = terrain.kinematics;
+    project.terrain.base_fill_m = None;
+    project.terrain.grid_size = None;
+    project.terrain_mode = TerrainMode::Generated;
+    Ok(land_fraction)
+}
+
 fn write_tiff(path: &Path, grid: &Grid) -> Result<(), String> {
     use tiff::encoder::{colortype, TiffEncoder};
     let file = fs::File::create(path).map_err(|e| e.to_string())?;
@@ -447,6 +480,37 @@ mod tests {
         assert_eq!(reopened.provinces.len(), PROVINCE_CLASSES.len());
         let regenerate = terrain_generation::generate(&reopened, &TerrainRecipe::default()).unwrap();
         assert_eq!(generated.elevation.cells, regenerate.elevation.cells);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn blank_project_can_opt_into_seeded_geology_and_reopen_generated_terrain() {
+        use crate::world::Project;
+        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "aegaea-seeded-project-{}-{nonce}", std::process::id()
+        ));
+        let (mut world, mut project, path) = Project::create_blank(root.clone(), "Genesis").unwrap();
+        assert!(world.plate_ids.is_none());
+        assert_eq!(project.terrain_mode, TerrainMode::Imported);
+        assert!(world.elevation.as_ref().unwrap().cells.iter().all(|&v| v == -2000.0));
+        project.terrain_recipe.seed = 1984;
+        let fraction = initialize_project(&mut world, &mut project).unwrap();
+        assert!(fraction > 0.10 && fraction < 0.75);
+        assert_eq!(project.terrain_mode, TerrainMode::Generated);
+        assert!(project.terrain.base_fill_m.is_none());
+        assert!(world.elevation.as_ref().unwrap().cells.iter().any(|&v| v > 0.0));
+        project.save(&path).unwrap();
+        let mut reopened = World::load(root.clone()).unwrap();
+        let saved_project = Project::load(&path, "fallback").unwrap();
+        assert_eq!(saved_project.terrain_mode, TerrainMode::Generated);
+        assert_eq!(saved_project.terrain_recipe.seed, 1984);
+        let regenerated = terrain_generation::generate(&reopened, &saved_project.terrain_recipe).unwrap();
+        assert_eq!(world.elevation.as_ref().unwrap().cells, regenerated.elevation.cells);
+        reopened.elevation = Some(regenerated.elevation);
+        saved_project.terrain.apply(&mut reopened).unwrap();
+        assert_eq!(world.plate_ids.as_ref().unwrap().cells, reopened.plate_ids.as_ref().unwrap().cells);
+        assert!(initialize_project(&mut reopened, &mut Project::new("again")).is_err());
         fs::remove_dir_all(root).unwrap();
     }
 
