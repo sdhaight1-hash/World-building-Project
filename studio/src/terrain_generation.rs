@@ -216,7 +216,7 @@ fn mix(a: f32, b: f32, t: f32) -> f32 {
 
 /// Hash-value noise in 3D Cartesian planet coordinates; unlike 2D atlas
 /// noise it has no discontinuity at the ±180° meridian or physical poles.
-fn noise3(x: f32, y: f32, z: f32, seed: u64) -> f32 {
+pub(crate) fn noise3(x: f32, y: f32, z: f32, seed: u64) -> f32 {
     let (ix, iy, iz) = (x.floor() as i32, y.floor() as i32, z.floor() as i32);
     let (fx, fy, fz) = (
         smooth(x - x.floor()),
