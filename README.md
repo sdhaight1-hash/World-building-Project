@@ -16,7 +16,9 @@ The existing geological source files remain under [`data/aegaea/tectonics/v1/`](
 The `studio/` directory contains an **initial desktop vertical slice**, not a complete mapping suite. It provides:
 
 - A dark, map-first Rust/egui desktop interface backed by **wgpu**.
-- A 2D atlas and a 3D globe **rendered from the same geological raster values**.
+- A 2D atlas and an orthographic globe **rendered programmatically from the same native geological fields**, with derived terrain hillshade and source-classified tectonic boundaries.
+- **Ten map styles** including physical relief/bathymetry, tectonic plates, classified plate contacts, craton IDs, craton basement age, named crustal provinces, crust thickness, lithosphere thickness, heat flow and rain-shadow exposure.
+- Built-in legends and native-resolution **PNG + JSON map metadata export**; export every available map in one CLI invocation.
 - Thematic display of terrain, plate IDs, cratons, crustal provinces and selected numeric geophysical fields.
 - **Dedicated Rain Shadow map**: DEM-derived windward/leeward exposure, selectable incoming wind, inspector, legend, TIFF + metadata export. This is not a precipitation simulation.
 - Geographic coordinate picking and a data inspector; plate and craton names come from CSV records.
@@ -47,6 +49,14 @@ To open an existing project directory containing compatible TIFF layers:
 ```powershell
 cargo run --release -p aegaea-studio -- --project C:\path\to\my-world
 ```
+
+Build the reference world's atlas maps without opening a GPU window:
+
+```powershell
+cargo run --release -- --export-maps maps/aegaea
+```
+
+Each available map is saved at the source grid resolution with a JSON legend. The exported PNG is a **data-styled map image**, not a GeoTIFF and not yet a publication-layout page with embedded legend and labels. See [data-driven cartography](docs/CARTOGRAPHY.md).
 
 Run the tests:
 
