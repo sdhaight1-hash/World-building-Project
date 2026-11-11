@@ -247,17 +247,26 @@ impl Studio {
             self.status="Cannot change terrain basis with saved height edits. Preserve this project or clear edits before switching.".into();
             return;
         }
-        let next = match new_mode {
-            TerrainMode::Imported => match &self.imported_elevation {
-                Some(grid) => grid.clone(),
-                None => {
+        let (next, plate_motion) = match new_mode {
+            TerrainMode::Imported => {
+                let Some(grid) = &self.imported_elevation else {
                     self.status = "No imported source DEM exists for this world".into();
                     return;
+                };
+                match plate_kinematics::derive(
+                    &self.world,
+                    self.project.terrain_recipe.planet_radius_km,
+                ) {
+                    Ok(motion) => (grid.clone(), motion),
+                    Err(error) => {
+                        self.status = format!("Plate-motion diagnostics unavailable: {error}");
+                        return;
+                    }
                 }
-            },
+            }
             TerrainMode::Generated | TerrainMode::Auto => {
                 match terrain_generation::generate(&self.world, &self.project.terrain_recipe) {
-                    Ok(result) => result.elevation,
+                    Ok(result) => (result.elevation, result.kinematics),
                     Err(error) => {
                         self.status = format!("Geology generation unavailable: {error}");
                         return;
@@ -271,6 +280,7 @@ impl Studio {
             new_mode
         };
         self.world.elevation = Some(next);
+        self.world.plate_motion = plate_motion;
         self.project.terrain_mode = effective;
         self.active_terrain_mode = effective;
         self.terrain_undo.clear();
