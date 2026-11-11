@@ -2,6 +2,7 @@
 //! Data files are immutable; annotations use a separate JSON sidecar.
 use crate::datasets::{DatasetRegistry, Provenance};
 use crate::map_layers::BoundarySegment;
+use crate::planetary::PlanetCalendar;
 use crate::plate_kinematics::KinematicFields;
 use crate::rainshadow::WindFrom;
 use crate::terrain_edit::TerrainEdits;
@@ -152,6 +153,7 @@ pub struct World {
     pub scientific_fields: BTreeMap<String, Grid>,
     pub scientific_provenance: BTreeMap<String, Provenance>,
     pub active_month: u8,
+    pub calendar: PlanetCalendar,
     /// Derived Euler-relative boundary velocities, not stored source data.
     pub plate_motion: Option<KinematicFields>,
     pub plates: Vec<PlateInfo>,
@@ -179,6 +181,7 @@ impl World {
             scientific_fields: BTreeMap::new(),
             scientific_provenance: BTreeMap::new(),
             active_month: 1,
+            calendar: PlanetCalendar::default(),
             plate_motion: None,
             plates: Vec::new(),
             cratons: Vec::new(),
@@ -327,6 +330,8 @@ pub struct Project {
     pub layers: crate::map_layers::ProjectLayers,
     #[serde(default)]
     pub datasets: DatasetRegistry,
+    #[serde(default)]
+    pub calendar: PlanetCalendar,
     #[serde(default = "january")]
     pub month: u8,
 }
@@ -342,6 +347,7 @@ impl Project {
             terrain_recipe: TerrainRecipe::default(),
             layers: crate::map_layers::ProjectLayers::default(),
             datasets: DatasetRegistry::default(),
+            calendar: PlanetCalendar::default(),
             month: 1,
         }
     }
@@ -387,6 +393,7 @@ impl Project {
     }
 
     pub fn save(&self, path: &Path) -> Result<(), String> {
+        self.calendar.validate()?;
         let parent = path
             .parent()
             .ok_or_else(|| "Project path has no parent".to_owned())?;

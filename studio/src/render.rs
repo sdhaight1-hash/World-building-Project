@@ -29,10 +29,11 @@ pub enum Theme {
     MonthlyPrecipitation,
     AnnualTemperature,
     AnnualPrecipitation,
+    MonthlyInsolation,
 }
 
 impl Theme {
-    pub const ALL: [Self; 18] = [
+    pub const ALL: [Self; 19] = [
         Self::Terrain,
         Self::Slope,
         Self::Plates,
@@ -51,6 +52,7 @@ impl Theme {
         Self::MonthlyPrecipitation,
         Self::AnnualTemperature,
         Self::AnnualPrecipitation,
+        Self::MonthlyInsolation,
     ];
 
     pub fn name(self) -> &'static str {
@@ -71,8 +73,9 @@ impl Theme {
             Self::RainShadow => "Rain shadow",
             Self::MonthlyTemperature => "Monthly air temperature",
             Self::MonthlyPrecipitation => "Monthly precipitation",
-            Self::AnnualTemperature => "Annual air temperature · equal-month mean",
+            Self::AnnualTemperature => "Annual air temperature · day-weighted mean",
             Self::AnnualPrecipitation => "Annual precipitation total",
+            Self::MonthlyInsolation => "Monthly top-of-atmosphere sunlight",
         }
     }
 
@@ -96,6 +99,7 @@ impl Theme {
             Self::MonthlyPrecipitation => "monthly-precipitation",
             Self::AnnualTemperature => "annual-air-temperature",
             Self::AnnualPrecipitation => "annual-precipitation",
+            Self::MonthlyInsolation => "monthly-toa-insolation",
         }
     }
 
@@ -114,8 +118,11 @@ impl Theme {
             Self::Lithosphere => w.lithosphere_km.is_some(),
             Self::HeatFlow => w.heatflow.is_some(),
             Self::RainShadow => w.rain_shadow.is_some(),
-            Self::MonthlyTemperature | Self::MonthlyPrecipitation
-            | Self::AnnualTemperature | Self::AnnualPrecipitation => self
+            Self::MonthlyTemperature
+            | Self::MonthlyPrecipitation
+            | Self::AnnualTemperature
+            | Self::AnnualPrecipitation
+            | Self::MonthlyInsolation => self
                 .scientific_id()
                 .is_some_and(|id| w.scientific_fields.contains_key(id)),
         }
@@ -138,8 +145,17 @@ impl Theme {
     }
 
     pub fn scientific_id(self) -> Option<&'static str> {
-        self.climate_field().map(|kind| kind.id())
-            .or_else(|| self.annual_field().map(|kind| kind.annual_id()))
+        if self == Self::MonthlyInsolation {
+            Some(crate::planetary::INSOLATION_ID)
+        } else {
+            self.climate_field()
+                .map(|kind| kind.id())
+                .or_else(|| self.annual_field().map(|kind| kind.annual_id()))
+        }
+    }
+
+    pub fn is_monthly(self) -> bool {
+        self.climate_field().is_some() || self == Self::MonthlyInsolation
     }
 
     pub fn units(self) -> &'static str {
@@ -154,6 +170,7 @@ impl Theme {
             Self::MonthlyPrecipitation => "mm/month",
             Self::AnnualTemperature => "°C",
             Self::AnnualPrecipitation => "mm/year",
+            Self::MonthlyInsolation => "W/m²",
             Self::PlateConvergence | Self::PlateDivergence | Self::PlateShear => "cm/year",
             _ => "named categories",
         }
@@ -253,10 +270,13 @@ pub fn export_atlas_png(
             "not_Earth_EPSG_4326":true,
         },
         "dataset_id":scientific_id,
-        "month":climate.map(|_| world.active_month),
-        "month_name":climate.map(|_| month_name(world.active_month)),
+        "month":theme.is_monthly().then_some(world.active_month),
+        "month_name":theme.is_monthly().then(|| month_name(world.active_month)),
+        "planetary_calendar":(theme == Theme::MonthlyInsolation || theme == Theme::AnnualTemperature).then_some(&world.calendar),
         "provenance":provenance,
-        "derived_from":if theme.annual_field().is_some() {
+        "derived_from":if theme == Theme::MonthlyInsolation {
+            "planetary calendar and circular-orbit solar geometry; no atmosphere or climate solver"
+        } else if theme.annual_field().is_some() {
             "calculated from all twelve authored monthly source slices; see provenance"
         } else if climate.is_some() {
             "project-local monthly scientific dataset; see provenance"
@@ -264,8 +284,10 @@ pub fn export_atlas_png(
             "native map fields, source geology and/or authored geometry"
         },
         "legend":legend,
-        "scientific_status":if theme.annual_field().is_some() {
-            "deterministic monthly aggregation, not a climate model; annual temperature is an equal-month mean"
+        "scientific_status":if theme == Theme::MonthlyInsolation {
+            "daily-mean top-of-atmosphere irradiance integrated over configured month; circular orbit, no weather or climate model"
+        } else if theme.annual_field().is_some() {
+            "deterministic monthly aggregation, not a climate model; annual temperature weighted by calendar solar days"
         } else if climate.is_some() {
             "source-defined values; no precipitation or temperature simulation is implied"
         } else {
@@ -384,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    fn independently_authored_world_can_render_all_eighteen_existing_maps() {
+    fn independently_authored_world_can_render_all_nineteen_existing_maps() {
         use crate::map_layers::{LayerKind, ProjectLayers};
         use crate::world::Grid;
 
@@ -486,8 +508,12 @@ mod tests {
         world.height = 24;
         let mut registry = crate::datasets::DatasetRegistry::default();
         for month in 1..=12u8 {
-            registry.create_month(&mut world, ClimateField::Temperature, month, 20.0).unwrap();
-            registry.create_month(&mut world, ClimateField::Precipitation, month, 125.0).unwrap();
+            registry
+                .create_month(&mut world, ClimateField::Temperature, month, 20.0)
+                .unwrap();
+            registry
+                .create_month(&mut world, ClimateField::Precipitation, month, 125.0)
+                .unwrap();
         }
         let art = Cartography::new(&world);
         for theme in [Theme::AnnualTemperature, Theme::AnnualPrecipitation] {
@@ -495,7 +521,9 @@ mod tests {
             assert_eq!(atlas_image(&world, &art, theme).size, [48, 24]);
             assert_eq!(art.legend(&world, theme).len(), 7);
             let target = std::env::temp_dir().join(format!(
-                "aegaea-annual-{}-{}.png", std::process::id(), theme.slug()
+                "aegaea-annual-{}-{}.png",
+                std::process::id(),
+                theme.slug()
             ));
             export_atlas_png(&world, &art, theme, &target).unwrap();
             let meta = std::fs::read_to_string(target.with_extension("json")).unwrap();
@@ -507,8 +535,45 @@ mod tests {
             std::fs::remove_file(target.with_extension("json")).unwrap();
             std::fs::remove_file(target).unwrap();
         }
-        assert_eq!(world.scientific_fields[ClimateField::Temperature.annual_id()].at(0,0), 20.0);
-        assert_eq!(world.scientific_fields[ClimateField::Precipitation.annual_id()].at(0,0), 1500.0);
+        assert_eq!(
+            world.scientific_fields[ClimateField::Temperature.annual_id()].at(0, 0),
+            20.0
+        );
+        assert_eq!(
+            world.scientific_fields[ClimateField::Precipitation.annual_id()].at(0, 0),
+            1500.0
+        );
+    }
+
+    #[test]
+    fn insolation_map_exports_month_calendar_and_derived_provenance() {
+        let mut world = World::empty(PathBuf::from("solar-test"));
+        world.width = 48;
+        world.height = 24;
+        world.calendar.month_days[0] = 40.0;
+        crate::datasets::DatasetRegistry::default()
+            .activate(&mut world, 2)
+            .unwrap();
+        assert!(Theme::MonthlyInsolation.available(&world));
+        let art = Cartography::new(&world);
+        let image = atlas_image(&world, &art, Theme::MonthlyInsolation);
+        assert_eq!(image.size, [48, 24]);
+        assert_eq!(art.legend(&world, Theme::MonthlyInsolation).len(), 7);
+        let path = std::env::temp_dir().join(format!("aegaea-solar-{}.png", std::process::id()));
+        export_atlas_png(&world, &art, Theme::MonthlyInsolation, &path).unwrap();
+        let meta: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(path.with_extension("json")).unwrap()).unwrap();
+        assert_eq!(meta["month"], 2);
+        assert_eq!(meta["units"], "W/m²");
+        assert_eq!(meta["dataset_id"], crate::planetary::INSOLATION_ID);
+        assert_eq!(meta["planetary_calendar"]["month_days"][0], 40.0);
+        assert_eq!(meta["provenance"]["kind"], "derived");
+        assert!(meta["derived_from"]
+            .as_str()
+            .unwrap()
+            .contains("circular-orbit"));
+        std::fs::remove_file(path.with_extension("json")).unwrap();
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]

@@ -6,6 +6,7 @@ mod geology_diagnostics;
 mod globe3d;
 mod map_graph;
 mod map_layers;
+mod planetary;
 mod plate_kinematics;
 mod publication;
 mod rainshadow;
@@ -23,6 +24,7 @@ use eframe::{
 use geology_diagnostics::Report as GeologyReport;
 use globe3d::{GlobeCallback, GlobeMesh};
 use map_layers::{BoundarySegment, LayerKind, LayerStroke};
+use planetary::PlanetCalendar;
 use rainshadow::WindFrom;
 use render::{atlas_geo_from_fraction, forward_globe, globe_geo_from_fraction, Theme};
 use std::{
@@ -68,12 +70,13 @@ fn source_for_theme(theme: Theme) -> Option<LayerKind> {
         | Theme::MonthlyTemperature
         | Theme::MonthlyPrecipitation
         | Theme::AnnualTemperature
-        | Theme::AnnualPrecipitation => None,
+        | Theme::AnnualPrecipitation
+        | Theme::MonthlyInsolation => None,
     }
 }
 
 fn map_export_stem(theme: Theme, month: u8) -> String {
-    if theme.climate_field().is_some() {
+    if theme.is_monthly() {
         format!("{}-month-{month:02}", theme.slug())
     } else {
         theme.slug().into()
@@ -88,7 +91,9 @@ enum ViewMode {
 
 /// Choose the authoritative elevation source before deriving map fields.
 fn activate_terrain(world: &mut World, project: &Project) -> Result<TerrainMode, String> {
+    project.calendar.validate()?;
     project.layers.apply(world)?;
+    world.calendar = project.calendar.clone();
     project.datasets.activate(world, project.month)?;
     let has_edits = !project.terrain.overrides.is_empty() || project.terrain.base_fill_m.is_some();
     let mode = terrain_generation::resolve_mode(project.terrain_mode, world, has_edits);
@@ -109,6 +114,7 @@ struct Studio {
     world: World,
     cartography: Cartography,
     project: Project,
+    planet_draft: PlanetCalendar,
     project_path: PathBuf,
     imported_elevation: Option<world::Grid>,
     active_terrain_mode: TerrainMode,
@@ -210,10 +216,12 @@ impl Studio {
             .as_ref()
             .map(|state| state.target_format)
             .unwrap_or(wgpu::TextureFormat::Bgra8Unorm);
+        let planet_draft = project.calendar.clone();
         let mut app = Self {
             world,
             cartography,
             project,
+            planet_draft,
             project_path: path,
             imported_elevation,
             active_terrain_mode,
@@ -467,6 +475,7 @@ impl Studio {
             Ok((world, project, path)) => {
                 self.world = world;
                 self.project = project;
+                self.planet_draft = self.project.calendar.clone();
                 self.project_path = path;
                 self.imported_elevation = None;
                 self.active_terrain_mode = TerrainMode::Imported;
@@ -509,6 +518,13 @@ impl Studio {
                 self.boundary_draw = false;
                 self.boundary_class = 2;
                 self.boundary_start = None;
+                if let Err(error) = self
+                    .project
+                    .datasets
+                    .activate(&mut self.world, self.project.month)
+                {
+                    self.status = format!("Planetary data initialization failed: {error}");
+                }
                 self.rebuild_derived_surfaces();
                 // The new world.json already persists its empty editing baseline.
                 self.changed = false;
@@ -648,7 +664,11 @@ impl Studio {
     fn refresh_dataset_map(&mut self) {
         // Annual summaries depend on every edited monthly slice. Rebuild them
         // after each committed stroke, undo, redo or month insertion.
-        if let Err(error) = self.project.datasets.activate(&mut self.world, self.project.month) {
+        if let Err(error) = self
+            .project
+            .datasets
+            .activate(&mut self.world, self.project.month)
+        {
             self.status = format!("Climate data validation failed: {error}");
         }
         self.atlas_dirty = true;
@@ -709,16 +729,26 @@ impl Studio {
     }
 
     fn annual_workshop(&mut self, ui: &mut egui::Ui) {
-        let Some(kind) = self.theme.annual_field() else { return };
-        let count = self.project.datasets.fields.get(kind.id())
+        let Some(kind) = self.theme.annual_field() else {
+            return;
+        };
+        let count = self
+            .project
+            .datasets
+            .fields
+            .get(kind.id())
             .map_or(0, |f| f.months.len());
         ui.separator();
-        ui.label(egui::RichText::new("ANNUAL DATA DEPENDENCIES").strong().small());
+        ui.label(
+            egui::RichText::new("ANNUAL DATA DEPENDENCIES")
+                .strong()
+                .small(),
+        );
         ui.small(format!("{} of 12 monthly source periods available", count));
         if count == 12 {
             ui.small(match kind {
                 datasets::ClimateField::Temperature =>
-                    "Arithmetic mean of 12 monthly means. Equal-month weighting; not calibrated for planetary month lengths.",
+                    "Mean of 12 monthly means weighted by configured month lengths in solar days. No climate simulation.",
                 datasets::ClimateField::Precipitation =>
                     "Sum of 12 monthly precipitation totals. This is numeric aggregation, not predicted rainfall.",
             });
@@ -734,6 +764,105 @@ impl Studio {
             self.dataset_paint_value = kind.default_fill();
             self.atlas_dirty = true;
             self.globe_dirty = true;
+        }
+    }
+
+    fn insolation_workshop(&mut self, ui: &mut egui::Ui) {
+        ui.separator();
+        ui.label(
+            egui::RichText::new("SEASONAL SOLAR GEOMETRY")
+                .strong()
+                .small(),
+        );
+        ui.small("Monthly mean of daily mean top-of-atmosphere sunlight. Assumed circular orbit; no atmospheric heating, clouds or climate.");
+        let mut selected = self.project.month;
+        egui::ComboBox::from_id_salt("insolation-month")
+            .selected_text(month_name(selected))
+            .show_ui(ui, |ui| {
+                for month in 1..=12u8 {
+                    ui.selectable_value(&mut selected, month, month_name(month));
+                }
+            });
+        if selected != self.project.month {
+            self.select_month(selected);
+        }
+        ui.small(format!(
+            "Month duration: {:.2} solar days · orbit: {:.2} solar days",
+            self.project.calendar.month_days[self.project.month as usize - 1],
+            self.project.calendar.year_days()
+        ));
+    }
+
+    fn planet_settings(&mut self, ui: &mut egui::Ui) {
+        ui.small("Planet-specific assumptions. Circular orbit; no eccentricity or precession.");
+        ui.label("Mean solar day (hours)");
+        ui.add(egui::DragValue::new(&mut self.planet_draft.solar_day_hours).speed(0.1));
+        ui.label("Axial tilt (degrees)");
+        ui.add(egui::DragValue::new(&mut self.planet_draft.axial_tilt_deg).speed(0.1));
+        ui.label("Solar longitude at start of year (degrees; 0 = north spring equinox)");
+        ui.add(egui::DragValue::new(&mut self.planet_draft.start_solar_longitude_deg).speed(1.0));
+        ui.label("Stellar flux at orbital distance (W/m²)");
+        ui.add(egui::DragValue::new(&mut self.planet_draft.stellar_flux_w_m2).speed(1.0));
+        ui.small("Month lengths, in local solar days:");
+        egui::Grid::new("planet-month-lengths")
+            .num_columns(2)
+            .show(ui, |ui| {
+                for i in 0..12 {
+                    ui.label(month_name(i as u8 + 1));
+                    ui.add(
+                        egui::DragValue::new(&mut self.planet_draft.month_days[i])
+                            .speed(0.5)
+                            .range(0.01..=10_000.0),
+                    );
+                    ui.end_row();
+                }
+            });
+        ui.small(format!(
+            "Orbital year: {:.2} solar days · {:.2} hours",
+            self.planet_draft.year_days(),
+            self.planet_draft.year_hours()
+        ));
+        match self.planet_draft.validate() {
+            Ok(()) => {
+                if ui
+                    .add_enabled(
+                        self.project.calendar != self.planet_draft,
+                        egui::Button::new("Apply calendar & solar settings"),
+                    )
+                    .clicked()
+                {
+                    self.finish_dataset_stroke();
+                    let original = self.world.calendar.clone();
+                    self.world.calendar = self.planet_draft.clone();
+                    match self
+                        .project
+                        .datasets
+                        .activate(&mut self.world, self.project.month)
+                    {
+                        Ok(()) => {
+                            self.project.calendar = self.planet_draft.clone();
+                            self.atlas_dirty = true;
+                            self.globe_dirty = true;
+                            self.changed = true;
+                            self.status =
+                                "Planet calendar applied; solar and annual maps recalculated"
+                                    .into();
+                        }
+                        Err(error) => {
+                            self.world.calendar = original;
+                            self.status = format!("Calendar not applied: {error}");
+                        }
+                    }
+                }
+            }
+            Err(error) => {
+                ui.colored_label(Color32::from_rgb(229, 147, 122), error);
+            }
+        }
+        if self.project.calendar != self.planet_draft
+            && ui.button("Discard calendar edits").clicked()
+        {
+            self.planet_draft = self.project.calendar.clone();
         }
     }
 
@@ -1357,9 +1486,12 @@ impl Studio {
                 self.annual_workshop(ui);
             } else if self.theme.climate_field().is_some() {
                 self.monthly_workshop(ui);
+            } else if self.theme == Theme::MonthlyInsolation {
+                self.insolation_workshop(ui);
             } else {
                 self.map_layer_workshop(ui);
             }
+            ui.collapsing("Planet calendar & orbit", |ui| self.planet_settings(ui));
             if !self.theme.available(&self.world) {
                 ui.colored_label(Color32::from_rgb(229, 188, 111),
                     "This map has no source data yet. Set up its input layer above.");
@@ -1572,13 +1704,21 @@ impl Studio {
                             ui.end_row();
                             if let Some(id) = self.theme.scientific_id() {
                                 if let Some(field) = self.world.scientific_fields.get(id) {
-                                    let name = if self.theme.climate_field().is_some() {
-                                        format!("{} · {}", self.theme.name(), month_name(self.project.month))
+                                    let name = if self.theme.is_monthly() {
+                                        format!(
+                                            "{} · {}",
+                                            self.theme.name(),
+                                            month_name(self.project.month)
+                                        )
                                     } else {
                                         self.theme.name().into()
                                     };
                                     ui.label(name);
-                                    ui.monospace(format!("{:.2} {}", field.geo(lon, lat), self.theme.units()));
+                                    ui.monospace(format!(
+                                        "{:.2} {}",
+                                        field.geo(lon, lat),
+                                        self.theme.units()
+                                    ));
                                     ui.end_row();
                                     if let Some(source) = self.world.scientific_provenance.get(id) {
                                         ui.label("Provenance");
@@ -2595,8 +2735,45 @@ mod terrain_activation_tests {
             .contains_key(datasets::ClimateField::Precipitation.id()));
         assert!(second
             .scientific_provenance
-            .values()
-            .all(|p| matches!(p, datasets::Provenance::Authored { .. })));
+            .iter()
+            .filter(|(id, _)| id.as_str() != planetary::INSOLATION_ID)
+            .all(|(_, p)| matches!(p, datasets::Provenance::Authored { .. })));
+    }
+
+    #[test]
+    fn authored_calendar_survives_json_and_rebuilds_sunlight_without_aegaea() {
+        let mut project = Project::new("Seasonal independent world");
+        project.calendar.month_days[0] = 45.0;
+        project.calendar.axial_tilt_deg = 38.0;
+        project.month = 7;
+        let saved = serde_json::to_string(&project).unwrap();
+        let reopened: Project = serde_json::from_str(&saved).unwrap();
+        assert_eq!(reopened.calendar.month_days[0], 45.0);
+        assert_eq!(reopened.calendar.year_days(), 375.0);
+        let mut world = World::empty(PathBuf::from("independent-orbit"));
+        world.width = 48;
+        world.height = 24;
+        activate_terrain(&mut world, &reopened).unwrap();
+        assert!(world.plates.is_empty());
+        assert_eq!(world.active_month, 7);
+        assert_eq!(world.calendar, reopened.calendar);
+        assert!(world
+            .scientific_fields
+            .contains_key(planetary::INSOLATION_ID));
+        let july = world.scientific_fields[planetary::INSOLATION_ID]
+            .cells
+            .clone();
+        reopened.datasets.activate(&mut world, 1).unwrap();
+        assert_ne!(
+            world.scientific_fields[planetary::INSOLATION_ID].cells,
+            july
+        );
+        assert!(world.scientific_provenance[planetary::INSOLATION_ID].label() == "Derived");
+
+        let legacy = serde_json::json!({"name":"Older saved world","month":2});
+        let legacy: Project = serde_json::from_value(legacy).unwrap();
+        assert_eq!(legacy.calendar, PlanetCalendar::default());
+        assert_eq!(legacy.month, 2);
     }
 
     #[test]

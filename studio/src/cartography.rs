@@ -159,11 +159,22 @@ const ANNUAL_RAIN_RAMP: [(f32, [u8; 3]); 7] = [
     (8000.0, [70, 54, 125]),
 ];
 
+const INSOLATION_RAMP: [(f32, [u8; 3]); 7] = [
+    (0.0, [34, 48, 81]),
+    (50.0, [66, 88, 138]),
+    (150.0, [77, 142, 167]),
+    (250.0, [134, 178, 146]),
+    (350.0, [218, 198, 111]),
+    (450.0, [237, 148, 72]),
+    (550.0, [209, 81, 67]),
+];
+
 fn climate_ramp(theme: Theme) -> &'static [(f32, [u8; 3])] {
     match theme {
         Theme::MonthlyTemperature | Theme::AnnualTemperature => &TEMPERATURE_RAMP,
         Theme::MonthlyPrecipitation => &MONTHLY_RAIN_RAMP,
         Theme::AnnualPrecipitation => &ANNUAL_RAIN_RAMP,
+        Theme::MonthlyInsolation => &INSOLATION_RAMP,
         _ => &[],
     }
 }
@@ -525,8 +536,11 @@ impl Cartography {
                     base_relief
                 }
             }
-            Theme::MonthlyTemperature | Theme::MonthlyPrecipitation
-            | Theme::AnnualTemperature | Theme::AnnualPrecipitation => {
+            Theme::MonthlyTemperature
+            | Theme::MonthlyPrecipitation
+            | Theme::AnnualTemperature
+            | Theme::AnnualPrecipitation
+            | Theme::MonthlyInsolation => {
                 if let Some(id) = theme.scientific_id() {
                     if let Some(grid) = w.scientific_fields.get(id) {
                         blend(gradient(grid.at(x, y), climate_ramp(theme)), base, 0.07)
@@ -688,13 +702,14 @@ impl Cartography {
                 ("Neutral · near zero".into(), [172, 181, 175]),
                 ("Leeward · positive index".into(), [218, 92, 52]),
             ],
-            Theme::MonthlyTemperature | Theme::MonthlyPrecipitation
-            | Theme::AnnualTemperature | Theme::AnnualPrecipitation => {
-                climate_ramp(theme)
-                    .iter()
-                    .map(|&(value, rgb)| (format!("{value:.0} {}", theme.units()), rgb))
-                    .collect()
-            }
+            Theme::MonthlyTemperature
+            | Theme::MonthlyPrecipitation
+            | Theme::AnnualTemperature
+            | Theme::AnnualPrecipitation
+            | Theme::MonthlyInsolation => climate_ramp(theme)
+                .iter()
+                .map(|&(value, rgb)| (format!("{value:.0} {}", theme.units()), rgb))
+                .collect(),
         };
         items
             .into_iter()
