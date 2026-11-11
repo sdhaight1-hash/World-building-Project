@@ -355,7 +355,7 @@ mod tests {
     }
 
     #[test]
-    fn independently_authored_world_can_render_all_fourteen_existing_maps() {
+    fn independently_authored_world_can_render_all_sixteen_existing_maps() {
         use crate::map_layers::{LayerKind, ProjectLayers};
         use crate::world::Grid;
 
@@ -394,6 +394,9 @@ mod tests {
             world.elevation.as_ref().unwrap(),
             crate::rainshadow::WindFrom::West,
         ));
+        let mut monthly = crate::datasets::DatasetRegistry::default();
+        monthly.create_month(&mut world, ClimateField::Temperature, 1, 18.0).unwrap();
+        monthly.create_month(&mut world, ClimateField::Precipitation, 1, 100.0).unwrap();
         let art = Cartography::new(&world);
         for theme in Theme::ALL {
             assert!(theme.available(&world), "{} should be usable", theme.name());
