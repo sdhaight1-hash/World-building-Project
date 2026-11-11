@@ -38,3 +38,9 @@ Use `egui-wgpu` paint callbacks to render a DEM-displaced spherical triangle mes
 ## P1/P2 checkpoint — Non-destructive DEM authoring
 
 An elevation painting tool lets the author raise/lower terrain directly in the 2D map and globe. Sparse absolute-elevation overrides are stored in the project sidecar, and grouped brush strokes are undoable/redoable without writing to the source TIFF. Completion recomputes hillshade, rain-shadow and the displaced globe mesh; numeric DEM/metadata export is provided. Blank worlds can be created with a flat-ocean seed elevation. Polygon/line editing and geological time reconstructions are still future work.
+
+## New architecture checkpoint — physical-world data graph
+
+The first `map_graph.rs` executor supports type-checked scalar raster nodes: imported/edited elevation, height offset, spherical slope and the existing rain-shadow exposure proxy. JSON recipes can be built headlessly into separate numeric TIFF fields with self-describing provenance. **Acceptance:** cycle/missing-input detection, unit checking, deterministic repeated output, shared dependency reuse, exact numeric export, and a successful reference-world build of `docs/examples/aegaea-map-graph.json`.
+
+Next: offer those recipes as **quick tools in the editor**, then a dockable advanced node graph with instant preview and user-created links. Introduce tile-cache/dirty-region processing *before* computationally intensive erosion or planet-wide climate solvers. Only after conservation/validation gates should terrain hydrology and atmospheric nodes claim physical simulations.

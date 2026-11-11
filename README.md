@@ -83,3 +83,15 @@ Changes to editors and models should be exercised on two fixtures: (1) Aegaea (c
 Choose **Terrain brush** in the left sidebar, then **Raise** or **Lower**, adjust radius and strength, and drag on either map view. Each drag is one undoable stroke, with Ctrl+Z / Ctrl+Y shortcuts. Changes are saved to your project JSON and applied over the immutable elevation raster on load. **Export authored DEM TIFF** writes a numeric floating-point raster plus metadata; the original source is not modified.
 
 The artist's brush is not a validated geophysical terrain generator. Contours, relief, the 3D mesh, and the terrain-only rain-shadow index are recalculated when a stroke completes. On large worlds this may briefly interrupt interaction; incremental recomputation is a later optimization. See [terrain authoring specification](docs/TERRAIN_EDITOR.md).
+
+## Procedural map graph — first functional processing pipeline
+
+The Studio now has a **typed deterministic node graph runtime** for numeric map data. The initial v1 operators are **Elevation Input**, **Elevation Offset**, **Slope (degrees)**, **Orographic Exposure**, and **Output**. The graph rejects missing inputs, circular dependencies, mismatched scientific units, duplicate node IDs, and invalid output names. Multiple outputs can share computation, and the original imported DEM remains unmodified.
+
+Generate two actual Aegaea data maps from the example recipe:
+
+```powershell
+cargo run --release -- --build-graph docs/examples/aegaea-map-graph.json maps/generated
+```
+
+The output folder contains **slope_degrees.tif** and **rain_shadow_potential.tif**, plus recipe/provenance JSON for each. This is an initial **headless processing graph**; an interactive visual node editor, tiled processing, cache invalidation across builds, scientifically calibrated wind fields, and erosion solvers are future tasks. See [the architecture decision](docs/WORKFLOW_INSPIRATIONS.md) and [node-graph contract](docs/MAP_GRAPH.md).

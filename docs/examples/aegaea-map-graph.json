@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "name": "Aegaea physical-world derived map demonstration",
+  "nodes": [
+    {
+      "id": "dem",
+      "operator": "elevation"
+    },
+    {
+      "id": "relief_height",
+      "operator": "elevation_offset",
+      "input": "dem",
+      "delta_m": 0
+    },
+    {
+      "id": "slope",
+      "operator": "slope",
+      "input": "relief_height",
+      "planet_radius_km": 6371
+    },
+    {
+      "id": "rainshadow_west",
+      "operator": "orographic_exposure",
+      "input": "relief_height",
+      "wind_from": "west"
+    },
+    {
+      "id": "slope_degrees",
+      "operator": "output",
+      "input": "slope"
+    },
+    {
+      "id": "rain_shadow_potential",
+      "operator": "output",
+      "input": "rainshadow_west"
+    }
+  ],
+  "outputs": [
+    "slope_degrees",
+    "rain_shadow_potential"
+  ]
+}
