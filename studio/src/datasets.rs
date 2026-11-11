@@ -420,7 +420,9 @@ impl DatasetRegistry {
         }
         next.insert(
             INSOLATION_ID.into(),
-            world.calendar.monthly_insolation(world.width, world.height, month)?,
+            world
+                .calendar
+                .monthly_insolation(world.width, world.height, month)?,
         );
         provenance.insert(
             INSOLATION_ID.into(),
@@ -605,8 +607,12 @@ mod tests {
                 )
                 .unwrap();
         }
-        assert!(registry.annual(ClimateField::Temperature, &w.calendar.month_days).is_none());
-        assert!(registry.annual(ClimateField::Precipitation, &w.calendar.month_days).is_none());
+        assert!(registry
+            .annual(ClimateField::Temperature, &w.calendar.month_days)
+            .is_none());
+        assert!(registry
+            .annual(ClimateField::Precipitation, &w.calendar.month_days)
+            .is_none());
         assert!(!w
             .scientific_fields
             .contains_key(ClimateField::Temperature.annual_id()));
@@ -809,7 +815,9 @@ mod tests {
             .copy_month(&mut w, ClimateField::Precipitation, 3, 4)
             .is_err());
         registry.activate(&mut w, 5).unwrap();
-        assert!(!w.scientific_fields.contains_key(ClimateField::Precipitation.id()));
+        assert!(!w
+            .scientific_fields
+            .contains_key(ClimateField::Precipitation.id()));
         assert!(w.scientific_fields.contains_key(INSOLATION_ID));
     }
 
