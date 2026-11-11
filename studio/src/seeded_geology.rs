@@ -12,7 +12,6 @@
 use crate::{
     map_layers::PROVINCE_CLASSES,
     plate_kinematics,
-    terrain_generation,
     world::{CratonInfo, Grid, PlateInfo, ProvinceInfo, World},
 };
 use serde::Serialize;
@@ -22,7 +21,7 @@ const PLATE_COUNT: usize = 15;
 const LAND_NUCLEI: usize = 8;
 
 /// Complete, reproducible source geology. All grids share one planet atlas.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SeededGeology {
     pub seed: u64,
     pub plates: Vec<PlateInfo>,
@@ -342,15 +341,20 @@ impl SeededGeology {
             }
             return Err(error);
         }
+        let mut committed = Vec::new();
         for (part, final_path) in &temp {
             if let Err(error) = fs::rename(part, final_path) {
-                // Never overwrite input; remove any new outputs from this attempt.
-                for (tmp, dst) in &temp {
+                // Roll back ONLY files this operation committed; never
+                // remove an existing source introduced by another writer.
+                for (tmp, _) in &temp {
                     let _ = fs::remove_file(tmp);
-                    let _ = fs::remove_file(dst);
+                }
+                for path in &committed {
+                    let _ = fs::remove_file(path);
                 }
                 return Err(format!("Unable to commit geological sources: {error}"));
             }
+            committed.push(final_path.clone());
         }
         Ok(())
     }
@@ -414,7 +418,9 @@ mod tests {
         assert!(a.plate_ids.cells.iter().all(|&v| (1.0..=PLATE_COUNT as f32).contains(&v)));
         assert!(a.crust_km.cells.iter().all(|&v| (4.0..=70.0).contains(&v)));
         assert!(a.heatflow.cells.iter().all(|&v| (15.0..=190.0).contains(&v)));
-        assert_eq!(xyz(-PI, 0.7), xyz(PI, 0.7).map(|v| if v.abs() < 1e-14 { 0.0 } else { v }));
+        let left = xyz(-PI, 0.7);
+        let right = xyz(PI, 0.7);
+        assert!(left.iter().zip(right).all(|(a, b)| (a - b).abs() < 1e-12));
     }
 
     #[test]
