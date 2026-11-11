@@ -55,10 +55,7 @@ pub enum Operator {
         planet_radius_km: f64,
     },
     /// The existing directional *terrain-only* rain shadow approximation.
-    OrographicExposure {
-        input: String,
-        wind_from: WindFrom,
-    },
+    OrographicExposure { input: String, wind_from: WindFrom },
     /// Explicit named output. Future nodes will use typed, named ports.
     Output { input: String },
 }
@@ -174,8 +171,9 @@ impl<'a> Evaluator<'a> {
                     grid: Arc::new(rainshadow::derive(&source.grid, *wind_from)),
                 }
             }
-            Operator::Output { .. } => source
-                .ok_or_else(|| format!("Output '{name}' has no input"))?,
+            Operator::Output { .. } => {
+                source.ok_or_else(|| format!("Output '{name}' has no input"))?
+            }
         };
         self.visiting.remove(name);
         self.cache.insert(name.to_owned(), result.clone());
@@ -183,11 +181,7 @@ impl<'a> Evaluator<'a> {
     }
 }
 
-fn expect_unit(
-    source: Option<Field>,
-    expected: Quantity,
-    name: &str,
-) -> Result<Field, String> {
+fn expect_unit(source: Option<Field>, expected: Quantity, name: &str) -> Result<Field, String> {
     let source = source.ok_or_else(|| format!("Node '{name}' has no input"))?;
     if source.quantity != expected {
         return Err(format!(
@@ -201,10 +195,8 @@ fn expect_unit(
 
 impl MapGraph {
     pub fn from_json(path: &Path) -> Result<Self, String> {
-        let bytes = std::fs::read(path)
-            .map_err(|e| format!("{}: {e}", path.display()))?;
-        serde_json::from_slice(&bytes)
-            .map_err(|e| format!("{}: {e}", path.display()))
+        let bytes = std::fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
+        serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))
     }
 
     pub fn build(&self, world: &World) -> Result<Build, String> {
@@ -222,7 +214,10 @@ impl MapGraph {
             if !safe_id(&node.id) {
                 return Err(format!("Invalid graph node ID '{}'", node.id));
             }
-            if definitions.insert(node.id.as_str(), &node.operator).is_some() {
+            if definitions
+                .insert(node.id.as_str(), &node.operator)
+                .is_some()
+            {
                 return Err(format!("Duplicate graph node ID '{}'", node.id));
             }
         }
@@ -241,7 +236,10 @@ impl MapGraph {
             if !safe_id(id) {
                 return Err(format!("Invalid output ID '{id}'"));
             }
-            if !matches!(evaluator.definitions.get(id.as_str()), Some(Operator::Output { .. })) {
+            if !matches!(
+                evaluator.definitions.get(id.as_str()),
+                Some(Operator::Output { .. })
+            ) {
                 return Err(format!("Published output '{id}' must be an Output node"));
             }
             let field = evaluator.resolve(id)?;
@@ -271,8 +269,8 @@ pub fn slope_degrees(elevation: &Grid, radius_km: f64) -> Result<Grid, String> {
     for y in 0..elevation.height {
         let latitude = -PI / 2.0 + PI * (y as f64 + 0.5) / elevation.height as f64;
         // Guard the coordinate singularity without pretending polar slope is precise.
-        let x_spacing = (2.0 * PI * radius_m * latitude.cos().abs()
-            / elevation.width as f64).max(1.0);
+        let x_spacing =
+            (2.0 * PI * radius_m * latitude.cos().abs() / elevation.width as f64).max(1.0);
         let north = (y + 1).min(elevation.height - 1);
         let south = y.saturating_sub(1);
         let y_denominator = (north - south) as f64 * y_spacing;
@@ -280,16 +278,18 @@ pub fn slope_degrees(elevation: &Grid, radius_km: f64) -> Result<Grid, String> {
             let east = (x + elevation.width - 1) % elevation.width;
             let west = (x + 1) % elevation.width;
             let samples = [
-                elevation.at(x,y), elevation.at(east,y), elevation.at(west,y),
-                elevation.at(x,north), elevation.at(x,south),
+                elevation.at(x, y),
+                elevation.at(east, y),
+                elevation.at(west, y),
+                elevation.at(x, north),
+                elevation.at(x, south),
             ];
-            if !samples.iter().all(|v|v.is_finite()) {
+            if !samples.iter().all(|v| v.is_finite()) {
                 continue;
             }
             let dx = (samples[1] as f64 - samples[2] as f64) / (2.0 * x_spacing);
             let dy = (samples[3] as f64 - samples[4] as f64) / y_denominator;
-            slope.cells[y * elevation.width + x] =
-                dx.hypot(dy).atan().to_degrees() as f32;
+            slope.cells[y * elevation.width + x] = dx.hypot(dy).atan().to_degrees() as f32;
         }
     }
     Ok(slope)
@@ -297,25 +297,20 @@ pub fn slope_degrees(elevation: &Grid, radius_km: f64) -> Result<Grid, String> {
 
 /// Export a numeric graph output and a JSON sidecar with its scientific units,
 /// recipe and source provenance; this is a TIFF, **not an Earth GeoTIFF**.
-pub fn export_outputs(
-    graph: &MapGraph,
-    build: &Build,
-    dir: &Path,
-) -> Result<usize, String> {
-    std::fs::create_dir_all(dir)
-        .map_err(|e| format!("{}: {e}", dir.display()))?;
-    for (id,field) in &build.outputs {
+pub fn export_outputs(graph: &MapGraph, build: &Build, dir: &Path) -> Result<usize, String> {
+    std::fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+    for (id, field) in &build.outputs {
         let path = dir.join(format!("{id}.tif"));
-        let file=File::create(&path)
+        let file = File::create(&path).map_err(|e| format!("{}: {e}", path.display()))?;
+        let mut encoder = TiffEncoder::new(file).map_err(|e| format!("{}: {e}", path.display()))?;
+        encoder
+            .write_image::<colortype::Gray32Float>(
+                field.grid.width as u32,
+                field.grid.height as u32,
+                &field.grid.cells,
+            )
             .map_err(|e| format!("{}: {e}", path.display()))?;
-        let mut encoder=TiffEncoder::new(file)
-            .map_err(|e| format!("{}: {e}", path.display()))?;
-        encoder.write_image::<colortype::Gray32Float>(
-            field.grid.width as u32,
-            field.grid.height as u32,
-            &field.grid.cells,
-        ).map_err(|e| format!("{}: {e}", path.display()))?;
-        let metadata=serde_json::json!({
+        let metadata = serde_json::json!({
             "graph_name":graph.name,
             "graph_version":graph.version,
             "output_node":id,
@@ -332,8 +327,9 @@ pub fn export_outputs(
         });
         std::fs::write(
             dir.join(format!("{id}.json")),
-            serde_json::to_vec_pretty(&metadata).map_err(|e|e.to_string())?
-        ).map_err(|e|e.to_string())?;
+            serde_json::to_vec_pretty(&metadata).map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?;
     }
     Ok(build.outputs.len())
 }
@@ -344,127 +340,157 @@ mod tests {
     use std::path::PathBuf;
 
     fn world() -> World {
-        let mut world=World::empty(PathBuf::from("unrelated-world"));
-        world.width=12;
-        world.height=6;
-        let mut grid=Grid::new(12,6,50.0);
+        let mut world = World::empty(PathBuf::from("unrelated-world"));
+        world.width = 12;
+        world.height = 6;
+        let mut grid = Grid::new(12, 6, 50.0);
         for y in 0..6 {
-            for x in 0..12 {grid.cells[y*12+x] += x as f32 * 30.0;}
+            for x in 0..12 {
+                grid.cells[y * 12 + x] += x as f32 * 30.0;
+            }
         }
-        world.elevation=Some(grid);
+        world.elevation = Some(grid);
         world
     }
 
     fn sample_graph() -> MapGraph {
         MapGraph {
-            version:1,
-            name:"Example natural fields".into(),
-            nodes:vec![
-                Node{id:"dem".into(),operator:Operator::Elevation},
-                Node{id:"ramped".into(),operator:Operator::ElevationOffset {
-                    input:"dem".into(),delta_m:125.0
-                }},
-                Node{id:"slope".into(),operator:Operator::Slope {
-                    input:"ramped".into(),planet_radius_km:6371.0
-                }},
-                Node{id:"map".into(),operator:Operator::Output{input:"slope".into()}},
+            version: 1,
+            name: "Example natural fields".into(),
+            nodes: vec![
+                Node {
+                    id: "dem".into(),
+                    operator: Operator::Elevation,
+                },
+                Node {
+                    id: "ramped".into(),
+                    operator: Operator::ElevationOffset {
+                        input: "dem".into(),
+                        delta_m: 125.0,
+                    },
+                },
+                Node {
+                    id: "slope".into(),
+                    operator: Operator::Slope {
+                        input: "ramped".into(),
+                        planet_radius_km: 6371.0,
+                    },
+                },
+                Node {
+                    id: "map".into(),
+                    operator: Operator::Output {
+                        input: "slope".into(),
+                    },
+                },
             ],
-            outputs:vec!["map".into()],
+            outputs: vec!["map".into()],
         }
     }
 
     #[test]
     fn graph_is_deterministic_and_source_is_immutable() {
-        let world=world();
-        let source=world.elevation.as_ref().unwrap().cells.clone();
-        let graph=sample_graph();
-        let a=graph.build(&world).unwrap();
-        let b=graph.build(&world).unwrap();
-        assert_eq!(a.evaluated_nodes,4);
-        assert_eq!(a.outputs["map"].quantity,Quantity::SlopeDegrees);
-        assert_eq!(a.outputs["map"].grid.cells,b.outputs["map"].grid.cells);
-        assert_eq!(source,world.elevation.unwrap().cells);
+        let world = world();
+        let source = world.elevation.as_ref().unwrap().cells.clone();
+        let graph = sample_graph();
+        let a = graph.build(&world).unwrap();
+        let b = graph.build(&world).unwrap();
+        assert_eq!(a.evaluated_nodes, 4);
+        assert_eq!(a.outputs["map"].quantity, Quantity::SlopeDegrees);
+        assert_eq!(a.outputs["map"].grid.cells, b.outputs["map"].grid.cells);
+        assert_eq!(source, world.elevation.unwrap().cells);
     }
 
     #[test]
     fn shared_dependencies_are_evaluated_only_once() {
-        let mut graph=sample_graph();
+        let mut graph = sample_graph();
         graph.nodes.push(Node {
-            id:"other".into(),operator:Operator::Output{input:"slope".into()}
+            id: "other".into(),
+            operator: Operator::Output {
+                input: "slope".into(),
+            },
         });
         graph.outputs.push("other".into());
-        let build=graph.build(&world()).unwrap();
-        assert_eq!(build.evaluated_nodes,5);
-        assert!(Arc::ptr_eq(&build.outputs["map"].grid,&build.outputs["other"].grid));
+        let build = graph.build(&world()).unwrap();
+        assert_eq!(build.evaluated_nodes, 5);
+        assert!(Arc::ptr_eq(
+            &build.outputs["map"].grid,
+            &build.outputs["other"].grid
+        ));
     }
 
     #[test]
     fn cycles_and_missing_references_fail_with_explanations() {
-        let mut graph=sample_graph();
-        graph.nodes[1].operator=Operator::ElevationOffset {
-            input:"slope".into(),delta_m:1.0
+        let mut graph = sample_graph();
+        graph.nodes[1].operator = Operator::ElevationOffset {
+            input: "slope".into(),
+            delta_m: 1.0,
         };
         assert!(graph.build(&world()).unwrap_err().contains("Cycle"));
-        graph.nodes[1].operator=Operator::ElevationOffset {
-            input:"nonexistent".into(),delta_m:1.0
+        graph.nodes[1].operator = Operator::ElevationOffset {
+            input: "nonexistent".into(),
+            delta_m: 1.0,
         };
         assert!(graph.build(&world()).unwrap_err().contains("missing"));
     }
 
     #[test]
     fn units_block_physically_meaningless_connections() {
-        let mut graph=sample_graph();
+        let mut graph = sample_graph();
         graph.nodes.push(Node {
-            id:"nonsense".into(),operator:Operator::ElevationOffset {
-                input:"slope".into(),delta_m:1.0
-            }
+            id: "nonsense".into(),
+            operator: Operator::ElevationOffset {
+                input: "slope".into(),
+                delta_m: 1.0,
+            },
         });
         assert!(graph.build(&world()).unwrap_err().contains("needs m input"));
     }
 
     #[test]
     fn invalid_output_names_cannot_traverse_directories() {
-        let mut graph=sample_graph();
-        graph.nodes[3].id="../outside".into();
-        graph.outputs=vec!["../outside".into()];
-        assert!(graph.build(&world()).unwrap_err().contains("Invalid graph node ID"));
+        let mut graph = sample_graph();
+        graph.nodes[3].id = "../outside".into();
+        graph.outputs = vec!["../outside".into()];
+        assert!(graph
+            .build(&world())
+            .unwrap_err()
+            .contains("Invalid graph node ID"));
     }
 
     #[test]
     fn flat_world_has_zero_slope_and_ridges_have_positive_slope() {
-        let flat=Grid::new(32,16,500.0);
-        let out=slope_degrees(&flat,6371.0).unwrap();
-        assert!(out.cells.iter().all(|v|v.abs()<1e-6));
-        let mut peak=flat;
-        peak.cells[8*32+14]=2000.0;
-        let out=slope_degrees(&peak,6371.0).unwrap();
-        assert!(out.at(15,8)>0.0);
-        assert!(slope_degrees(&out,0.0).is_err());
+        let flat = Grid::new(32, 16, 500.0);
+        let out = slope_degrees(&flat, 6371.0).unwrap();
+        assert!(out.cells.iter().all(|v| v.abs() < 1e-6));
+        let mut peak = flat;
+        peak.cells[8 * 32 + 14] = 2000.0;
+        let out = slope_degrees(&peak, 6371.0).unwrap();
+        assert!(out.at(15, 8) > 0.0);
+        assert!(slope_degrees(&out, 0.0).is_err());
     }
 
     #[test]
     fn numeric_tiff_and_recipe_metadata_round_trip() {
-        let graph=sample_graph();
-        let build=graph.build(&world()).unwrap();
-        let dir=std::env::temp_dir().join(format!(
-            "aegaea-node-graph-test-{}",std::process::id()));
-        assert_eq!(export_outputs(&graph,&build,&dir).unwrap(),1);
-        let grid=Grid::from_tiff(&dir.join("map.tif")).unwrap();
-        assert_eq!(grid.cells,build.outputs["map"].grid.cells);
-        let metadata=std::fs::read_to_string(dir.join("map.json")).unwrap();
+        let graph = sample_graph();
+        let build = graph.build(&world()).unwrap();
+        let dir =
+            std::env::temp_dir().join(format!("aegaea-node-graph-test-{}", std::process::id()));
+        assert_eq!(export_outputs(&graph, &build, &dir).unwrap(), 1);
+        let grid = Grid::from_tiff(&dir.join("map.tif")).unwrap();
+        assert_eq!(grid.cells, build.outputs["map"].grid.cells);
+        let metadata = std::fs::read_to_string(dir.join("map.json")).unwrap();
         assert!(metadata.contains("slope_degrees"));
         assert!(metadata.contains("ramped"));
-        let _=std::fs::remove_dir_all(dir);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]
     fn real_aegaea_dem_works_with_the_same_graph() {
-        let root=PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../data/aegaea/tectonics/v1");
-        let world=World::load(root).unwrap();
-        let result=sample_graph().build(&world).unwrap();
-        let grid=&result.outputs["map"].grid;
-        assert_eq!((grid.width,grid.height),(1672,941));
-        assert!(grid.cells.iter().any(|v|v.is_finite() && *v>0.0));
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/aegaea/tectonics/v1");
+        let world = World::load(root).unwrap();
+        let result = sample_graph().build(&world).unwrap();
+        let grid = &result.outputs["map"].grid;
+        assert_eq!((grid.width, grid.height), (1672, 941));
+        assert!(grid.cells.iter().any(|v| v.is_finite() && *v > 0.0));
     }
 }
