@@ -216,6 +216,23 @@ fn noise3(x: f32, y: f32, z: f32, seed: u64) -> f32 {
     mix(mix(x00, x10, fy), mix(x01, x11, fy), fz)
 }
 
+/// Bilinear lookup of the *derived tectonic forcing* at a domain-warped
+/// position. Longitude wraps; latitude clamps. The geological input categories
+/// themselves remain unchanged.
+fn sample_warped(field:&[f32],width:usize,height:usize,x:f32,y:f32)->f32 {
+    let x0=x.floor();
+    let y0=y.floor();
+    let fx=x-x0;
+    let fy=y-y0;
+    let ax=(x0 as isize).rem_euclid(width as isize) as usize;
+    let bx=(ax+1)%width;
+    let ay=(y0 as isize).clamp(0,height as isize-1) as usize;
+    let by=(ay+1).min(height-1);
+    let lo=mix(field[ay*width+ax],field[ay*width+bx],fx);
+    let hi=mix(field[by*width+ax],field[by*width+bx],fx);
+    mix(lo,hi,fy)
+}
+
 fn class_influence(provinces: &[u8], class: u8, width: usize, height: usize) -> Vec<f32> {
     let mask = provinces
         .iter()
@@ -276,20 +293,18 @@ pub fn generate(world: &World, recipe: &TerrainRecipe) -> Result<GeneratedTerrai
         }
     }
     let boundary_distance = distance_to(&from_boundary, width, height);
-    let mut forcing = vec![0.0f32; len];
-    // Tectonic province categories are the current scenario's forcing input.
-    // They are not silently interpreted as measured rates of uplift.
-    for (class, magnitude) in [
-        (7, 2050.0f32),
-        (8, 1250.0),
-        (6, 180.0),
-        (9, -310.0),
-        (1, 1700.0),
-        (2, -1800.0),
-    ] {
-        let influence = class_influence(&classes, class, width, height);
+    let orogens=class_influence(&classes,7,width,height);
+    let arcs=class_influence(&classes,8,width,height);
+    let mut forcing=orogens.iter().zip(&arcs)
+        .map(|(&orogen,&arc)|2050.0*orogen+1250.0*arc)
+        .collect::<Vec<f32>>();
+    // Lower ocean-contact amplitude prevents the classified lines from being
+    // reproduced as unbroken, uniformly deep or shallow raster stripes.
+    // Domain warp below converts regional class support into terrain structure.
+    for (class,magnitude) in [(6,180.0f32),(9,-310.0),(1,750.0),(2,-650.0)] {
+        let field=class_influence(&classes,class,width,height);
         for i in 0..len {
-            forcing[i] += influence[i] * magnitude;
+            forcing[i]+=field[i]*magnitude;
         }
     }
     let planet_scale = (recipe.planet_radius_km / 6371.0) as f32;
@@ -336,34 +351,51 @@ pub fn generate(world: &World, recipe: &TerrainRecipe) -> Result<GeneratedTerrai
                 )
                 .abs())
             .powi(3);
-            let structure = 0.55 * n1 + 0.30 * n2 + 0.15 * n3;
-            let near_boundary = (-(boundary_distance[i] as f32) / 7.0).exp();
-            let shield = world
-                .craton_ids
-                .as_ref()
-                .is_some_and(|g| g.width == width && g.height == height && g.at(x, y) > 0.0);
-            let roughness = if shield { 0.42 } else { 1.0 };
-            let texture =
-                (260.0 + 220.0 * near_boundary) * structure * roughness * recipe.relief_strength;
-            let forcing_here = forcing[i] * recipe.relief_strength;
+            // Geological support is intentionally a *region*, not a hard
+            // raised version of its rectangular/ribbon-shaped class boundary.
+            // Seam-safe 3D noise gently bends the tectonic response relative
+            // to its source field without changing any crust/plate categories.
+            let warp_x=noise3(
+                sx*14.0*planet_scale+26.0,sy*14.0*planet_scale,sz*14.0*planet_scale,
+                recipe.seed.wrapping_add(4)
+            )*7.0;
+            let warp_y=noise3(
+                sx*14.0*planet_scale,sy*14.0*planet_scale+43.0,sz*14.0*planet_scale,
+                recipe.seed.wrapping_add(5)
+            )*7.0;
+            let px=x as f32+warp_x;
+            let py=y as f32+warp_y;
+            let orogen_response=sample_warped(&orogens,width,height,px,py);
+            let arc_response=sample_warped(&arcs,width,height,px,py);
+            let forcing_here=sample_warped(&forcing,width,height,px,py)*recipe.relief_strength;
+            let detail=noise3(
+                sx*170.0*planet_scale+14.0,sy*170.0*planet_scale,sz*170.0*planet_scale,
+                recipe.seed.wrapping_add(6)
+            );
+            let structure=0.35*n1+0.35*n2+0.20*n3+0.10*detail;
+            let near_boundary=(-(boundary_distance[i] as f32)/7.0).exp();
+            let shield=world.craton_ids.as_ref()
+                .is_some_and(|g|g.width==width && g.height==height && g.at(x,y)>0.0);
+            let roughness=if shield {0.65} else {1.0};
+            let texture=(620.0+280.0*near_boundary+360.0*orogen_response)
+                *structure*roughness*recipe.relief_strength;
             let sea_level = if land[i] {
                 land_mask.cells[i] = 1.0;
-                let crust_uplift = ((crust[i] - 35.0) * 42.0).clamp(-500.0, 1100.0);
-                let orogen_belt = if classes[i] == 7 { 1.0 } else { 0.0 };
-                let arc_belt = if classes[i] == 8 { 1.0 } else { 0.0 };
-                let ridge_detail =
-                    ridged * (orogen_belt * 1200.0 + arc_belt * 650.0) * recipe.relief_strength;
-                let base = 450.0
-                    + crust_uplift
-                    + if shield { 130.0 } else { 0.0 }
-                    + forcing_here
-                    + texture
-                    + ridge_detail;
+                let crust_uplift=((crust[i]-35.0)*20.0).clamp(-350.0,650.0);
+                let ridge_detail=ridged
+                    *(orogen_response*1750.0+arc_response*900.0)
+                    *recipe.relief_strength;
+                let base=550.0
+                    +crust_uplift
+                    +if shield {100.0} else {0.0}
+                    +forcing_here
+                    +texture
+                    +ridge_detail;
                 let coast = 1.0 - (-(from_ocean[i] as f32) / 3.2).exp();
                 (55.0 + (base - 55.0) * coast).clamp(10.0, 8000.0)
             } else {
                 let ocean_base =
-                    -4450.0 + forcing_here + (180.0 * structure) * recipe.relief_strength;
+                    -4450.0 + forcing_here + (350.0 * structure) * recipe.relief_strength;
                 let shelf = 1.0 - (-(from_land[i] as f32) / 5.8).exp();
                 (-60.0 + (ocean_base + 60.0) * shelf).clamp(-10500.0, -20.0)
             };
