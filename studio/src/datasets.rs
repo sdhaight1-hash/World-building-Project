@@ -78,12 +78,25 @@ impl ClimateField {
 }
 
 pub const MONTHS: [&str; 12] = [
-    "January", "February", "March", "April", "May", "June",
-    "July", "August", "September", "October", "November", "December",
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
 ];
 
 pub fn month_name(month: u8) -> &'static str {
-    MONTHS.get(month.saturating_sub(1) as usize).copied().unwrap_or("Invalid month")
+    MONTHS
+        .get(month.saturating_sub(1) as usize)
+        .copied()
+        .unwrap_or("Invalid month")
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -153,7 +166,9 @@ impl DatasetRegistry {
     fn valid_id(id: &str) -> bool {
         !id.is_empty()
             && id.len() <= 80
-            && id.bytes().all(|c| c.is_ascii_alphanumeric() || b"_.-".contains(&c))
+            && id
+                .bytes()
+                .all(|c| c.is_ascii_alphanumeric() || b"_.-".contains(&c))
     }
 
     /// Dependency graph is validated as one transaction before activation:
@@ -165,7 +180,9 @@ impl DatasetRegistry {
                 return Err(format!("Invalid dataset ID: {id}"));
             }
             if field.name.trim().is_empty() || field.size != size {
-                return Err(format!("Dataset '{id}' has missing name or incorrect grid size"));
+                return Err(format!(
+                    "Dataset '{id}' has missing name or incorrect grid size"
+                ));
             }
             let [low, high] = field.valid_range;
             if !low.is_finite() || !high.is_finite() || low >= high {
@@ -184,13 +201,17 @@ impl DatasetRegistry {
                 }
                 for (&index, &v) in &snapshot.overrides {
                     if index >= size[0] * size[1] || !field.valid_value(v) {
-                        return Err(format!("Invalid cell {index} in dataset '{id}', month {month}"));
+                        return Err(format!(
+                            "Invalid cell {index} in dataset '{id}', month {month}"
+                        ));
                     }
                 }
             }
             for parent in &field.dependencies {
                 if !self.fields.contains_key(parent) {
-                    return Err(format!("Dataset '{id}' requires missing dataset '{parent}'"));
+                    return Err(format!(
+                        "Dataset '{id}' requires missing dataset '{parent}'"
+                    ));
                 }
             }
         }
@@ -231,8 +252,10 @@ impl DatasetRegistry {
         month: u8,
         fill: f32,
     ) -> Result<(), String> {
-        if !(1..=12).contains(&month) || !fill.is_finite()
-            || fill < kind.bounds()[0] || fill > kind.bounds()[1]
+        if !(1..=12).contains(&month)
+            || !fill.is_finite()
+            || fill < kind.bounds()[0]
+            || fill > kind.bounds()[1]
         {
             return Err("Invalid month or numeric climate baseline".into());
         }
@@ -249,38 +272,59 @@ impl DatasetRegistry {
             months: BTreeMap::new(),
         });
         if dataset.size != [world.width, world.height]
-            || dataset.unit != kind.unit() || dataset.valid_range != kind.bounds()
+            || dataset.unit != kind.unit()
+            || dataset.valid_range != kind.bounds()
         {
             return Err("Existing dataset metadata conflicts with this field".into());
         }
         if dataset.months.contains_key(&month) {
-            return Err(format!("{} already exists for {}", kind.name(), month_name(month)));
+            return Err(format!(
+                "{} already exists for {}",
+                kind.name(),
+                month_name(month)
+            ));
         }
-        dataset.months.insert(month, Snapshot {
-            base: fill,
-            overrides: BTreeMap::new(),
-        });
+        dataset.months.insert(
+            month,
+            Snapshot {
+                base: fill,
+                overrides: BTreeMap::new(),
+            },
+        );
         self.activate(world, month)
     }
 
     /// Explicit copy, never automatic temporal extrapolation or interpolation.
     pub fn copy_month(
-        &mut self, world: &mut World, kind: ClimateField, from: u8, to: u8,
+        &mut self,
+        world: &mut World,
+        kind: ClimateField,
+        from: u8,
+        to: u8,
     ) -> Result<(), String> {
         if !(1..=12).contains(&from) || !(1..=12).contains(&to) {
             return Err("Month must be 1–12".into());
         }
-        let dataset = self.fields.get_mut(kind.id()).ok_or("Source dataset does not exist")?;
+        let dataset = self
+            .fields
+            .get_mut(kind.id())
+            .ok_or("Source dataset does not exist")?;
         if dataset.months.contains_key(&to) {
             return Err("Target month already exists; refusing overwrite".into());
         }
-        let source = dataset.months.get(&from).ok_or("Source month is missing")?.clone();
+        let source = dataset
+            .months
+            .get(&from)
+            .ok_or("Source month is missing")?
+            .clone();
         dataset.months.insert(to, source);
         self.activate(world, to)
     }
 
     pub fn has_month(&self, kind: ClimateField, month: u8) -> bool {
-        self.fields.get(kind.id()).is_some_and(|d| d.months.contains_key(&month))
+        self.fields
+            .get(kind.id())
+            .is_some_and(|d| d.months.contains_key(&month))
     }
 
     pub fn activate(&self, world: &mut World, month: u8) -> Result<(), String> {
@@ -288,10 +332,14 @@ impl DatasetRegistry {
             return Err("Month must be 1–12".into());
         }
         self.validate([world.width, world.height])?;
-        let next: BTreeMap<String, Grid> = self.fields.iter().filter_map(|(id, dataset)| {
-            dataset.materialize(month).map(|g| (id.clone(), g))
-        }).collect();
-        let provenance = self.fields.iter()
+        let next: BTreeMap<String, Grid> = self
+            .fields
+            .iter()
+            .filter_map(|(id, dataset)| dataset.materialize(month).map(|g| (id.clone(), g)))
+            .collect();
+        let provenance = self
+            .fields
+            .iter()
             .filter(|(id, _)| next.contains_key(*id))
             .map(|(id, data)| (id.clone(), data.provenance.clone()))
             .collect();
@@ -302,36 +350,65 @@ impl DatasetRegistry {
     }
 
     pub fn paint(
-        &mut self, world: &mut World, kind: ClimateField, month: u8,
-        longitude: f64, latitude: f64, radius: u32, value: f32,
+        &mut self,
+        world: &mut World,
+        kind: ClimateField,
+        month: u8,
+        longitude: f64,
+        latitude: f64,
+        radius: u32,
+        value: f32,
     ) -> Result<DatasetStroke, String> {
         if world.active_month != month {
             return Err("Activate the requested month before painting".into());
         }
-        let dataset = self.fields.get_mut(kind.id()).ok_or("Initialize this climate dataset")?;
+        let dataset = self
+            .fields
+            .get_mut(kind.id())
+            .ok_or("Initialize this climate dataset")?;
         if !dataset.valid_value(value) {
             return Err("Paint value outside this field's unit-aware limits".into());
         }
-        let snapshot = dataset.months.get_mut(&month).ok_or("Initialize this month first")?;
-        let grid = world.scientific_fields.get_mut(kind.id()).ok_or("Climate grid is unavailable")?;
+        let snapshot = dataset
+            .months
+            .get_mut(&month)
+            .ok_or("Initialize this month first")?;
+        let grid = world
+            .scientific_fields
+            .get_mut(kind.id())
+            .ok_or("Climate grid is unavailable")?;
         let radius = radius.clamp(1, 40) as isize;
         let (u, v) = geo_to_uv(longitude, latitude);
         let cx = (u * grid.width as f64).floor() as isize;
         let cy = ((v * grid.height as f64).floor() as isize).min(grid.height as isize - 1);
-        let mut stroke = DatasetStroke { id: kind.id().into(), month, changes: BTreeMap::new() };
+        let mut stroke = DatasetStroke {
+            id: kind.id().into(),
+            month,
+            changes: BTreeMap::new(),
+        };
         for oy in -radius..=radius {
             let y = cy + oy;
-            if y < 0 || y >= grid.height as isize { continue; }
+            if y < 0 || y >= grid.height as isize {
+                continue;
+            }
             for ox in -radius..=radius {
-                if ox * ox + oy * oy > radius * radius { continue; }
+                if ox * ox + oy * oy > radius * radius {
+                    continue;
+                }
                 let x = (cx + ox).rem_euclid(grid.width as isize) as usize;
                 let index = y as usize * grid.width + x;
                 let before = grid.cells[index];
-                if before == value { continue; }
-                stroke.changes.insert(index, DatasetChange {
-                    before, after: value,
-                    previous_override: snapshot.overrides.get(&index).copied(),
-                });
+                if before == value {
+                    continue;
+                }
+                stroke.changes.insert(
+                    index,
+                    DatasetChange {
+                        before,
+                        after: value,
+                        previous_override: snapshot.overrides.get(&index).copied(),
+                    },
+                );
                 grid.cells[index] = value;
                 snapshot.overrides.insert(index, value);
             }
@@ -360,7 +437,9 @@ impl DatasetStroke {
     }
 
     pub fn merge(&mut self, other: Self) {
-        if other.is_empty() { return; }
+        if other.is_empty() {
+            return;
+        }
         if self.changes.is_empty() {
             self.id = other.id.clone();
             self.month = other.month;
@@ -369,7 +448,8 @@ impl DatasetStroke {
             return;
         }
         for (index, change) in other.changes {
-            self.changes.entry(index)
+            self.changes
+                .entry(index)
                 .and_modify(|c| c.after = change.after)
                 .or_insert(change);
         }
@@ -384,10 +464,19 @@ impl DatasetStroke {
     }
 
     fn restore(&self, world: &mut World, registry: &mut DatasetRegistry, redo: bool) {
-        if world.active_month != self.month { return; }
-        let Some(grid) = world.scientific_fields.get_mut(&self.id) else { return };
-        let Some(snapshot) = registry.fields.get_mut(&self.id)
-            .and_then(|field| field.months.get_mut(&self.month)) else { return };
+        if world.active_month != self.month {
+            return;
+        }
+        let Some(grid) = world.scientific_fields.get_mut(&self.id) else {
+            return;
+        };
+        let Some(snapshot) = registry
+            .fields
+            .get_mut(&self.id)
+            .and_then(|field| field.months.get_mut(&self.month))
+        else {
+            return;
+        };
         for (&index, change) in &self.changes {
             grid.cells[index] = if redo { change.after } else { change.before };
             if redo {
@@ -408,7 +497,8 @@ mod tests {
 
     fn world() -> World {
         let mut w = World::empty(PathBuf::from("independent"));
-        w.width = 48; w.height = 24;
+        w.width = 48;
+        w.height = 24;
         w
     }
 
@@ -416,34 +506,72 @@ mod tests {
     fn monthly_climate_is_sparse_and_isolated_by_month() {
         let mut w = world();
         let mut registry = DatasetRegistry::default();
-        registry.create_month(&mut w, ClimateField::Temperature, 1, 18.0).unwrap();
-        registry.create_month(&mut w, ClimateField::Temperature, 7, 27.0).unwrap();
+        registry
+            .create_month(&mut w, ClimateField::Temperature, 1, 18.0)
+            .unwrap();
+        registry
+            .create_month(&mut w, ClimateField::Temperature, 7, 27.0)
+            .unwrap();
         registry.activate(&mut w, 1).unwrap();
         let mut brush = DatasetStroke::default();
-        brush.merge(registry.paint(&mut w, ClimateField::Temperature, 1, 179.9, 0.0, 2, 42.0).unwrap());
+        brush.merge(
+            registry
+                .paint(&mut w, ClimateField::Temperature, 1, 179.9, 0.0, 2, 42.0)
+                .unwrap(),
+        );
         assert!(!brush.is_empty());
-        assert!(w.scientific_fields[ClimateField::Temperature.id()].cells.iter().any(|&v| v == 42.0));
+        assert!(w.scientific_fields[ClimateField::Temperature.id()]
+            .cells
+            .iter()
+            .any(|&v| v == 42.0));
         brush.undo(&mut w, &mut registry);
-        assert!(w.scientific_fields[ClimateField::Temperature.id()].cells.iter().all(|&v| v == 18.0));
+        assert!(w.scientific_fields[ClimateField::Temperature.id()]
+            .cells
+            .iter()
+            .all(|&v| v == 18.0));
         brush.redo(&mut w, &mut registry);
-        let january = w.scientific_fields[ClimateField::Temperature.id()].cells.clone();
+        let january = w.scientific_fields[ClimateField::Temperature.id()]
+            .cells
+            .clone();
         registry.activate(&mut w, 7).unwrap();
-        assert!(w.scientific_fields[ClimateField::Temperature.id()].cells.iter().all(|&v| v == 27.0));
+        assert!(w.scientific_fields[ClimateField::Temperature.id()]
+            .cells
+            .iter()
+            .all(|&v| v == 27.0));
         registry.activate(&mut w, 1).unwrap();
-        assert_eq!(w.scientific_fields[ClimateField::Temperature.id()].cells, january);
-        assert!(registry.fields[ClimateField::Temperature.id()].months[&1].overrides.len() > 0);
+        assert_eq!(
+            w.scientific_fields[ClimateField::Temperature.id()].cells,
+            january
+        );
+        assert!(
+            registry.fields[ClimateField::Temperature.id()].months[&1]
+                .overrides
+                .len()
+                > 0
+        );
     }
 
     #[test]
     fn copy_month_is_explicit_and_will_not_overwrite_existing_month() {
         let mut w = world();
         let mut registry = DatasetRegistry::default();
-        registry.create_month(&mut w, ClimateField::Precipitation, 3, 100.0).unwrap();
-        registry.paint(&mut w, ClimateField::Precipitation, 3, 0.0, 0.0, 2, 300.0).unwrap();
-        registry.copy_month(&mut w, ClimateField::Precipitation, 3, 4).unwrap();
+        registry
+            .create_month(&mut w, ClimateField::Precipitation, 3, 100.0)
+            .unwrap();
+        registry
+            .paint(&mut w, ClimateField::Precipitation, 3, 0.0, 0.0, 2, 300.0)
+            .unwrap();
+        registry
+            .copy_month(&mut w, ClimateField::Precipitation, 3, 4)
+            .unwrap();
         assert_eq!(w.active_month, 4);
-        assert!(w.scientific_fields[ClimateField::Precipitation.id()].cells.iter().any(|&v| v == 300.0));
-        assert!(registry.copy_month(&mut w, ClimateField::Precipitation, 3, 4).is_err());
+        assert!(w.scientific_fields[ClimateField::Precipitation.id()]
+            .cells
+            .iter()
+            .any(|&v| v == 300.0));
+        assert!(registry
+            .copy_month(&mut w, ClimateField::Precipitation, 3, 4)
+            .is_err());
         registry.activate(&mut w, 5).unwrap();
         assert!(w.scientific_fields.is_empty());
     }
@@ -452,40 +580,70 @@ mod tests {
     fn project_json_round_trip_and_invalid_grid_rejection() {
         let mut w = world();
         let mut reg = DatasetRegistry::default();
-        reg.create_month(&mut w, ClimateField::Temperature, 1, -10.0).unwrap();
-        reg.create_month(&mut w, ClimateField::Precipitation, 1, 80.0).unwrap();
+        reg.create_month(&mut w, ClimateField::Temperature, 1, -10.0)
+            .unwrap();
+        reg.create_month(&mut w, ClimateField::Precipitation, 1, 80.0)
+            .unwrap();
         let bytes = serde_json::to_vec(&reg).unwrap();
         let restored: DatasetRegistry = serde_json::from_slice(&bytes).unwrap();
         let mut other = world();
         restored.activate(&mut other, 1).unwrap();
         assert_eq!(other.scientific_fields.len(), 2);
-        assert_eq!(other.scientific_fields[ClimateField::Precipitation.id()].at(0, 0), 80.0);
+        assert_eq!(
+            other.scientific_fields[ClimateField::Precipitation.id()].at(0, 0),
+            80.0
+        );
 
         let mut wrong = restored.clone();
-        wrong.fields.get_mut(ClimateField::Temperature.id()).unwrap().size = [49, 24];
+        wrong
+            .fields
+            .get_mut(ClimateField::Temperature.id())
+            .unwrap()
+            .size = [49, 24];
         assert!(wrong.activate(&mut other, 1).is_err());
-        assert_eq!(other.scientific_fields.len(), 2, "failed activation is transactional");
+        assert_eq!(
+            other.scientific_fields.len(),
+            2,
+            "failed activation is transactional"
+        );
         let mut corrupt = restored.clone();
-        corrupt.fields.get_mut(ClimateField::Temperature.id()).unwrap()
-            .months.get_mut(&1).unwrap().overrides.insert(48*24, 20.0);
+        corrupt
+            .fields
+            .get_mut(ClimateField::Temperature.id())
+            .unwrap()
+            .months
+            .get_mut(&1)
+            .unwrap()
+            .overrides
+            .insert(48 * 24, 20.0);
         assert!(corrupt.activate(&mut other, 1).is_err());
-        assert!(reg.paint(&mut w, ClimateField::Precipitation, 1, 0.0, 0.0, 2, -1.0).is_err());
+        assert!(reg
+            .paint(&mut w, ClimateField::Precipitation, 1, 0.0, 0.0, 2, -1.0)
+            .is_err());
     }
 
     #[test]
     fn dependency_dag_rejects_missing_inputs_and_cycles() {
         let mut w = world();
         let mut r = DatasetRegistry::default();
-        r.create_month(&mut w, ClimateField::Temperature, 1, 15.0).unwrap();
-        r.create_month(&mut w, ClimateField::Precipitation, 1, 120.0).unwrap();
-        r.fields.get_mut(ClimateField::Temperature.id()).unwrap().dependencies =
-            vec![ClimateField::Precipitation.id().into()];
-        r.validate([48,24]).unwrap();
-        r.fields.get_mut(ClimateField::Precipitation.id()).unwrap().dependencies =
-            vec![ClimateField::Temperature.id().into()];
-        assert!(r.validate([48,24]).unwrap_err().contains("cycle"));
-        r.fields.get_mut(ClimateField::Precipitation.id()).unwrap().dependencies =
-            vec!["missing.flux".into()];
-        assert!(r.validate([48,24]).unwrap_err().contains("missing"));
+        r.create_month(&mut w, ClimateField::Temperature, 1, 15.0)
+            .unwrap();
+        r.create_month(&mut w, ClimateField::Precipitation, 1, 120.0)
+            .unwrap();
+        r.fields
+            .get_mut(ClimateField::Temperature.id())
+            .unwrap()
+            .dependencies = vec![ClimateField::Precipitation.id().into()];
+        r.validate([48, 24]).unwrap();
+        r.fields
+            .get_mut(ClimateField::Precipitation.id())
+            .unwrap()
+            .dependencies = vec![ClimateField::Temperature.id().into()];
+        assert!(r.validate([48, 24]).unwrap_err().contains("cycle"));
+        r.fields
+            .get_mut(ClimateField::Precipitation.id())
+            .unwrap()
+            .dependencies = vec!["missing.flux".into()];
+        assert!(r.validate([48, 24]).unwrap_err().contains("missing"));
     }
 }

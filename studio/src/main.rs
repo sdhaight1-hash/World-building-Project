@@ -62,8 +62,11 @@ fn source_for_theme(theme: Theme) -> Option<LayerKind> {
         Theme::Crust => Some(LayerKind::Crust),
         Theme::Lithosphere => Some(LayerKind::Lithosphere),
         Theme::HeatFlow => Some(LayerKind::HeatFlow),
-        Theme::Terrain | Theme::Slope | Theme::RainShadow
-        | Theme::MonthlyTemperature | Theme::MonthlyPrecipitation => None,
+        Theme::Terrain
+        | Theme::Slope
+        | Theme::RainShadow
+        | Theme::MonthlyTemperature
+        | Theme::MonthlyPrecipitation => None,
     }
 }
 
