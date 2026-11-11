@@ -1,8 +1,8 @@
 //! Aegaea Studio P0: a modern wgpu-backed desktop shell around physical-world maps.
 //! Purposefully scoped: shared atlas/globe source data, inspector, local point annotation.
 mod cartography;
-mod globe3d;
 mod geology_diagnostics;
+mod globe3d;
 mod map_graph;
 mod publication;
 mod rainshadow;
@@ -15,8 +15,8 @@ use eframe::{
     egui,
     egui::{Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Vec2},
 };
-use globe3d::{GlobeCallback, GlobeMesh};
 use geology_diagnostics::Report as GeologyReport;
+use globe3d::{GlobeCallback, GlobeMesh};
 use rainshadow::WindFrom;
 use render::{atlas_geo_from_fraction, forward_globe, globe_geo_from_fraction, Theme};
 use std::{
@@ -229,14 +229,17 @@ impl Studio {
     }
 
     fn validate_geological_inputs(&mut self) {
-        let report=geology_diagnostics::examine(&self.world);
-        let warnings=report.warning_count();
-        let path=self.project_path.with_file_name("geology-consistency.json");
-        self.status=match report.write(&path) {
-            Ok(())=>format!("Geology diagnostics: {warnings} warnings/errors; report at {}",path.display()),
-            Err(error)=>format!("Could not save geology report: {error}"),
+        let report = geology_diagnostics::examine(&self.world);
+        let warnings = report.warning_count();
+        let path = self.project_path.with_file_name("geology-consistency.json");
+        self.status = match report.write(&path) {
+            Ok(()) => format!(
+                "Geology diagnostics: {warnings} warnings/errors; report at {}",
+                path.display()
+            ),
+            Err(error) => format!("Could not save geology report: {error}"),
         };
-        self.geology_report=Some(report);
+        self.geology_report = Some(report);
     }
 
     fn save(&mut self) {
@@ -986,16 +989,22 @@ fn boot() -> (World, Project, PathBuf, String) {
 fn main() -> eframe::Result {
     let (mut world, project, path, status) = boot();
     let args = env::args().collect::<Vec<_>>();
-    if let Some(index)=args.iter().position(|a|a=="--diagnose-world") {
-        let target=args.get(index+1).map(PathBuf::from)
-            .unwrap_or_else(||PathBuf::from("maps/diagnostics/geology-consistency.json"));
-        let report=geology_diagnostics::examine(&world);
-        if let Err(error)=report.write(&target) {
+    if let Some(index) = args.iter().position(|a| a == "--diagnose-world") {
+        let target = args
+            .get(index + 1)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("maps/diagnostics/geology-consistency.json"));
+        let report = geology_diagnostics::examine(&world);
+        if let Err(error) = report.write(&target) {
             eprintln!("Could not export geology diagnostics: {error}");
             std::process::exit(2);
         }
-        println!("Geology checked {} cells: {} warnings/errors; report: {}",
-            report.counts.total_cells,report.warning_count(),target.display());
+        println!(
+            "Geology checked {} cells: {} warnings/errors; report: {}",
+            report.counts.total_cells,
+            report.warning_count(),
+            target.display()
+        );
         return Ok(());
     }
     // Reproducible node graph builds run headlessly, before the wgpu window.
