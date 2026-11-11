@@ -8,12 +8,12 @@ mod globe3d;
 mod map_graph;
 mod map_layers;
 mod moisture_transport;
-mod spherical_momentum;
 mod planetary;
 mod plate_kinematics;
 mod publication;
 mod rainshadow;
 mod render;
+mod spherical_momentum;
 mod terrain_edit;
 mod terrain_generation;
 mod world;
@@ -1179,9 +1179,16 @@ impl Studio {
             }
         }
         ui.separator();
-        ui.label(egui::RichText::new("SPHERICAL MOMENTUM & ENERGY AUDIT").strong().small());
+        ui.label(
+            egui::RichText::new("SPHERICAL MOMENTUM & ENERGY AUDIT")
+                .strong()
+                .small(),
+        );
         ui.small("Conservative moist-air and vapor transport plus absolute axial angular momentum. Eastward pressure torques are pairwise balanced; northward momentum includes spherical curvature and Coriolis. First-order upwind is energy dissipative.");
-        if ui.button("Compute conservative spherical momentum preview").clicked() {
+        if ui
+            .button("Compute conservative spherical momentum preview")
+            .clicked()
+        {
             self.finish_dataset_stroke();
             match spherical_momentum::preview(
                 &self.world,
@@ -1192,7 +1199,9 @@ impl Studio {
             ) {
                 Ok(preview) => {
                     let report = &preview.mass.budget;
-                    let axial = report.dynamics.as_ref()
+                    let axial = report
+                        .dynamics
+                        .as_ref()
                         .and_then(|d| d.momentum.as_ref())
                         .map(|m| m.relative_axial_momentum_error)
                         .unwrap_or(f64::NAN);
@@ -1287,7 +1296,11 @@ impl Studio {
                 ));
                 if let Some(ref momentum) = dynamics.momentum {
                     ui.separator();
-                    ui.label(egui::RichText::new("GLOBAL MOMENTUM & ENERGY DIAGNOSTICS").strong().small());
+                    ui.label(
+                        egui::RichText::new("GLOBAL MOMENTUM & ENERGY DIAGNOSTICS")
+                            .strong()
+                            .small(),
+                    );
                     ui.small(format!(
                         "Absolute axial AM: {:.6e} → {:.6e} kg·m²/s",
                         momentum.absolute_axial_momentum_before_kg_m2_s,
@@ -1312,8 +1325,7 @@ impl Studio {
                     ));
                     ui.small(format!(
                         "Minimum longitude cell width: {:.1} m · max outflow Courant: {:.3}",
-                        momentum.minimum_polar_cell_width_m,
-                        momentum.maximum_outflow_courant
+                        momentum.minimum_polar_cell_width_m, momentum.maximum_outflow_courant
                     ));
                     ui.small("Energy drift is observed, not constrained: donor-cell numerical diffusion and a simplified barotropic closure remain.");
                 }

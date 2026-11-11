@@ -49,15 +49,21 @@ pub struct MomentumAudit {
 }
 
 fn source<'a>(world: &'a World, kind: MonthlyField) -> Result<&'a Grid, String> {
-    let g = world.scientific_fields.get(kind.id())
+    let g = world
+        .scientific_fields
+        .get(kind.id())
         .ok_or_else(|| format!("Missing monthly {}", kind.name()))?;
-    if g.width != world.width || g.height != world.height
+    if g.width != world.width
+        || g.height != world.height
         || g.cells.len() != world.width * world.height
-        || g.cells.iter().any(|&v| {
-            !v.is_finite() || !(kind.bounds()[0]..=kind.bounds()[1]).contains(&v)
-        })
+        || g.cells
+            .iter()
+            .any(|&v| !v.is_finite() || !(kind.bounds()[0]..=kind.bounds()[1]).contains(&v))
     {
-        return Err(format!("Invalid dimensions or input values: {}", kind.name()));
+        return Err(format!(
+            "Invalid dimensions or input values: {}",
+            kind.name()
+        ));
     }
     Ok(g)
 }
@@ -69,9 +75,18 @@ fn extrema(g: &Grid) -> (f32, f32) {
     )
 }
 
-fn energy(mass: &[f64], axial: &[f64], north_m: &[f64],
-          areas: &[f64], cos_lat: &[f64], width: usize, radius: f64,
-          omega: f64, c2: f64, reference_column: f64) -> (f64, f64) {
+fn energy(
+    mass: &[f64],
+    axial: &[f64],
+    north_m: &[f64],
+    areas: &[f64],
+    cos_lat: &[f64],
+    width: usize,
+    radius: f64,
+    omega: f64,
+    c2: f64,
+    reference_column: f64,
+) -> (f64, f64) {
     let mut kinetic = 0.0;
     let mut compressional = 0.0;
     for i in 0..mass.len() {
@@ -105,17 +120,18 @@ pub fn preview(
     duration_s: f64,
     effective_wave_speed_m_s: f64,
 ) -> Result<DynamicsPreview, String> {
-    if world.width == 0 || world.height == 0
-        || world.width.checked_mul(world.height).is_none()
-    {
+    if world.width == 0 || world.height == 0 || world.width.checked_mul(world.height).is_none() {
         return Err("Spherical momentum requires nonempty grid dimensions".into());
     }
-    if !radius_km.is_finite() || !(100.0..=100_000.0).contains(&radius_km)
-        || !gravity_m_s2.is_finite() || !(0.1..=100.0).contains(&gravity_m_s2)
+    if !radius_km.is_finite()
+        || !(100.0..=100_000.0).contains(&radius_km)
+        || !gravity_m_s2.is_finite()
+        || !(0.1..=100.0).contains(&gravity_m_s2)
     {
         return Err("Spherical momentum requires valid radius and gravity".into());
     }
-    if !duration_s.is_finite() || !(0.01..=86_400.0).contains(&duration_s)
+    if !duration_s.is_finite()
+        || !(0.01..=86_400.0).contains(&duration_s)
         || !effective_wave_speed_m_s.is_finite()
         || !(1.0..=400.0).contains(&effective_wave_speed_m_s)
     {
@@ -163,8 +179,7 @@ pub fn preview(
         min_width = a;
     }
     // Fail before allocation/work for impossible high-resolution polar CFL.
-    let lower_steps = (duration_s * (effective_wave_speed_m_s + 1.0)
-        / (CFL * min_width)).ceil();
+    let lower_steps = (duration_s * (effective_wave_speed_m_s + 1.0) / (CFL * min_width)).ceil();
     if !lower_steps.is_finite() || lower_steps > MAX_SUBSTEPS as f64 {
         return Err(format!(
             "Spherical polar CFL requires at least {lower_steps:.0} substeps (limit 512); shorten interval or reduce wave speed."
@@ -197,7 +212,16 @@ pub fn preview(
     let reference_column = mass_before / area_sum;
     let c2 = effective_wave_speed_m_s * effective_wave_speed_m_s;
     let (ke_before, ce_before) = energy(
-        &mass, &aam, &meridional, &area, &cos_lat, width, a, omega, c2, reference_column
+        &mass,
+        &aam,
+        &meridional,
+        &area,
+        &cos_lat,
+        width,
+        a,
+        omega,
+        c2,
+        reference_column,
     );
 
     let mut dm = vec![0.0; n];
@@ -286,10 +310,14 @@ pub fn preview(
                         let water = vapor[from] * share;
                         let torque = aam[from] * share;
                         let north_m = meridional[from] * share;
-                        dm[from] -= air; dm[to] += air;
-                        dw[from] -= water; dw[to] += water;
-                        dlz[from] -= torque; dlz[to] += torque;
-                        dq[from] -= north_m; dq[to] += north_m;
+                        dm[from] -= air;
+                        dm[to] += air;
+                        dw[from] -= water;
+                        dw[to] += water;
+                        dlz[from] -= torque;
+                        dlz[to] += torque;
+                        dq[from] -= north_m;
+                        dq[to] += north_m;
                     }
                     let h_face = 0.5 * (mass[i] + mass[j]) / area[y];
                     let p_force = c2 * h_face;
@@ -298,7 +326,8 @@ pub fn preview(
                     dlz[j] -= torque;
                     max_pressure_accel = max_pressure_accel.max(
                         (c2 * ((mass[i] / area[y]).ln() - (mass[j] / area[y]).ln())
-                            / (a * cos_lat[y] * dl)).abs()
+                            / (a * cos_lat[y] * dl))
+                            .abs(),
                     );
                 }
                 if y + 1 < height {
@@ -306,20 +335,21 @@ pub fn preview(
                     let north = 0.5 * (v[i] + v[j]);
                     if north != 0.0 {
                         let (from, to) = if north > 0.0 { (i, j) } else { (j, i) };
-                        let share = north.abs() * north_edges[y + 1] * dt
-                            / area[from / width];
+                        let share = north.abs() * north_edges[y + 1] * dt / area[from / width];
                         let air = mass[from] * share;
                         let water = vapor[from] * share;
                         let torque = aam[from] * share;
                         let north_m = meridional[from] * share;
-                        dm[from] -= air; dm[to] += air;
-                        dw[from] -= water; dw[to] += water;
-                        dlz[from] -= torque; dlz[to] += torque;
-                        dq[from] -= north_m; dq[to] += north_m;
+                        dm[from] -= air;
+                        dm[to] += air;
+                        dw[from] -= water;
+                        dw[to] += water;
+                        dlz[from] -= torque;
+                        dlz[to] += torque;
+                        dq[from] -= north_m;
+                        dq[to] += north_m;
                     }
-                    let h_face = 0.5 * (
-                        mass[i] / area[y] + mass[j] / area[y + 1]
-                    );
+                    let h_face = 0.5 * (mass[i] / area[y] + mass[j] / area[y + 1]);
                     let pressure_force = dt * c2 * h_face * north_edges[y + 1];
                     dq[i] -= pressure_force;
                     dq[j] += pressure_force;
@@ -337,11 +367,11 @@ pub fn preview(
                 dq[i] += dt * c2 * h * geometry;
                 // Curvature + Coriolis:
                 // Dv/Dt = -(2 Ω sinφ + u tanφ/a) u - (∇p)/ρ.
-                dq[i] -= dt * mass[i] *
-                    (coriolis[y] * u[i] + u[i] * u[i] * tan_lat[y] / a);
+                dq[i] -= dt * mass[i] * (coriolis[y] * u[i] + u[i] * u[i] * tan_lat[y] / a);
                 let new_mass = mass[i] + dm[i];
                 let new_vapor = vapor[i] + dw[i];
-                if !new_mass.is_finite() || new_mass <= 0.0
+                if !new_mass.is_finite()
+                    || new_mass <= 0.0
                     || !new_vapor.is_finite()
                     || new_vapor < -1.0e-12 * new_mass
                     || new_vapor > new_mass * (1.0 + 1.0e-12)
@@ -382,22 +412,40 @@ pub fn preview(
         east_field.cells[i] = final_u as f32;
         north_field.cells[i] = final_v as f32;
     }
-    for g in [&vapor_field, &pressure_field, &humidity_field, &east_field, &north_field] {
+    for g in [
+        &vapor_field,
+        &pressure_field,
+        &humidity_field,
+        &east_field,
+        &north_field,
+    ] {
         if g.cells.iter().any(|&v| !v.is_finite()) {
             return Err("Spherical momentum output exceeded map numeric range".into());
         }
     }
-    let mass_after: f64 = pressure_field.cells.iter().enumerate()
-        .map(|(i, &p)| p as f64 * 100.0 / gravity_m_s2 * area[i / width]).sum();
-    let vapor_after: f64 = vapor_field.cells.iter().enumerate()
-        .map(|(i, &w)| w as f64 * area[i / width]).sum();
-    let aam_after: f64 = pressure_field.cells.iter().zip(&east_field.cells)
-        .enumerate().map(|(i, (&p, &u))| {
+    let mass_after: f64 = pressure_field
+        .cells
+        .iter()
+        .enumerate()
+        .map(|(i, &p)| p as f64 * 100.0 / gravity_m_s2 * area[i / width])
+        .sum();
+    let vapor_after: f64 = vapor_field
+        .cells
+        .iter()
+        .enumerate()
+        .map(|(i, &w)| w as f64 * area[i / width])
+        .sum();
+    let aam_after: f64 = pressure_field
+        .cells
+        .iter()
+        .zip(&east_field.cells)
+        .enumerate()
+        .map(|(i, (&p, &u))| {
             let y = i / width;
             let arm = a * cos_lat[y];
-            p as f64 * 100.0 / gravity_m_s2 * area[y]
-                * arm * (u as f64 + omega * arm)
-        }).sum();
+            p as f64 * 100.0 / gravity_m_s2 * area[y] * arm * (u as f64 + omega * arm)
+        })
+        .sum();
     let air_error = (mass_after - mass_before).abs() / mass_before.max(1.0);
     let water_error = (vapor_after - vapor_before).abs() / vapor_before.max(1.0);
     let aam_error = (aam_after - aam_before).abs() / aam_before.abs().max(1.0);
@@ -407,7 +455,16 @@ pub fn preview(
         ));
     }
     let (ke_after, ce_after) = energy(
-        &mass, &aam, &meridional, &area, &cos_lat, width, a, omega, c2, reference_column
+        &mass,
+        &aam,
+        &meridional,
+        &area,
+        &cos_lat,
+        width,
+        a,
+        omega,
+        c2,
+        reference_column,
     );
     let energy_before = ke_before + ce_before;
     let energy_after = ke_after + ce_after;
@@ -505,10 +562,23 @@ mod tests {
     fn hydrostatic_rest_is_well_balanced_even_in_polar_caps() {
         let w = fixture(48, 24, 1013.25, 10.0, 0.0, 0.0);
         let r = preview(&w, 6371.0, 9.80665, 60.0, 80.0).unwrap();
-        assert!(r.mass.pressure_hpa.cells.iter().all(|&p| (p - 1013.25).abs() < 0.001));
+        assert!(r
+            .mass
+            .pressure_hpa
+            .cells
+            .iter()
+            .all(|&p| (p - 1013.25).abs() < 0.001));
         assert!(r.wind_east_m_s.cells.iter().all(|&u| u.abs() < 1.0e-5));
         assert!(r.wind_north_m_s.cells.iter().all(|&v| v.abs() < 1.0e-5));
-        let am = r.mass.budget.dynamics.as_ref().unwrap().momentum.as_ref().unwrap();
+        let am = r
+            .mass
+            .budget
+            .dynamics
+            .as_ref()
+            .unwrap()
+            .momentum
+            .as_ref()
+            .unwrap();
         assert!(am.relative_axial_momentum_error < 1.0e-7);
         assert!(am.relative_energy_drift.abs() < 1.0e-6);
         assert_eq!(am.pole_boundary_mass_flux_kg, 0.0);
@@ -517,13 +587,27 @@ mod tests {
     #[test]
     fn zonal_pressure_torques_move_east_across_seam_without_global_axial_gain() {
         let mut w = fixture(48, 24, 1013.25, 10.0, 0.0, 0.0);
-        let p = &mut w.scientific_fields.get_mut(MonthlyField::Pressure.id()).unwrap().cells;
+        let p = &mut w
+            .scientific_fields
+            .get_mut(MonthlyField::Pressure.id())
+            .unwrap()
+            .cells;
         p[12 * 48 + 47] = 900.0;
         p[12 * 48 + 1] = 1100.0;
         let r = preview(&w, 6371.0, 9.80665, 180.0, 80.0).unwrap();
         assert!(r.wind_east_m_s.cells[12 * 48] > 0.0);
-        assert!(r.mass.budget.dynamics.as_ref().unwrap().momentum.as_ref().unwrap()
-            .relative_axial_momentum_error < 1.0e-7);
+        assert!(
+            r.mass
+                .budget
+                .dynamics
+                .as_ref()
+                .unwrap()
+                .momentum
+                .as_ref()
+                .unwrap()
+                .relative_axial_momentum_error
+                < 1.0e-7
+        );
         assert!(r.mass.budget.air_relative_mass_error < 1.0e-7);
     }
 
@@ -533,7 +617,15 @@ mod tests {
         let r = preview(&w, 6371.0, 9.80665, 120.0, 60.0).unwrap();
         assert!(r.wind_east_m_s.cells[15 * 40] > 0.0);
         assert!(r.wind_east_m_s.cells[4 * 40] < 0.0);
-        let m = r.mass.budget.dynamics.as_ref().unwrap().momentum.as_ref().unwrap();
+        let m = r
+            .mass
+            .budget
+            .dynamics
+            .as_ref()
+            .unwrap()
+            .momentum
+            .as_ref()
+            .unwrap();
         assert!(m.relative_axial_momentum_error < 1.0e-7);
         assert!(r.mass.budget.relative_mass_error < 1.0e-7);
     }
@@ -541,29 +633,48 @@ mod tests {
     #[test]
     fn planetary_rotation_and_gravity_change_dynamics_without_changing_sources() {
         let mut w = fixture(36, 18, 1013.25, 10.0, 20.0, 15.0);
-        let source = w.scientific_fields[MonthlyField::WindEast.id()].cells.clone();
+        let source = w.scientific_fields[MonthlyField::WindEast.id()]
+            .cells
+            .clone();
         let fast = preview(&w, 6371.0, 9.80665, 80.0, 50.0).unwrap();
         w.calendar.solar_day_hours = 48.0;
         let slow = preview(&w, 6371.0, 3.71, 80.0, 50.0).unwrap();
         let a = fast.mass.budget.dynamics.unwrap();
         let b = slow.mass.budget.dynamics.unwrap();
         assert!(a.angular_velocity_rad_s > b.angular_velocity_rad_s);
-        assert_eq!(w.scientific_fields[MonthlyField::WindEast.id()].cells, source);
+        assert_eq!(
+            w.scientific_fields[MonthlyField::WindEast.id()].cells,
+            source
+        );
         assert!(slow.mass.budget.air_relative_mass_error < 1.0e-7);
     }
 
     #[test]
     fn chaotic_moisture_redistribution_preserves_mass_and_axial_momentum() {
         let mut w = fixture(64, 32, 1013.25, 10.0, 20.0, -12.0);
-        for (i, p) in w.scientific_fields.get_mut(MonthlyField::Pressure.id())
-            .unwrap().cells.iter_mut().enumerate() {
+        for (i, p) in w
+            .scientific_fields
+            .get_mut(MonthlyField::Pressure.id())
+            .unwrap()
+            .cells
+            .iter_mut()
+            .enumerate()
+        {
             *p = if i % 11 == 0 { 1100.0 } else { 995.0 };
         }
-        for (i, q) in w.scientific_fields.get_mut(MonthlyField::SpecificHumidity.id())
-            .unwrap().cells.iter_mut().enumerate() {
+        for (i, q) in w
+            .scientific_fields
+            .get_mut(MonthlyField::SpecificHumidity.id())
+            .unwrap()
+            .cells
+            .iter_mut()
+            .enumerate()
+        {
             *q = if i % 7 == 0 { 45.0 } else { 3.0 };
         }
-        let original = w.scientific_fields[MonthlyField::Pressure.id()].cells.clone();
+        let original = w.scientific_fields[MonthlyField::Pressure.id()]
+            .cells
+            .clone();
         let r = preview(&w, 6371.0, 9.80665, 800.0, 60.0).unwrap();
         let budget = &r.mass.budget;
         assert!(budget.substeps > 1);
@@ -573,9 +684,16 @@ mod tests {
         assert!(am.relative_axial_momentum_error < 1.0e-7);
         assert!(am.total_energy_j_after.is_finite());
         assert!(am.relative_energy_drift.is_finite());
-        assert!(r.mass.specific_humidity_g_kg.cells.iter()
+        assert!(r
+            .mass
+            .specific_humidity_g_kg
+            .cells
+            .iter()
             .all(|&q| q >= 0.0 && q <= 45.001));
-        assert_eq!(w.scientific_fields[MonthlyField::Pressure.id()].cells, original);
+        assert_eq!(
+            w.scientific_fields[MonthlyField::Pressure.id()].cells,
+            original
+        );
     }
 
     #[test]
