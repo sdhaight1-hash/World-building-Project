@@ -395,8 +395,12 @@ mod tests {
             crate::rainshadow::WindFrom::West,
         ));
         let mut monthly = crate::datasets::DatasetRegistry::default();
-        monthly.create_month(&mut world, ClimateField::Temperature, 1, 18.0).unwrap();
-        monthly.create_month(&mut world, ClimateField::Precipitation, 1, 100.0).unwrap();
+        monthly
+            .create_month(&mut world, ClimateField::Temperature, 1, 18.0)
+            .unwrap();
+        monthly
+            .create_month(&mut world, ClimateField::Precipitation, 1, 100.0)
+            .unwrap();
         let art = Cartography::new(&world);
         for theme in Theme::ALL {
             assert!(theme.available(&world), "{} should be usable", theme.name());
@@ -415,15 +419,21 @@ mod tests {
         world.width = 48;
         world.height = 24;
         let mut datasets = crate::datasets::DatasetRegistry::default();
-        datasets.create_month(&mut world, ClimateField::Temperature, 2, -5.0).unwrap();
-        datasets.create_month(&mut world, ClimateField::Precipitation, 2, 180.0).unwrap();
+        datasets
+            .create_month(&mut world, ClimateField::Temperature, 2, -5.0)
+            .unwrap();
+        datasets
+            .create_month(&mut world, ClimateField::Precipitation, 2, 180.0)
+            .unwrap();
         let art = Cartography::new(&world);
         for theme in [Theme::MonthlyTemperature, Theme::MonthlyPrecipitation] {
             assert!(theme.available(&world));
             assert_eq!(atlas_image(&world, &art, theme).size, [48, 24]);
             assert!(art.legend(&world, theme).len() >= 6);
             let path = std::env::temp_dir().join(format!(
-                "aegaea-monthly-{}-{}.png", std::process::id(), theme.slug()
+                "aegaea-monthly-{}-{}.png",
+                std::process::id(),
+                theme.slug()
             ));
             export_atlas_png(&world, &art, theme, &path).unwrap();
             let metadata = std::fs::read_to_string(path.with_extension("json")).unwrap();
