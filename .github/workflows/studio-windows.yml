@@ -35,7 +35,7 @@ jobs:
       - name: Check
         run: cargo check --workspace --all-targets
       - name: Export native Aegaea cartographic maps
-        run: cargo run --release -p aegaea-studio -- --export-maps maps/aegaea
+        run: cargo run -p aegaea-studio -- --export-maps maps/aegaea
       - name: Publish map previews from native data
         uses: actions/upload-artifact@v4
         with:
