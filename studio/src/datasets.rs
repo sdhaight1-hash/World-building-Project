@@ -64,20 +64,8 @@ impl ClimateField {
         }
     }
 
-    pub fn name(self) -> &'static str {
-        MonthlyField::from(self).name()
-    }
-
-    pub fn unit(self) -> Unit {
-        MonthlyField::from(self).unit()
-    }
-
     pub fn default_fill(self) -> f32 {
         MonthlyField::from(self).default_fill()
-    }
-
-    pub fn bounds(self) -> [f32; 2] {
-        MonthlyField::from(self).bounds()
     }
 }
 
