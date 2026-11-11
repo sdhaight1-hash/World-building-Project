@@ -88,6 +88,10 @@ impl Studio {
         if let Err(error) = project.terrain.apply(&mut world) {
             status = format!("Terrain project overlay could not load: {error}");
         }
+        world.slope_deg = world
+            .elevation
+            .as_ref()
+            .and_then(|dem| map_graph::slope_degrees(dem, 6371.0).ok());
         world.rain_shadow = world
             .elevation
             .as_ref()
@@ -166,6 +170,11 @@ impl Studio {
     }
 
     fn rebuild_derived_surfaces(&mut self) {
+        self.world.slope_deg = self
+            .world
+            .elevation
+            .as_ref()
+            .and_then(|dem| map_graph::slope_degrees(dem, 6371.0).ok());
         self.world.rain_shadow = self
             .world
             .elevation
@@ -490,6 +499,13 @@ impl Studio {
                             ui.label("Latitude");
                             ui.monospace(format!("{lat:.3}°"));
                             ui.end_row();
+                            if self.theme == Theme::Slope {
+                                if let Some(ref field) = self.world.slope_deg {
+                                    ui.label("Surface slope");
+                                    ui.monospace(format!("{:.2}°", field.geo(lon, lat)));
+                                    ui.end_row();
+                                }
+                            }
                             if let Some(h) = self.world.elevation_at(lon, lat) {
                                 ui.label("Elevation");
                                 ui.monospace(format!("{h:.0} m"));
@@ -987,6 +1003,10 @@ fn main() -> eframe::Result {
             .get(index + 1)
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("maps"));
+        world.slope_deg = world
+            .elevation
+            .as_ref()
+            .and_then(|dem| map_graph::slope_degrees(dem, 6371.0).ok());
         world.rain_shadow = world
             .elevation
             .as_ref()

@@ -95,3 +95,7 @@ cargo run --release -- --build-graph docs/examples/aegaea-map-graph.json maps/ge
 ```
 
 The output folder contains **slope_degrees.tif** and **rain_shadow_potential.tif**, plus recipe/provenance JSON for each. This is an initial **headless processing graph**; an interactive visual node editor, tiled processing, cache invalidation across builds, scientifically calibrated wind fields, and erosion solvers are future tasks. See [the architecture decision](docs/WORKFLOW_INSPIRATIONS.md) and [node-graph contract](docs/MAP_GRAPH.md).
+
+### Surface slope map
+
+Choose **Surface slope** in the map library to visualize true surface slope angle in degrees. The output is computed from the currently authored elevation grid through the same spherical slope calculation supported by the procedural map graph, and is recalculated when terrain changes. It is available in both 2D and 3D, the location inspector, native PNG export and SVG atlas sheets.
