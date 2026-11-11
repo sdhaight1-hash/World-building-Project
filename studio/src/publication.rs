@@ -81,6 +81,13 @@ pub fn export_sheet(
     let map_bottom = MAP_Y + map_h;
     let key_x = 1820.0;
 
+    let source_text = if let Some(field) = theme.climate_field() {
+        let source = world.scientific_provenance.get(field.id())
+            .map(|p| p.label()).unwrap_or("Undeclared source");
+        escape_xml(&format!("Source: {source} · {} · {}", field.id(), month_name(world.active_month)))
+    } else {
+        "Source: native planetary dataset · classified and styled programmatically".into()
+    };
     let heading = escape_xml(world_name);
     let title = if theme.climate_field().is_some() {
         escape_xml(&format!("{} · {}", theme.name(), month_name(world.active_month)))
@@ -181,7 +188,7 @@ pub fn export_sheet(
     let _ = writeln!(
         svg,
         r##"<path d="M 120 1396 H 2280" stroke="#3f5a70" stroke-width="2"/>
-<text x="120" y="1434" fill="#abc5ca" font-family="Segoe UI,Arial,sans-serif" font-size="22">Source: native planetary dataset · classified and styled programmatically · {} × {} raster</text>
+<text x="120" y="1434" fill="#abc5ca" font-family="Segoe UI,Arial,sans-serif" font-size="22">{source_text} · {} × {} raster</text>
 <text x="120" y="1473" fill="#90a9b8" font-family="Segoe UI,Arial,sans-serif" font-size="18">Interpretations are fictional scientific scenario data; map styles do not establish a validated geological or climate simulation.</text>
 <text x="2280" y="1474" text-anchor="end" fill="#8da5b5" font-family="Segoe UI,Arial,sans-serif" font-size="19">Aegaea Studio · SVG atlas sheet v1</text>
 </svg>"##,
