@@ -81,6 +81,16 @@ The wind/pressure tendencies update in short stable steps and feed the **same** 
 
 **This is an experimental linearized momentum tendency, not complete spherical shallow-water physics or real weather.** It omits nonlinear momentum advection, spherical curvature/metric terms, vertical structure, friction, energy closure, pressure-temperature coupling, evaporation, condensation, and precipitation. Polar convergence and global angular momentum require separate validation. Numerical mass conservation alone does not establish model realism. The full spherical shallow-water model requires stronger benchmarks, such as [Williamson et al.'s standard test suite](https://www.sciencedirect.com/science/article/pii/S0021999105800166).
 
+### Spherical barotropic momentum and global budgets
+
+A third, opt-in action under the atmospheric map workshop — **Compute conservative spherical momentum preview** — advances the same five ephemeral output maps (pressure, specific humidity, vapor column, eastward wind, northward wind). It uses the existing **dynamic interval**, **effective barotropic wave speed**, planet radius, surface gravity and solar-day/orbital-year rotation assumptions. Neither authored atmospheric fields nor terrain are modified.
+
+Unlike the simpler linearized-wind action, this method transports **absolute axial angular momentum** `a cosφ [u + Ω a cosφ]` as a mass-weighted quantity with the *same face transfers* as moist air and vapor. The pressure torques on the two sides of each longitude face are equal and opposite. The northward momentum balance includes nonlinear spherical curvature and Coriolis terms, plus geometric balancing for a uniform resting pressure field. Physical meridian-integrated face moment arms, latitude-band areas and zero-length polar boundaries avoid pretending pole cells are rectangles. A polar CFL check limits stable steps and refuses oversized workloads rather than inventing wind motion at a numerical singularity.
+
+The diagnostic panel and exported JSON report global **air, vapor, and axial angular momentum** before/after with strict published-raster residuals (each ≤1e-6). It also reports kinetic and relative barotropic compressional energy and **energy drift**. This is a measured diagnostic, *not* an assertion that the numerical method conserves energy. The first-order upwind scheme is dissipative.
+
+**Scientific limit:** This is a vertically integrated *isothermal barotropic column* with assumed pressure closure `P = c² × column mass density`, not the full three-dimensional atmosphere or a calibrated free-surface shallow-water solver. Northward component transport, polar topology, full energy closure, longitudinal angular-momentum distribution and climate realism still require stronger numerical tests. In particular, [NOAA/GFDL's discussion of axial angular momentum](https://www.gfdl.noaa.gov/wp-content/uploads/files/model_development/ocean/mom3_manual.pdf) distinguishes the globally conserved axial quantity from local zonal and meridional momentum. Passing the conservation tests here **does not** establish valid rainfall, weather, or long-period circulation.
+
 The command-line blank-world bootstrap is also supported (its project file is written when you save in the app):
 
 ```powershell
