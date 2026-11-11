@@ -247,11 +247,17 @@ mod tests {
                 plate_id: 0,
                 plate: "AAA".into(),
                 color_rgb: "1,2,3".into(),
+                euler_pole_lon_deg: None,
+                euler_pole_lat_deg: None,
+                signed_rate_deg_per_ma: None,
             },
             PlateInfo {
                 plate_id: 1,
                 plate: "BBB".into(),
                 color_rgb: "4,5,6".into(),
+                euler_pole_lon_deg: None,
+                euler_pole_lat_deg: None,
+                signed_rate_deg_per_ma: None,
             },
         ];
         w.cratons = vec![CratonInfo {
