@@ -488,6 +488,44 @@ impl Cartography {
                     base_relief
                 }
             }
+            Theme::MonthlyTemperature | Theme::MonthlyPrecipitation => {
+                if let Some(field) = theme.climate_field() {
+                    if let Some(grid) = w.scientific_fields.get(field.id()) {
+                        let (stops, underlay): (&[(f32, [u8; 3])], f32) = match theme {
+                            Theme::MonthlyTemperature => (
+                                &[
+                                    (-60.0, [45, 57, 116]),
+                                    (-25.0, [77, 123, 173]),
+                                    (0.0, [135, 198, 192]),
+                                    (10.0, [176, 201, 123]),
+                                    (20.0, [237, 193, 91]),
+                                    (30.0, [225, 123, 76]),
+                                    (45.0, [134, 56, 80]),
+                                ],
+                                0.08,
+                            ),
+                            Theme::MonthlyPrecipitation => (
+                                &[
+                                    (0.0, [188, 147, 101]),
+                                    (25.0, [207, 187, 134]),
+                                    (60.0, [173, 197, 153]),
+                                    (120.0, [98, 181, 156]),
+                                    (250.0, [58, 142, 168]),
+                                    (500.0, [47, 92, 165]),
+                                    (1000.0, [70, 54, 125]),
+                                ],
+                                0.06,
+                            ),
+                            _ => unreachable!(),
+                        };
+                        blend(gradient(grid.at(x, y), stops), base, underlay)
+                    } else {
+                        [54, 66, 79]
+                    }
+                } else {
+                    [54, 66, 79]
+                }
+            }
             Theme::RainShadow => {
                 if let Some(ref g) = w.rain_shadow {
                     let value = g.at(x, y);
@@ -639,6 +677,37 @@ impl Cartography {
                 ("Neutral · near zero".into(), [172, 181, 175]),
                 ("Leeward · positive index".into(), [218, 92, 52]),
             ],
+            Theme::MonthlyTemperature => [-60.0_f32, -25.0, 0.0, 10.0, 20.0, 30.0, 45.0]
+                .iter()
+                .map(|&value| (
+                    format!("{value:.0} °C"),
+                    gradient(value, &[
+                        (-60.0, [45, 57, 116]),
+                        (-25.0, [77, 123, 173]),
+                        (0.0, [135, 198, 192]),
+                        (10.0, [176, 201, 123]),
+                        (20.0, [237, 193, 91]),
+                        (30.0, [225, 123, 76]),
+                        (45.0, [134, 56, 80]),
+                    ]),
+                ))
+                .collect(),
+            Theme::MonthlyPrecipitation => [0.0_f32, 25.0, 60.0, 120.0, 250.0, 500.0, 1000.0]
+                .iter()
+                .map(|&value| (
+                    format!("{value:.0} mm/month"),
+                    gradient(value, &[
+                        (0.0, [188, 147, 101]),
+                        (25.0, [207, 187, 134]),
+                        (60.0, [173, 197, 153]),
+                        (120.0, [98, 181, 156]),
+                        (250.0, [58, 142, 168]),
+                        (500.0, [47, 92, 165]),
+                        (1000.0, [70, 54, 125]),
+                    ]),
+                ))
+                .collect(),
+
         };
         items
             .into_iter()
