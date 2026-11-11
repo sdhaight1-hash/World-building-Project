@@ -135,21 +135,29 @@ fn parse_rgb(raw: &str) -> Option<[u8; 3]> {
 /// planet visible while active contacts carry high-contrast scientific data.
 fn motion_color(theme: Theme, speed: f32) -> [u8; 3] {
     let speed = speed.max(0.0);
-    if speed < 0.1 { return [51, 61, 75]; }
+    if speed < 0.1 {
+        return [51, 61, 75];
+    }
     let ramp: &[(f32, [u8; 3])] = match theme {
         Theme::PlateConvergence => &[
-            (0.0, [82, 88, 100]), (1.0, [135, 93, 96]),
-            (3.0, [199, 106, 85]), (6.0, [242, 150, 89]),
+            (0.0, [82, 88, 100]),
+            (1.0, [135, 93, 96]),
+            (3.0, [199, 106, 85]),
+            (6.0, [242, 150, 89]),
             (10.0, [255, 218, 142]),
         ],
         Theme::PlateDivergence => &[
-            (0.0, [68, 90, 97]), (1.0, [56, 128, 151]),
-            (3.0, [64, 175, 174]), (6.0, [93, 214, 188]),
+            (0.0, [68, 90, 97]),
+            (1.0, [56, 128, 151]),
+            (3.0, [64, 175, 174]),
+            (6.0, [93, 214, 188]),
             (10.0, [177, 245, 203]),
         ],
         Theme::PlateShear => &[
-            (0.0, [73, 79, 99]), (1.0, [100, 103, 171]),
-            (3.0, [149, 111, 201]), (6.0, [199, 143, 235]),
+            (0.0, [73, 79, 99]),
+            (1.0, [100, 103, 171]),
+            (3.0, [149, 111, 201]),
+            (6.0, [199, 143, 235]),
             (10.0, [245, 205, 255]),
         ],
         _ => return [51, 61, 75],
@@ -557,14 +565,17 @@ impl Cartography {
                 [0.0f32, 1.0, 3.0, 6.0, 10.0]
                     .iter()
                     .map(|&value| {
-                        (if value == 0.0 {
-                            "0 · no modeled component".to_owned()
-                        } else {
-                            format!("{value:.0} cm/year")
-                        }, motion_color(theme, value))
+                        (
+                            if value == 0.0 {
+                                "0 · no modeled component".to_owned()
+                            } else {
+                                format!("{value:.0} cm/year")
+                            },
+                            motion_color(theme, value),
+                        )
                     })
                     .collect()
-            },
+            }
             Theme::Cratons => w
                 .cratons
                 .iter()

@@ -680,12 +680,13 @@ impl Studio {
                             }
                             if let Some(ref motion) = self.world.plate_motion {
                                 let selected = match self.theme {
-                                    Theme::PlateConvergence =>
-                                        Some(("Convergence", &motion.convergence_cm_yr)),
-                                    Theme::PlateDivergence =>
-                                        Some(("Spreading", &motion.divergence_cm_yr)),
-                                    Theme::PlateShear =>
-                                        Some(("Shear", &motion.shear_cm_yr)),
+                                    Theme::PlateConvergence => {
+                                        Some(("Convergence", &motion.convergence_cm_yr))
+                                    }
+                                    Theme::PlateDivergence => {
+                                        Some(("Spreading", &motion.divergence_cm_yr))
+                                    }
+                                    Theme::PlateShear => Some(("Shear", &motion.shear_cm_yr)),
                                     _ => None,
                                 };
                                 if let Some((label, field)) = selected {

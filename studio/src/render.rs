@@ -89,7 +89,7 @@ impl Theme {
             Self::Plates | Self::Boundaries => w.plate_ids.is_some(),
             Self::PlateConvergence | Self::PlateDivergence | Self::PlateShear => {
                 w.plate_motion.is_some()
-            },
+            }
             Self::Cratons => w.craton_ids.is_some(),
             Self::BasementAge => w.craton_ids.is_some() && !w.cratons.is_empty(),
             Self::Provinces => w.province_ids.is_some(),
@@ -324,8 +324,7 @@ mod tests {
 
     #[test]
     fn euler_motion_maps_render_from_numeric_source_without_old_dem() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../data/aegaea/tectonics/v1");
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/aegaea/tectonics/v1");
         let mut world = World::load(root).unwrap();
         world.elevation = None;
         world.plate_motion = crate::plate_kinematics::derive(&world, 6371.0).unwrap();
@@ -341,12 +340,9 @@ mod tests {
             let map = atlas_image(&world, &art, theme);
             assert_eq!(map.size, [1672, 941]);
             let field = match theme {
-                Theme::PlateConvergence =>
-                    &world.plate_motion.as_ref().unwrap().convergence_cm_yr,
-                Theme::PlateDivergence =>
-                    &world.plate_motion.as_ref().unwrap().divergence_cm_yr,
-                Theme::PlateShear =>
-                    &world.plate_motion.as_ref().unwrap().shear_cm_yr,
+                Theme::PlateConvergence => &world.plate_motion.as_ref().unwrap().convergence_cm_yr,
+                Theme::PlateDivergence => &world.plate_motion.as_ref().unwrap().divergence_cm_yr,
+                Theme::PlateShear => &world.plate_motion.as_ref().unwrap().shear_cm_yr,
                 _ => unreachable!(),
             };
             assert!(field.cells.iter().any(|&value| value > 1.0));
