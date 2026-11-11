@@ -13,6 +13,7 @@ mod plate_kinematics;
 mod publication;
 mod rainshadow;
 mod render;
+mod seeded_geology;
 mod spherical_momentum;
 mod terrain_edit;
 mod terrain_generation;
@@ -344,6 +345,35 @@ impl Studio {
         self.changed = true;
     }
 
+    fn initialize_seeded_geology(&mut self) {
+        self.finish_terrain_stroke();
+        self.finish_layer_stroke();
+        self.finish_dataset_stroke();
+        match seeded_geology::initialize_project(&mut self.world, &mut self.project) {
+            Ok(fraction) => {
+                self.active_terrain_mode = TerrainMode::Generated;
+                self.terrain_undo.clear();
+                self.terrain_redo.clear();
+                self.layer_undo.clear();
+                self.layer_redo.clear();
+                self.rebuild_derived_surfaces();
+                self.status = match self.project.save(&self.project_path) {
+                    Ok(()) => {
+                        self.changed = false;
+                        format!(
+                            "Initialized independent geological hypothesis: {} plates, {:.1}% land pixels, native TIFF + CSV sources. Terrain generated from geology.",
+                            self.world.plates.len(), 100.0 * fraction
+                        )
+                    }
+                    Err(error) => format!(
+                        "Source geology was created, but project save failed: {error}. Save the project to preserve generated terrain mode."
+                    ),
+                };
+            }
+            Err(error) => self.status = format!("Seeded geology not initialized: {error}"),
+        }
+    }
+
     fn select_terrain_mode(&mut self, new_mode: TerrainMode) {
         if !self.project.terrain.overrides.is_empty()
             || (self.project.terrain.base_fill_m.is_some() && self.imported_elevation.is_some())
@@ -572,7 +602,7 @@ impl Studio {
             .default_width(420.0)
             .show(ctx, |ui| {
                 ui.label("Start a separate world with no Aegaea geology, plates, or markers.");
-                ui.small("An editable 1024×512 flat ocean is created and saved immediately.");
+                ui.small("An editable 1024×512 flat ocean is created and saved immediately. To build continents afterward, open Terrain source / generator → Initialize seeded geology.");
                 ui.add_space(8.0);
                 ui.label("Project name");
                 ui.text_edit_singleline(&mut self.new_project_name);
@@ -1885,6 +1915,18 @@ impl Studio {
                 let can_change_basis=self.project.terrain.overrides.is_empty()
                     && (self.project.terrain.base_fill_m.is_none() || self.imported_elevation.is_none());
                 ui.small("Generated height uses crustal provinces, plates, crust and cratons; not the legacy elevation TIFF.");
+                if seeded_geology::can_initialize(&self.world) {
+                    ui.small("This world has no geological source layers. The terrain seed cannot create continents until geology exists.");
+                    let can_seed = can_change_basis
+                        && self.project.layers.grids.is_empty()
+                        && self.imported_elevation.is_none()
+                        && !self.project_path.parent().is_none();
+                    if ui.add_enabled(can_seed,
+                        egui::Button::new("Initialize seeded geology + generate terrain")).clicked() {
+                        self.initialize_seeded_geology();
+                    }
+                    ui.small("Creates a reproducible spherical plate/continental hypothesis in this project's TIFF/CSV files. Does not generate climate or overwrite imported data.");
+                }
                 if ui.add_enabled(can_change_basis && terrain_generation::available(&self.world),
                     egui::Button::new("Generate from geology")).clicked() {
                     self.select_terrain_mode(TerrainMode::Generated);
