@@ -24,8 +24,9 @@ The `studio/` directory contains an **initial desktop vertical slice**, not a co
 - Geographic coordinate picking and a data inspector; plate and craton names come from CSV records.
 - User-authored geographic point annotations stored separately from the read-only source dataset.
 - **Non-destructive terrain brush:** sculpt or raise/lower a DEM directly in either 2D or 3D, undo/redo strokes, persist sparse project-local height overrides, and export edited numeric TIFF data without changing the original DEM.
-- **Blank world terrain initialization:** create a 1024×512 editable flat-ocean DEM in a new world, then sculpt and save it.
-- An empty-project path to verify that the application is not coupled to Aegaea.
+- **New blank project in the desktop UI:** click **New project…**, enter a project name and unused folder, and create an independent 1024×512 editable flat-ocean world without restarting Studio. The new `world.json` is saved immediately; Aegaea geological layers, markers, brush history, and map selection are not carried across. Existing folders are never overwritten, and switching away from unsaved work requires explicit confirmation.
+- **Blank world terrain initialization:** a new blank project starts with a -2,000 m editable flat-ocean DEM; sculpt, add locations, and **Save** to persist your edits.
+- The independent command-line blank-world path remains available.
 - Core mathematical/data tests and a Windows GitHub Actions workflow.
 
 **Not yet implemented:** GPU-native terrain geometry, vector editing, layer compositing, geological reconstruction through time, climate/hydrology generation, advanced map layouts, or multi-format export. The initial globe is an orthographic **software-projected map texture uploaded to wgpu**; this is deliberately a bootstrap path, not the final 3D terrain renderer.
@@ -40,7 +41,9 @@ cargo run --release -p aegaea-studio
 
 On first run the application loads the committed reference rasters in `data/aegaea/tectonics/v1`, including the elevation TIFF directly from its split binary parts when necessary. It stores personal annotations at `projects/aegaea-workspace.json` (ignored by git). The immutable geological data remains untouched.
 
-To create a separate, empty world:
+To create a separate, editable world from the desktop app, click **New project…** in the top toolbar. Enter a name and a **new, unused** project directory (for example `projects/my-world`), then click **Create blank project**. The world is saved to `projects/my-world/world.json` immediately. Use **Save** after sculpting or adding markers.
+
+The command-line blank-world bootstrap is also supported (its project file is written when you save in the app):
 
 ```powershell
 cargo run --release -p aegaea-studio -- --new projects/my-world
