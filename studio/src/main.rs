@@ -1570,22 +1570,17 @@ impl Studio {
                             ui.label("Latitude");
                             ui.monospace(format!("{lat:.3}°"));
                             ui.end_row();
-                            if let Some(kind) = self.theme.climate_field() {
-                                if let Some(field) = self.world.scientific_fields.get(kind.id()) {
-                                    ui.label(format!(
-                                        "{} · {}",
-                                        kind.name(),
-                                        month_name(self.project.month)
-                                    ));
-                                    ui.monospace(format!(
-                                        "{:.2} {}",
-                                        field.geo(lon, lat),
-                                        kind.unit().label()
-                                    ));
+                            if let Some(id) = self.theme.scientific_id() {
+                                if let Some(field) = self.world.scientific_fields.get(id) {
+                                    let name = if self.theme.climate_field().is_some() {
+                                        format!("{} · {}", self.theme.name(), month_name(self.project.month))
+                                    } else {
+                                        self.theme.name().into()
+                                    };
+                                    ui.label(name);
+                                    ui.monospace(format!("{:.2} {}", field.geo(lon, lat), self.theme.units()));
                                     ui.end_row();
-                                    if let Some(source) =
-                                        self.world.scientific_provenance.get(kind.id())
-                                    {
+                                    if let Some(source) = self.world.scientific_provenance.get(id) {
                                         ui.label("Provenance");
                                         ui.label(source.label());
                                         ui.end_row();
