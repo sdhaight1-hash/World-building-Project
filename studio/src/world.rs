@@ -107,6 +107,13 @@ pub struct PlateInfo {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct ProvinceInfo {
+    pub province_id: u8,
+    #[serde(rename = "province")]
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct CratonInfo {
     pub craton_id: u8,
     pub name: String,
@@ -130,6 +137,7 @@ pub struct World {
     pub rain_shadow: Option<Grid>,
     pub plates: Vec<PlateInfo>,
     pub cratons: Vec<CratonInfo>,
+    pub provinces: Vec<ProvinceInfo>,
 }
 
 impl World {
@@ -148,6 +156,7 @@ impl World {
             rain_shadow: None,
             plates: Vec::new(),
             cratons: Vec::new(),
+            provinces: Vec::new(),
         }
     }
 
@@ -201,6 +210,15 @@ impl World {
                 world
                     .cratons
                     .push(craton.map_err(|e| format!("{}: {e}", cratons_path.display()))?);
+            }
+        }
+        let provinces_path = root.join("crustal_provinces.csv");
+        if provinces_path.exists() {
+            let mut reader = csv::Reader::from_path(&provinces_path).map_err(|e| e.to_string())?;
+            for row in reader.deserialize() {
+                world
+                    .provinces
+                    .push(row.map_err(|e| format!("{}: {e}", provinces_path.display()))?);
             }
         }
         Ok(world)
@@ -348,6 +366,7 @@ mod tests {
         let blank = World::empty(PathBuf::from("other-planet"));
         assert!(blank.plates.is_empty());
         assert!(blank.cratons.is_empty());
+        assert!(blank.provinces.is_empty());
         assert!(!blank.has_any_source());
     }
 

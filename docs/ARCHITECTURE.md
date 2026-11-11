@@ -62,3 +62,12 @@ Source/dependent invalidation must be targeted. Editing a river must not force r
 The repo has unusually large pre-existing scientific imports split into `.binary-parts`. The desktop slice uses ordinary checked-in plate/craton/province GeoTIFFs and their CSV metadata. `elevation_m.tif` is split; the loader now assembles its committed parts **in memory** when the TIFF is absent, so users do not need to run Python to obtain the source DEM. The app must report corrupt/missing elevation, not synthesize its values.
 
 Scientific status: Aegaea v1 plates are a synthetic *instantaneous* Euler configuration, cratons are assigned ancient blocks, and deep-time history is hypothetical. No implementation should claim complete tectonic physics.
+
+
+## Native data-driven cartography (P0.2)
+
+The `cartography.rs` module builds an immutable rendering cache from the geological rasters and exact classified plate-boundary linework in `boundary_segments.geojson`. It produces physical hillshade and coastline masks from the original DEM, plate/craton/province boundaries from category changes, and line geometry from source vector coordinates. Palette keys for plates use the actual `plates.csv` colors. Province category labels come from `crustal_provinces.csv` rather than arbitrary index strings.
+
+`render.rs` projects this same classified field onto the 2D native atlas and an orthographic spherical preview. The **UI and export paths share the exact same map palette and legend generator**. PNG outputs are accompanied by JSON legends and metadata. This replaces the old 1024-wide and 512-wide downsampled previews (globe is now 896 px).
+
+This is **not** a new terrain generator, fully reconstructed geological simulation or textured 3D terrain mesh. The physical relief comes from Aegaea's existing synthetic elevation DEM. The cartographic output includes modeled geological interpretations and should be labeled accordingly.
