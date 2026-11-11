@@ -1481,6 +1481,18 @@ impl Studio {
                             ui.label("Latitude");
                             ui.monospace(format!("{lat:.3}°"));
                             ui.end_row();
+                            if let Some(kind) = self.theme.climate_field() {
+                                if let Some(field) = self.world.scientific_fields.get(kind.id()) {
+                                    ui.label(format!("{} · {}", kind.name(), month_name(self.project.month)));
+                                    ui.monospace(format!("{:.2} {}", field.geo(lon, lat), kind.unit().label()));
+                                    ui.end_row();
+                                    if let Some(source) = self.world.scientific_provenance.get(kind.id()) {
+                                        ui.label("Provenance");
+                                        ui.label(source.label());
+                                        ui.end_row();
+                                    }
+                                }
+                            }
                             if self.theme == Theme::Slope {
                                 if let Some(ref field) = self.world.slope_deg {
                                     ui.label("Surface slope");
