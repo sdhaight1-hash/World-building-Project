@@ -52,6 +52,14 @@ jobs:
           name: aegaea-derived-fields
           path: maps/derived
           retention-days: 14
+      - name: Generate new terrain from geological inputs (no old elevation dependency)
+        run: cargo run -p aegaea-studio -- --generate-terrain maps/geology-generated
+      - name: Publish generated terrain and scientific provenance
+        uses: actions/upload-artifact@v4
+        with:
+          name: aegaea-generated-terrain-v1
+          path: maps/geology-generated
+          retention-days: 14
       - name: Publish map previews from native data
         uses: actions/upload-artifact@v4
         with:

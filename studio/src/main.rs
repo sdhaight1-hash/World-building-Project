@@ -8,6 +8,7 @@ mod publication;
 mod rainshadow;
 mod render;
 mod terrain_edit;
+mod terrain_generation;
 mod world;
 
 use cartography::Cartography;
@@ -25,21 +26,22 @@ use std::{
     sync::Arc,
 };
 use terrain_edit::Stroke as TerrainStroke;
+use terrain_generation::TerrainMode;
 use world::{geo_to_uv, Project, World};
 
 /// Return a scientifically unwarped cropped UV viewport for the native
 /// equirectangular raster, independent of desktop viewport proportions.
-fn atlas_crop_uv(data_aspect:f32,viewport_aspect:f32,zoom:f32,center:Pos2)->Rect {
-    let viewport_aspect=viewport_aspect.max(0.01);
-    let data_aspect=data_aspect.max(0.01);
-    let zoom=zoom.clamp(1.0,8.0);
-    let u_span=(viewport_aspect/data_aspect).min(1.0)/zoom;
-    let v_span=(data_aspect/viewport_aspect).min(1.0)/zoom;
-    let u=(center.x).clamp(u_span*0.5,1.0-u_span*0.5);
-    let v=(center.y).clamp(v_span*0.5,1.0-v_span*0.5);
+fn atlas_crop_uv(data_aspect: f32, viewport_aspect: f32, zoom: f32, center: Pos2) -> Rect {
+    let viewport_aspect = viewport_aspect.max(0.01);
+    let data_aspect = data_aspect.max(0.01);
+    let zoom = zoom.clamp(1.0, 8.0);
+    let u_span = (viewport_aspect / data_aspect).min(1.0) / zoom;
+    let v_span = (data_aspect / viewport_aspect).min(1.0) / zoom;
+    let u = (center.x).clamp(u_span * 0.5, 1.0 - u_span * 0.5);
+    let v = (center.y).clamp(v_span * 0.5, 1.0 - v_span * 0.5);
     Rect::from_min_max(
-        egui::pos2(u-u_span*0.5,v-v_span*0.5),
-        egui::pos2(u+u_span*0.5,v+v_span*0.5),
+        egui::pos2(u - u_span * 0.5, v - v_span * 0.5),
+        egui::pos2(u + u_span * 0.5, v + v_span * 0.5),
     )
 }
 
@@ -49,11 +51,25 @@ enum ViewMode {
     Globe,
 }
 
+/// Choose the authoritative elevation source before deriving map fields.
+fn activate_terrain(world: &mut World, project: &Project) -> Result<TerrainMode, String> {
+    let has_edits = !project.terrain.overrides.is_empty() || project.terrain.base_fill_m.is_some();
+    let mode = terrain_generation::resolve_mode(project.terrain_mode, world, has_edits);
+    if mode == TerrainMode::Generated {
+        world.elevation =
+            Some(terrain_generation::generate(world, &project.terrain_recipe)?.elevation);
+    }
+    project.terrain.apply(world)?;
+    Ok(mode)
+}
+
 struct Studio {
     world: World,
     cartography: Cartography,
     project: Project,
     project_path: PathBuf,
+    imported_elevation: Option<world::Grid>,
+    active_terrain_mode: TerrainMode,
     geology_report: Option<GeologyReport>,
     theme: Theme,
     view: ViewMode,
@@ -104,10 +120,17 @@ impl Studio {
             style.spacing.item_spacing = Vec2::new(8.0, 8.0);
             style.spacing.button_padding = Vec2::new(12.0, 6.0);
         });
-        // Apply project-local height edits over the imported DEM, never changing source TIFFs.
-        if let Err(error) = project.terrain.apply(&mut world) {
-            status = format!("Terrain project overlay could not load: {error}");
-        }
+        let imported_elevation = world.elevation.clone();
+        let active_terrain_mode = match activate_terrain(&mut world, &project) {
+            Ok(mode) => {
+                status = format!("{} · active terrain: {}", status, mode.label());
+                mode
+            }
+            Err(error) => {
+                status = format!("Could not activate terrain: {error}");
+                TerrainMode::Imported
+            }
+        };
         world.slope_deg = world
             .elevation
             .as_ref()
@@ -129,6 +152,8 @@ impl Studio {
             cartography,
             project,
             project_path: path,
+            imported_elevation,
+            active_terrain_mode,
             geology_report: None,
             theme: Theme::Terrain,
             view: ViewMode::Atlas,
@@ -179,7 +204,7 @@ impl Studio {
                 .iter()
                 .flat_map(|pixel| pixel.to_array())
                 .collect::<Vec<_>>();
-            globe3d::normalize_polar_texture(&mut rgba,image.size[0],image.size[1]);
+            globe3d::normalize_polar_texture(&mut rgba, image.size[0], image.size[1]);
             self.globe_map_size = [image.size[0] as u32, image.size[1] as u32];
             self.globe_map_rgba = Arc::new(rgba);
             self.globe_map_version = self.globe_map_version.wrapping_add(1);
@@ -210,9 +235,54 @@ impl Studio {
         self.changed = true;
     }
 
+    fn select_terrain_mode(&mut self, new_mode: TerrainMode) {
+        if !self.project.terrain.overrides.is_empty() || self.project.terrain.base_fill_m.is_some()
+        {
+            self.status="Cannot change terrain basis with saved height edits. Preserve this project or clear edits before switching.".into();
+            return;
+        }
+        let next = match new_mode {
+            TerrainMode::Imported => match &self.imported_elevation {
+                Some(grid) => grid.clone(),
+                None => {
+                    self.status = "No imported source DEM exists for this world".into();
+                    return;
+                }
+            },
+            TerrainMode::Generated | TerrainMode::Auto => {
+                match terrain_generation::generate(&self.world, &self.project.terrain_recipe) {
+                    Ok(result) => result.elevation,
+                    Err(error) => {
+                        self.status = format!("Geology generation unavailable: {error}");
+                        return;
+                    }
+                }
+            }
+        };
+        let effective = if new_mode == TerrainMode::Auto {
+            TerrainMode::Generated
+        } else {
+            new_mode
+        };
+        self.world.elevation = Some(next);
+        self.project.terrain_mode = effective;
+        self.active_terrain_mode = effective;
+        self.terrain_undo.clear();
+        self.terrain_redo.clear();
+        self.rebuild_derived_surfaces();
+        self.status = format!(
+            "Now showing {} (source geological fields unchanged)",
+            effective.label()
+        );
+    }
+
     fn finish_terrain_stroke(&mut self) {
         if self.active_stroke.is_empty() {
             return;
+        }
+        if self.project.terrain_mode == TerrainMode::Auto {
+            // Lock the source selected for authored edits at the first stroke.
+            self.project.terrain_mode = self.active_terrain_mode;
         }
         let stroke = std::mem::take(&mut self.active_stroke);
         self.terrain_undo.push(stroke);
@@ -442,11 +512,42 @@ impl Studio {
                 }
             }
             ui.separator();
+            ui.collapsing("TERRAIN SOURCE / GENERATOR",|ui| {
+                ui.label(format!("Active: {}",self.active_terrain_mode.label()));
+                let can_change_basis=self.project.terrain.overrides.is_empty()
+                    && self.project.terrain.base_fill_m.is_none();
+                ui.small("Generated height uses crustal provinces, plates, crust and cratons; not the legacy elevation TIFF.");
+                if ui.add_enabled(can_change_basis && terrain_generation::available(&self.world),
+                    egui::Button::new("Generate from geology")).clicked() {
+                    self.select_terrain_mode(TerrainMode::Generated);
+                }
+                if ui.add_enabled(can_change_basis && self.imported_elevation.is_some(),
+                    egui::Button::new("View legacy DEM")).clicked() {
+                    self.select_terrain_mode(TerrainMode::Imported);
+                }
+                ui.label("Generation seed");
+                if ui.add_enabled(can_change_basis,egui::DragValue::new(&mut self.project.terrain_recipe.seed).speed(1)).changed() {
+                    self.changed=true;
+                }
+                ui.label("Relief strength");
+                if ui.add_enabled(can_change_basis,egui::Slider::new(
+                    &mut self.project.terrain_recipe.relief_strength,0.0..=2.5
+                )).changed() {
+                    self.changed=true;
+                }
+                ui.small("After changing parameters, press Generate from geology. Project recipe is saved.");
+                if !can_change_basis {
+                    ui.small("Existing authored terrain locks the source and recipe.");
+                }
+            });
+            ui.separator();
             ui.label(egui::RichText::new("TERRAIN EDITOR").small().strong());
             if self.world.elevation.is_none() {
                 if ui.button("Create flat ocean (-2,000 m)").clicked() {
                     match self.project.terrain.create_flat_world(&mut self.world,-2000.0) {
                         Ok(())=> {
+                            self.project.terrain_mode=TerrainMode::Imported;
+                            self.active_terrain_mode=TerrainMode::Imported;
                             self.rebuild_derived_surfaces();
                             self.status="Created a new editable flat-ocean elevation layer".into();
                         },
@@ -673,30 +774,30 @@ impl Studio {
             });
     }
 
-    fn current_uv(&self, viewport_aspect:f32) -> Rect {
-        let data_aspect=self.world.width as f32/self.world.height as f32;
+    fn current_uv(&self, viewport_aspect: f32) -> Rect {
+        let data_aspect = self.world.width as f32 / self.world.height as f32;
         atlas_crop_uv(
-            data_aspect,viewport_aspect,self.zoom,
-            egui::pos2(self.pan_u,self.pan_v)
+            data_aspect,
+            viewport_aspect,
+            self.zoom,
+            egui::pos2(self.pan_u, self.pan_v),
         )
     }
 
     fn canvas(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
             let available = ui.available_size();
-            let usable_height=(available.y-52.0).max(5.0);
-            let ratio=self.world.width as f32/self.world.height as f32;
-            let (width,height)=match self.view {
-                ViewMode::Globe=>{
-                    let size=available.x.min(usable_height).max(5.0);
-                    (size,size)
-                },
-                ViewMode::Atlas if self.atlas_fill_canvas=>{
-                    (available.x.max(5.0),usable_height)
-                },
-                ViewMode::Atlas=>{
-                    let width=available.x.min(usable_height*ratio).max(5.0);
-                    (width,width/ratio)
+            let usable_height = (available.y - 52.0).max(5.0);
+            let ratio = self.world.width as f32 / self.world.height as f32;
+            let (width, height) = match self.view {
+                ViewMode::Globe => {
+                    let size = available.x.min(usable_height).max(5.0);
+                    (size, size)
+                }
+                ViewMode::Atlas if self.atlas_fill_canvas => (available.x.max(5.0), usable_height),
+                ViewMode::Atlas => {
+                    let width = available.x.min(usable_height * ratio).max(5.0);
+                    (width, width / ratio)
                 }
             };
             ui.vertical_centered(|ui| {
@@ -704,13 +805,11 @@ impl Studio {
                     egui::RichText::new(format!("{}  ·  {}", self.project.name, self.theme.name()))
                         .strong(),
                 );
-                let (rect, response) = ui.allocate_exact_size(
-                    egui::vec2(width, height),
-                    Sense::click_and_drag(),
-                );
+                let (rect, response) =
+                    ui.allocate_exact_size(egui::vec2(width, height), Sense::click_and_drag());
                 let painter = ui.painter_at(rect);
                 painter.rect_filled(rect, 4.0, Color32::from_rgb(17, 23, 33));
-                let uv = self.current_uv(rect.width()/rect.height());
+                let uv = self.current_uv(rect.width() / rect.height());
                 match self.view {
                     ViewMode::Atlas => {
                         if let Some(ref image) = self.atlas {
@@ -797,14 +896,14 @@ impl Studio {
                 {
                     let delta = ui.input(|input| input.pointer.delta());
                     if delta != Vec2::ZERO {
-                        self.pan_u -= delta.x / rect.width()*uv.width();
-                        self.pan_v -= delta.y / rect.height()*uv.height();
+                        self.pan_u -= delta.x / rect.width() * uv.width();
+                        self.pan_v -= delta.y / rect.height() * uv.height();
                     }
                 }
-                if !self.terrain_brush && self.view==ViewMode::Atlas && response.hovered() {
-                    let wheel=ui.input(|input|input.raw_scroll_delta.y);
-                    if wheel.abs()>0.0 {
-                        self.zoom=(self.zoom*(wheel*0.0015).exp()).clamp(1.0,8.0);
+                if !self.terrain_brush && self.view == ViewMode::Atlas && response.hovered() {
+                    let wheel = ui.input(|input| input.raw_scroll_delta.y);
+                    if wheel.abs() > 0.0 {
+                        self.zoom = (self.zoom * (wheel * 0.0015).exp()).clamp(1.0, 8.0);
                     }
                 }
                 if self.terrain_brush && (response.clicked() || response.dragged()) {
@@ -996,7 +1095,8 @@ fn boot() -> (World, Project, PathBuf, String) {
         match World::load(root.clone()) {
             Ok(world) => {
                 let note = if world.elevation.is_some() {
-                    "Source geology loaded (fictional scenario)".to_owned()
+                    "Geology inputs loaded; generated terrain is the default for untouched projects"
+                        .to_owned()
                 } else if world.has_any_source() {
                     "Partial geology loaded; elevation asset needs restoration".to_owned()
                 } else {
@@ -1044,6 +1144,45 @@ fn main() -> eframe::Result {
         );
         return Ok(());
     }
+    // Independent terrain-generation acceptance path, including numeric
+    // structure and an actual generated physical relief PNG preview.
+    if let Some(index) = args.iter().position(|a| a == "--generate-terrain") {
+        let outdir = args
+            .get(index + 1)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("maps/generated-terrain"));
+        let result = match terrain_generation::generate(&world, &project.terrain_recipe) {
+            Ok(generated) => generated,
+            Err(error) => {
+                eprintln!("Geological terrain generation failed: {error}");
+                std::process::exit(2);
+            }
+        };
+        if let Err(error) =
+            terrain_generation::export_generation(&result, &project.terrain_recipe, &outdir)
+        {
+            eprintln!("Could not export generated geology: {error}");
+            std::process::exit(2);
+        }
+        world.elevation = Some(result.elevation);
+        let art = Cartography::new(&world);
+        if let Err(error) = render::export_atlas_png(
+            &world,
+            &art,
+            Theme::Terrain,
+            &outdir.join("generated-physical-relief.png"),
+        ) {
+            eprintln!("Could not export generated terrain preview: {error}");
+            std::process::exit(2);
+        }
+        println!(
+            "Generated {}x{} geological terrain without using source elevation: {}",
+            world.width,
+            world.height,
+            outdir.display()
+        );
+        return Ok(());
+    }
     // Reproducible node graph builds run headlessly, before the wgpu window.
     // The graph consumes exactly the same authored DEM that the editor displays.
     if let Some(index) = args.iter().position(|a| a == "--build-graph") {
@@ -1055,8 +1194,8 @@ fn main() -> eframe::Result {
             .get(index + 2)
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("maps/generated"));
-        if let Err(error) = project.terrain.apply(&mut world) {
-            eprintln!("Could not apply authored terrain to graph input: {error}");
+        if let Err(error) = activate_terrain(&mut world, &project) {
+            eprintln!("Could not prepare terrain for map graph: {error}");
             std::process::exit(2);
         }
         let graph = match map_graph::MapGraph::from_json(Path::new(input)) {
@@ -1089,8 +1228,8 @@ fn main() -> eframe::Result {
         return Ok(());
     }
     if let Some(index) = args.iter().position(|a| a == "--export-maps") {
-        if let Err(error) = project.terrain.apply(&mut world) {
-            eprintln!("Authored terrain overrides could not be applied: {error}");
+        if let Err(error) = activate_terrain(&mut world, &project) {
+            eprintln!("Could not prepare terrain for atlas export: {error}");
             std::process::exit(2);
         }
         let output = args
@@ -1169,17 +1308,85 @@ mod map_canvas_tests {
     use super::*;
     #[test]
     fn fill_canvas_crops_map_without_stretching_geography() {
-        let uv=atlas_crop_uv(2.0,1.0,1.0,egui::pos2(0.5,0.5));
-        assert!((uv.width()-0.5).abs()<1e-6);
-        assert!((uv.height()-1.0).abs()<1e-6);
-        let fitted=atlas_crop_uv(2.0,2.0,1.0,egui::pos2(0.5,0.5));
-        assert!((fitted.width()-1.0).abs()<1e-6);
-        assert!((fitted.height()-1.0).abs()<1e-6);
+        let uv = atlas_crop_uv(2.0, 1.0, 1.0, egui::pos2(0.5, 0.5));
+        assert!((uv.width() - 0.5).abs() < 1e-6);
+        assert!((uv.height() - 1.0).abs() < 1e-6);
+        let fitted = atlas_crop_uv(2.0, 2.0, 1.0, egui::pos2(0.5, 0.5));
+        assert!((fitted.width() - 1.0).abs() < 1e-6);
+        assert!((fitted.height() - 1.0).abs() < 1e-6);
     }
     #[test]
     fn map_pan_stays_in_bounds_with_zoom_and_cropping() {
-        let uv=atlas_crop_uv(1.8,1.0,4.0,egui::pos2(1.5,-3.0));
-        assert!(uv.min.x>=0.0 && uv.max.x<=1.00001);
-        assert!(uv.min.y>=0.0 && uv.max.y<=1.00001);
+        let uv = atlas_crop_uv(1.8, 1.0, 4.0, egui::pos2(1.5, -3.0));
+        assert!(uv.min.x >= 0.0 && uv.max.x <= 1.00001);
+        assert!(uv.min.y >= 0.0 && uv.max.y <= 1.00001);
+    }
+}
+
+#[cfg(test)]
+mod terrain_activation_tests {
+    use super::*;
+    fn fixture() -> World {
+        let mut w = World::empty(PathBuf::from("custom"));
+        w.width = 24;
+        w.height = 12;
+        w.elevation = Some(world::Grid::new(24, 12, 8100.0));
+        let mut province = world::Grid::new(24, 12, 0.0);
+        let mut crust = world::Grid::new(24, 12, 7.0);
+        for y in 3..9 {
+            for x in 4..19 {
+                province.cells[y * 24 + x] = 3.0;
+                crust.cells[y * 24 + x] = 35.0;
+            }
+        }
+        w.province_ids = Some(province);
+        w.crust_km = Some(crust);
+        w.plate_ids = Some(world::Grid::new(24, 12, 0.0));
+        w
+    }
+    #[test]
+    fn default_project_uses_generated_terrain_not_imported_elevation() {
+        let mut w = fixture();
+        let project = Project::new("New");
+        assert_eq!(
+            activate_terrain(&mut w, &project).unwrap(),
+            TerrainMode::Generated
+        );
+        assert!(w.elevation.as_ref().unwrap().cells.iter().any(|v| *v < 0.0));
+        assert!(!w
+            .elevation
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .all(|v| *v == 8100.0));
+    }
+    #[test]
+    fn explicitly_imported_source_is_preserved() {
+        let mut w = fixture();
+        let mut project = Project::new("New");
+        project.terrain_mode = TerrainMode::Imported;
+        assert_eq!(
+            activate_terrain(&mut w, &project).unwrap(),
+            TerrainMode::Imported
+        );
+        assert!(w
+            .elevation
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .all(|v| *v == 8100.0));
+    }
+    #[test]
+    fn auto_existing_overrides_remain_on_legacy_base() {
+        let mut w = fixture();
+        let mut project = Project::new("Old project");
+        project.terrain.overrides.insert(0, 7000.0);
+        assert_eq!(
+            activate_terrain(&mut w, &project).unwrap(),
+            TerrainMode::Imported
+        );
+        assert_eq!(w.elevation.as_ref().unwrap().cells[0], 7000.0);
     }
 }
