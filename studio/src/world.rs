@@ -448,7 +448,13 @@ mod tests {
         assert!(world.provinces.is_empty());
         assert!(world.plate_ids.is_none());
         assert!(world.crust_km.is_none());
-        assert!(world.elevation.as_ref().unwrap().cells.iter().all(|&m| m == -2_000.0));
+        assert!(world
+            .elevation
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .all(|&m| m == -2_000.0));
         assert_eq!(path, root.join("world.json"));
 
         project.add_marker(35.0, -12.0);
@@ -461,7 +467,10 @@ mod tests {
         assert_eq!(reopened_project.name, "My World");
         assert_eq!(reopened_project.markers.len(), 1);
         assert_eq!(reopened_world.elevation.as_ref().unwrap().cells[9], 800.0);
-        assert_eq!(reopened_world.elevation.as_ref().unwrap().cells[10], -2_000.0);
+        assert_eq!(
+            reopened_world.elevation.as_ref().unwrap().cells[10],
+            -2_000.0
+        );
         assert!(reopened_world.plate_ids.is_none());
 
         let error = Project::create_blank(root.clone(), "Overwrite").unwrap_err();
@@ -472,7 +481,8 @@ mod tests {
 
     #[test]
     fn blank_project_rejects_missing_name_without_writing() {
-        let error = Project::create_blank(PathBuf::from("projects/unused-name"), "   ").unwrap_err();
+        let error =
+            Project::create_blank(PathBuf::from("projects/unused-name"), "   ").unwrap_err();
         assert!(error.contains("name"));
     }
 

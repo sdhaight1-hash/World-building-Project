@@ -383,7 +383,8 @@ impl Studio {
 
     fn create_new_blank_project(&mut self) {
         if self.changed && !self.discard_unsaved_changes {
-            self.new_project_error = Some("Save the current project or confirm discarding unsaved changes.".into());
+            self.new_project_error =
+                Some("Save the current project or confirm discarding unsaved changes.".into());
             return;
         }
         let folder = PathBuf::from(self.new_project_folder.trim());
