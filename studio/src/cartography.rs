@@ -555,6 +555,9 @@ impl Cartography {
                     )
                 })
                 .collect(),
+            Theme::Boundaries if self.classified_segments == 0 => vec![
+                ("Unclassified plate contact".into(), [18, 28, 38]),
+            ],
             Theme::Boundaries => vec![
                 ("Subduction".into(), contact_color(0)),
                 ("Continental collision".into(), contact_color(1)),
