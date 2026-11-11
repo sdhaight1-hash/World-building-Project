@@ -13,6 +13,7 @@ use std::collections::{BTreeMap, BTreeSet};
 pub enum Unit {
     Celsius,
     MillimetersPerMonth,
+    MillimetersPerYear,
     Hectopascals,
     MetersPerSecond,
     PracticalSalinity,
@@ -24,6 +25,7 @@ impl Unit {
         match self {
             Self::Celsius => "°C",
             Self::MillimetersPerMonth => "mm/month",
+            Self::MillimetersPerYear => "mm/year",
             Self::Hectopascals => "hPa",
             Self::MetersPerSecond => "m/s",
             Self::PracticalSalinity => "PSU",
@@ -45,6 +47,20 @@ impl ClimateField {
         match self {
             Self::Temperature => "climate.air_temperature",
             Self::Precipitation => "climate.precipitation",
+        }
+    }
+
+    pub fn annual_id(self) -> &'static str {
+        match self {
+            Self::Temperature => "climate.annual_temperature",
+            Self::Precipitation => "climate.annual_precipitation",
+        }
+    }
+
+    pub fn annual_operator(self) -> &'static str {
+        match self {
+            Self::Temperature => "equal_month_arithmetic_mean_of_12_monthly_means",
+            Self::Precipitation => "sum_of_12_monthly_totals",
         }
     }
 
@@ -105,7 +121,11 @@ pub fn month_name(month: u8) -> &'static str {
 pub enum Provenance {
     Authored { note: String },
     Imported { reference: String },
-    Derived { operator: String },
+    Derived {
+        operator: String,
+        #[serde(default)]
+        inputs: Vec<String>,
+    },
 }
 
 impl Provenance {
@@ -320,6 +340,33 @@ impl DatasetRegistry {
             .clone();
         dataset.months.insert(to, source);
         self.activate(world, to)
+    }
+
+    /// Deterministic reduction of a COMPLETE twelve-month input series.
+    /// Each temperature month is weighted equally, not by Earth-calendar days;
+    /// this is an explicit approximation until the planet calendar is defined.
+    /// Precipitation values are monthly totals, so their annual sum is exact
+    /// under the twelve-equal-period convention.
+    pub fn annual(&self, kind: ClimateField) -> Option<Grid> {
+        let source = self.fields.get(kind.id())?;
+        if !(1..=12).all(|month| source.months.contains_key(&month)) {
+            return None;
+        }
+        let divisor = match kind {
+            ClimateField::Temperature => 12.0,
+            ClimateField::Precipitation => 1.0,
+        };
+        let baseline: f32 = (1..=12)
+            .map(|month| source.months[&month].base / divisor)
+            .sum();
+        let mut grid = Grid::new(source.size[0], source.size[1], baseline);
+        for month in 1..=12 {
+            let snapshot = &source.months[&month];
+            for (&index, &value) in &snapshot.overrides {
+                grid.cells[index] += (value - snapshot.base) / divisor;
+            }
+        }
+        Some(grid)
     }
 
     pub fn has_month(&self, kind: ClimateField, month: u8) -> bool {
