@@ -70,6 +70,14 @@ fn source_for_theme(theme: Theme) -> Option<LayerKind> {
     }
 }
 
+fn map_export_stem(theme: Theme, month: u8) -> String {
+    if theme.climate_field().is_some() {
+        format!("{}-month-{month:02}", theme.slug())
+    } else {
+        theme.slug().into()
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ViewMode {
     Atlas,
@@ -1192,7 +1200,7 @@ impl Studio {
                 if ui.button("Export atlas sheet SVG").clicked() {
                     let target = self
                         .project_path
-                        .with_file_name(format!("{}-atlas.svg", self.theme.slug()));
+                        .with_file_name(format!("{}-atlas.svg", map_export_stem(self.theme, self.project.month)));
                     match publication::export_sheet(
                         &self.world,
                         &self.cartography,
@@ -1209,7 +1217,7 @@ impl Studio {
                 if ui.button("Export map PNG").clicked() {
                     let target = self
                         .project_path
-                        .with_file_name(format!("{}.png", self.theme.slug()));
+                        .with_file_name(format!("{}.png", map_export_stem(self.theme, self.project.month)));
                     match render::export_atlas_png(
                         &self.world,
                         &self.cartography,
@@ -2258,12 +2266,12 @@ fn main() -> eframe::Result {
             if !theme.available(&world) {
                 continue;
             }
-            let target = output.join(format!("{}.png", theme.slug()));
+            let target = output.join(format!("{}.png", map_export_stem(theme, project.month)));
             if let Err(error) = render::export_atlas_png(&world, &art, theme, &target) {
                 eprintln!("Failed to export {}: {}", theme.name(), error);
                 return Ok(());
             }
-            let sheet = output.join(format!("{}-atlas.svg", theme.slug()));
+            let sheet = output.join(format!("{}-atlas.svg", map_export_stem(theme, project.month)));
             if let Err(error) =
                 publication::export_sheet(&world, &art, theme, &project.name, &sheet)
             {
