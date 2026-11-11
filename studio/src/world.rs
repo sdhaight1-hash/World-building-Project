@@ -17,17 +17,24 @@ pub struct Grid {
 
 impl Grid {
     pub fn new(width: usize, height: usize, fill: f32) -> Self {
-        Self { width, height, cells: vec![fill; width * height] }
+        Self {
+            width,
+            height,
+            cells: vec![fill; width * height],
+        }
     }
 
     pub fn from_tiff(path: &Path) -> Result<Self, String> {
         let file = File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let mut decoder = Decoder::new(BufReader::new(file))
+        let mut decoder =
+            Decoder::new(BufReader::new(file)).map_err(|e| format!("{}: {e}", path.display()))?;
+        let (width, height) = decoder
+            .dimensions()
             .map_err(|e| format!("{}: {e}", path.display()))?;
-        let (width, height) = decoder.dimensions()
-            .map_err(|e| format!("{}: {e}", path.display()))?;
-        let cells: Vec<f32> = match decoder.read_image()
-            .map_err(|e| format!("{}: {e}", path.display()))? {
+        let cells: Vec<f32> = match decoder
+            .read_image()
+            .map_err(|e| format!("{}: {e}", path.display()))?
+        {
             DecodingResult::U8(v) => v.into_iter().map(f32::from).collect(),
             DecodingResult::U16(v) => v.into_iter().map(f32::from).collect(),
             DecodingResult::U32(v) => v.into_iter().map(|n| n as f32).collect(),
@@ -38,12 +45,25 @@ impl Grid {
             DecodingResult::I64(v) => v.into_iter().map(|n| n as f32).collect(),
             DecodingResult::F32(v) => v,
             DecodingResult::F64(v) => v.into_iter().map(|n| n as f32).collect(),
-            other => return Err(format!("Unsupported TIFF sample type for {}: {other:?}", path.display())),
+            other => {
+                return Err(format!(
+                    "Unsupported TIFF sample type for {}: {other:?}",
+                    path.display()
+                ))
+            }
         };
         if cells.len() != width as usize * height as usize {
-            return Err(format!("{}: expected one numeric channel, got {} samples", path.display(), cells.len()));
+            return Err(format!(
+                "{}: expected one numeric channel, got {} samples",
+                path.display(),
+                cells.len()
+            ));
         }
-        Ok(Self { width: width as usize, height: height as usize, cells })
+        Ok(Self {
+            width: width as usize,
+            height: height as usize,
+            cells,
+        })
     }
 
     #[inline]
@@ -106,10 +126,18 @@ pub struct World {
 impl World {
     pub fn empty(root: PathBuf) -> Self {
         Self {
-            root, width: 1024, height: 512,
-            elevation: None, plate_ids: None, craton_ids: None,
-            province_ids: None, crust_km: None, lithosphere_km: None, heatflow: None,
-            plates: Vec::new(), cratons: Vec::new(),
+            root,
+            width: 1024,
+            height: 512,
+            elevation: None,
+            plate_ids: None,
+            craton_ids: None,
+            province_ids: None,
+            crust_km: None,
+            lithosphere_km: None,
+            heatflow: None,
+            plates: Vec::new(),
+            cratons: Vec::new(),
         }
     }
 
@@ -124,15 +152,26 @@ impl World {
         world.heatflow = optional_grid(&root, "heatflow_mWm2.tif")?;
 
         let grids = [
-            &world.elevation, &world.plate_ids, &world.craton_ids, &world.province_ids,
-            &world.crust_km, &world.lithosphere_km, &world.heatflow
+            &world.elevation,
+            &world.plate_ids,
+            &world.craton_ids,
+            &world.province_ids,
+            &world.crust_km,
+            &world.lithosphere_km,
+            &world.heatflow,
         ];
         if let Some(first) = grids.iter().find_map(|x| x.as_ref()) {
             (world.width, world.height) = (first.width, first.height);
             for grid in grids.iter().filter_map(|x| x.as_ref()) {
                 if grid.width != world.width || grid.height != world.height {
-                    return Err(format!("Raster size mismatch: {}x{} vs {}x{} in {}", grid.width,
-                        grid.height, world.width, world.height, root.display()));
+                    return Err(format!(
+                        "Raster size mismatch: {}x{} vs {}x{} in {}",
+                        grid.width,
+                        grid.height,
+                        world.width,
+                        world.height,
+                        root.display()
+                    ));
                 }
             }
         }
@@ -140,14 +179,18 @@ impl World {
         if plates_path.exists() {
             let mut reader = csv::Reader::from_path(&plates_path).map_err(|e| e.to_string())?;
             for plate in reader.deserialize() {
-                world.plates.push(plate.map_err(|e| format!("{}: {e}", plates_path.display()))?);
+                world
+                    .plates
+                    .push(plate.map_err(|e| format!("{}: {e}", plates_path.display()))?);
             }
         }
         let cratons_path = root.join("cratons.csv");
         if cratons_path.exists() {
             let mut reader = csv::Reader::from_path(&cratons_path).map_err(|e| e.to_string())?;
             for craton in reader.deserialize() {
-                world.cratons.push(craton.map_err(|e| format!("{}: {e}", cratons_path.display()))?);
+                world
+                    .cratons
+                    .push(craton.map_err(|e| format!("{}: {e}", cratons_path.display()))?);
             }
         }
         Ok(world)
@@ -174,7 +217,11 @@ impl World {
 
 fn optional_grid(root: &Path, name: &str) -> Result<Option<Grid>, String> {
     let path = root.join(name);
-    if path.exists() { Grid::from_tiff(&path).map(Some) } else { Ok(None) }
+    if path.exists() {
+        Grid::from_tiff(&path).map(Some)
+    } else {
+        Ok(None)
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -195,16 +242,25 @@ pub struct Project {
 }
 
 impl Project {
-    pub fn new(name: &str) -> Self { Self { name: name.to_owned(), markers: Vec::new() } }
+    pub fn new(name: &str) -> Self {
+        Self {
+            name: name.to_owned(),
+            markers: Vec::new(),
+        }
+    }
 
     pub fn load(path: &Path, default_name: &str) -> Result<Self, String> {
-        if !path.exists() { return Ok(Self::new(default_name)); }
+        if !path.exists() {
+            return Ok(Self::new(default_name));
+        }
         let bytes = fs::read(path).map_err(|e| format!("{}: {e}", path.display()))?;
         serde_json::from_slice(&bytes).map_err(|e| format!("{}: {e}", path.display()))
     }
 
     pub fn save(&self, path: &Path) -> Result<(), String> {
-        let parent = path.parent().ok_or_else(|| "Project path has no parent".to_owned())?;
+        let parent = path
+            .parent()
+            .ok_or_else(|| "Project path has no parent".to_owned())?;
         fs::create_dir_all(parent).map_err(|e| e.to_string())?;
         let content = serde_json::to_vec_pretty(self).map_err(|e| e.to_string())?;
         // Make a backup before replacing an existing project. P0 is not an
@@ -234,28 +290,32 @@ mod tests {
 
     #[test]
     fn mirrored_inverse_coordinates_roundtrip() {
-        for (lon, lat) in [(0.0,0.0),(-124.0,45.0),(87.0,-34.0),(179.0,90.0)] {
-            let (u,v) = geo_to_uv(lon,lat);
-            let (out_lon,out_lat) = uv_to_geo(u,v);
-            assert!((lon-out_lon).abs() < 1e-8);
-            assert!((lat-out_lat).abs() < 1e-8);
+        for (lon, lat) in [(0.0, 0.0), (-124.0, 45.0), (87.0, -34.0), (179.0, 90.0)] {
+            let (u, v) = geo_to_uv(lon, lat);
+            let (out_lon, out_lat) = uv_to_geo(u, v);
+            assert!((lon - out_lon).abs() < 1e-8);
+            assert!((lat - out_lat).abs() < 1e-8);
         }
-        assert_eq!(uv_to_geo(0.0,0.0),(180.0,-90.0));
-        assert_eq!(uv_to_geo(1.0,1.0),(-180.0,90.0));
+        assert_eq!(uv_to_geo(0.0, 0.0), (180.0, -90.0));
+        assert_eq!(uv_to_geo(1.0, 1.0), (-180.0, 90.0));
     }
 
     #[test]
     fn geographic_sampling_wraps_longitude() {
-        let grid = Grid { width:4, height:2, cells:vec![0.,1.,2.,3.,4.,5.,6.,7.] };
-        assert_eq!(grid.geo(179.9, -89.0),0.0);
-        assert_eq!(grid.geo(-179.9,-89.0),3.0);
-        assert_eq!(grid.geo(180.1,-89.0),3.0);
-        assert_eq!(grid.geo(0.0,89.0),6.0);
+        let grid = Grid {
+            width: 4,
+            height: 2,
+            cells: vec![0., 1., 2., 3., 4., 5., 6., 7.],
+        };
+        assert_eq!(grid.geo(179.9, -89.0), 0.0);
+        assert_eq!(grid.geo(-179.9, -89.0), 3.0);
+        assert_eq!(grid.geo(180.1, -89.0), 3.0);
+        assert_eq!(grid.geo(0.0, 89.0), 6.0);
     }
 
     #[test]
     fn blank_project_has_no_reference_world() {
-        let blank=World::empty(PathBuf::from("other-planet"));
+        let blank = World::empty(PathBuf::from("other-planet"));
         assert!(blank.plates.is_empty());
         assert!(blank.cratons.is_empty());
         assert!(!blank.has_any_source());
@@ -263,11 +323,11 @@ mod tests {
 
     #[test]
     fn markers_roundtrip_without_sources() {
-        let mut p=Project::new("Test World");
-        p.add_marker(-122.0,48.0);
-        let json=serde_json::to_string(&p).unwrap();
-        let q:Project=serde_json::from_str(&json).unwrap();
-        assert_eq!(q.markers[0].longitude_deg,-122.0);
-        assert_eq!(q.name,"Test World");
+        let mut p = Project::new("Test World");
+        p.add_marker(-122.0, 48.0);
+        let json = serde_json::to_string(&p).unwrap();
+        let q: Project = serde_json::from_str(&json).unwrap();
+        assert_eq!(q.markers[0].longitude_deg, -122.0);
+        assert_eq!(q.name, "Test World");
     }
 }

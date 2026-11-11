@@ -3,13 +3,22 @@
 mod render;
 mod world;
 
-use eframe::{egui, egui::{Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Vec2}};
-use render::{Theme, atlas_geo_from_fraction, forward_globe, globe_geo_from_fraction};
-use std::{env, path::{Path, PathBuf}};
-use world::{Project, World, geo_to_uv};
+use eframe::{
+    egui,
+    egui::{Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Vec2},
+};
+use render::{atlas_geo_from_fraction, forward_globe, globe_geo_from_fraction, Theme};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
+use world::{geo_to_uv, Project, World};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum ViewMode { Atlas, Globe }
+enum ViewMode {
+    Atlas,
+    Globe,
+}
 
 struct Studio {
     world: World,
@@ -26,7 +35,7 @@ struct Studio {
     zoom: f32,
     pan_u: f32,
     pan_v: f32,
-    picked: Option<(f64,f64)>,
+    picked: Option<(f64, f64)>,
     selected_marker: Option<usize>,
     placing_marker: bool,
     changed: bool,
@@ -34,7 +43,13 @@ struct Studio {
 }
 
 impl Studio {
-    fn new(cc: &eframe::CreationContext<'_>, world: World, project: Project, path: PathBuf, status: String) -> Self {
+    fn new(
+        cc: &eframe::CreationContext<'_>,
+        world: World,
+        project: Project,
+        path: PathBuf,
+        status: String,
+    ) -> Self {
         let mut visuals = egui::Visuals::dark();
         visuals.panel_fill = Color32::from_rgb(22, 27, 36);
         visuals.window_fill = Color32::from_rgb(25, 31, 41);
@@ -46,14 +61,31 @@ impl Studio {
             style.spacing.button_padding = Vec2::new(12.0, 6.0);
         });
         let mut app = Self {
-            world, project, project_path: path, theme: Theme::Terrain,
-            view: ViewMode::Atlas, atlas: None, globe: None,
-            atlas_dirty: true, globe_dirty: true, globe_lon: 0.0, globe_lat: 0.0,
-            zoom: 1.0, pan_u: 0.5, pan_v: 0.5, picked: None,
-            selected_marker: None, placing_marker: false, changed: false, status,
+            world,
+            project,
+            project_path: path,
+            theme: Theme::Terrain,
+            view: ViewMode::Atlas,
+            atlas: None,
+            globe: None,
+            atlas_dirty: true,
+            globe_dirty: true,
+            globe_lon: 0.0,
+            globe_lat: 0.0,
+            zoom: 1.0,
+            pan_u: 0.5,
+            pan_v: 0.5,
+            picked: None,
+            selected_marker: None,
+            placing_marker: false,
+            changed: false,
+            status,
         };
         if !app.theme.available(&app.world) {
-            app.theme = Theme::ALL.iter().copied().find(|t| t.available(&app.world))
+            app.theme = Theme::ALL
+                .iter()
+                .copied()
+                .find(|t| t.available(&app.world))
                 .unwrap_or(Theme::Terrain);
         }
         app.refresh_textures(&cc.egui_ctx);
@@ -63,14 +95,17 @@ impl Studio {
     fn refresh_textures(&mut self, ctx: &egui::Context) {
         if self.atlas_dirty {
             self.atlas = Some(ctx.load_texture(
-                "world-atlas", render::atlas_image(&self.world,self.theme), egui::TextureOptions::LINEAR
+                "world-atlas",
+                render::atlas_image(&self.world, self.theme),
+                egui::TextureOptions::LINEAR,
             ));
             self.atlas_dirty = false;
         }
         if self.globe_dirty && self.view == ViewMode::Globe {
             self.globe = Some(ctx.load_texture(
-                "world-globe", render::globe_image(&self.world,self.theme,self.globe_lon,self.globe_lat),
-                egui::TextureOptions::LINEAR
+                "world-globe",
+                render::globe_image(&self.world, self.theme, self.globe_lon, self.globe_lat),
+                egui::TextureOptions::LINEAR,
             ));
             self.globe_dirty = false;
         }
@@ -79,10 +114,10 @@ impl Studio {
     fn save(&mut self) {
         match self.project.save(&self.project_path) {
             Ok(()) => {
-                self.changed=false;
-                self.status=format!("Saved {}",self.project_path.display());
+                self.changed = false;
+                self.status = format!("Saved {}", self.project_path.display());
             }
-            Err(error) => self.status=format!("Could not save project: {error}"),
+            Err(error) => self.status = format!("Could not save project: {error}"),
         }
     }
 
@@ -90,23 +125,46 @@ impl Studio {
         egui::TopBottomPanel::top("top").show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("AEGAEA");
-                ui.label(egui::RichText::new("STUDIO").small().color(Color32::from_rgb(129,167,187)));
+                ui.label(
+                    egui::RichText::new("STUDIO")
+                        .small()
+                        .color(Color32::from_rgb(129, 167, 187)),
+                );
                 ui.separator();
                 ui.label(egui::RichText::new(&self.project.name).strong());
-                if self.changed { ui.label(egui::RichText::new("● Unsaved").color(Color32::from_rgb(229,188,111))); }
-                ui.separator();
-                if ui.selectable_label(self.view==ViewMode::Atlas,"2D Atlas").clicked() {
-                    self.view=ViewMode::Atlas;
-                }
-                if ui.selectable_label(self.view==ViewMode::Globe,"3D Globe").clicked() {
-                    self.view=ViewMode::Globe;
-                    self.globe_dirty=true;
+                if self.changed {
+                    ui.label(
+                        egui::RichText::new("● Unsaved").color(Color32::from_rgb(229, 188, 111)),
+                    );
                 }
                 ui.separator();
-                if ui.button(if self.placing_marker {"Click map to place point…"} else {"Add point"}).clicked() {
-                    self.placing_marker=!self.placing_marker;
+                if ui
+                    .selectable_label(self.view == ViewMode::Atlas, "2D Atlas")
+                    .clicked()
+                {
+                    self.view = ViewMode::Atlas;
                 }
-                if ui.button("Save").clicked() { self.save(); }
+                if ui
+                    .selectable_label(self.view == ViewMode::Globe, "3D Globe")
+                    .clicked()
+                {
+                    self.view = ViewMode::Globe;
+                    self.globe_dirty = true;
+                }
+                ui.separator();
+                if ui
+                    .button(if self.placing_marker {
+                        "Click map to place point…"
+                    } else {
+                        "Add point"
+                    })
+                    .clicked()
+                {
+                    self.placing_marker = !self.placing_marker;
+                }
+                if ui.button("Save").clicked() {
+                    self.save();
+                }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.label(egui::RichText::new("PHYSICAL WORLD ATLAS").small().weak());
                 });
@@ -166,183 +224,284 @@ impl Studio {
     }
 
     fn inspector(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::right("inspector").default_width(282.0).min_width(235.0).show(ctx,|ui|{
-            ui.heading("Inspector");
-            ui.label(egui::RichText::new("WORLD DATA").small().weak());
-            ui.add_space(12.0);
-            if let Some((lon,lat))=self.picked {
-                egui::Grid::new("coords").num_columns(2).spacing([12.0,9.0]).show(ui,|ui|{
-                    ui.label("Longitude");ui.monospace(format!("{lon:.3}°"));ui.end_row();
-                    ui.label("Latitude");ui.monospace(format!("{lat:.3}°"));ui.end_row();
-                    if let Some(h)=self.world.elevation_at(lon,lat) {
-                        ui.label("Elevation");ui.monospace(format!("{h:.0} m"));ui.end_row();
-                    }
-                    if let Some(plate)=self.world.plate_at(lon,lat) {
-                        ui.label("Plate");ui.label(&plate.plate);ui.end_row();
-                    }
-                    if let Some(craton)=self.world.craton_at(lon,lat) {
-                        ui.label("Craton");ui.label(&craton.name);ui.end_row();
-                        ui.label("Basement age");ui.label(format!("{:.2} Ga",craton.basement_age_ga));ui.end_row();
-                        ui.label("Craton plate");ui.label(&craton.plate);ui.end_row();
-                    }
-                    if let Some(g)=&self.world.crust_km {
-                        ui.label("Crust");ui.label(format!("{:.1} km",g.geo(lon,lat)));ui.end_row();
-                    }
-                    if let Some(g)=&self.world.lithosphere_km {
-                        ui.label("Lithosphere");ui.label(format!("{:.1} km",g.geo(lon,lat)));ui.end_row();
-                    }
-                    if let Some(g)=&self.world.heatflow {
-                        ui.label("Heat flow");ui.label(format!("{:.1} mW/m²",g.geo(lon,lat)));ui.end_row();
-                    }
-                });
-            } else {
-                ui.label("Select a location on the map to inspect the scientific fields.");
-            }
-            ui.separator();
-            ui.label(egui::RichText::new("ANNOTATIONS").small().weak());
-            if self.project.markers.is_empty() {
-                ui.small("No points yet. Choose 'Add point' and click the map.");
-            }
-            for (index,marker) in self.project.markers.iter().enumerate() {
-                if ui.selectable_label(self.selected_marker==Some(index),&marker.name).clicked() {
-                    self.selected_marker=Some(index);
-                    self.picked=Some((marker.longitude_deg,marker.latitude_deg));
+        egui::SidePanel::right("inspector")
+            .default_width(282.0)
+            .min_width(235.0)
+            .show(ctx, |ui| {
+                ui.heading("Inspector");
+                ui.label(egui::RichText::new("WORLD DATA").small().weak());
+                ui.add_space(12.0);
+                if let Some((lon, lat)) = self.picked {
+                    egui::Grid::new("coords")
+                        .num_columns(2)
+                        .spacing([12.0, 9.0])
+                        .show(ui, |ui| {
+                            ui.label("Longitude");
+                            ui.monospace(format!("{lon:.3}°"));
+                            ui.end_row();
+                            ui.label("Latitude");
+                            ui.monospace(format!("{lat:.3}°"));
+                            ui.end_row();
+                            if let Some(h) = self.world.elevation_at(lon, lat) {
+                                ui.label("Elevation");
+                                ui.monospace(format!("{h:.0} m"));
+                                ui.end_row();
+                            }
+                            if let Some(plate) = self.world.plate_at(lon, lat) {
+                                ui.label("Plate");
+                                ui.label(&plate.plate);
+                                ui.end_row();
+                            }
+                            if let Some(craton) = self.world.craton_at(lon, lat) {
+                                ui.label("Craton");
+                                ui.label(&craton.name);
+                                ui.end_row();
+                                ui.label("Basement age");
+                                ui.label(format!("{:.2} Ga", craton.basement_age_ga));
+                                ui.end_row();
+                                ui.label("Craton plate");
+                                ui.label(&craton.plate);
+                                ui.end_row();
+                            }
+                            if let Some(g) = &self.world.crust_km {
+                                ui.label("Crust");
+                                ui.label(format!("{:.1} km", g.geo(lon, lat)));
+                                ui.end_row();
+                            }
+                            if let Some(g) = &self.world.lithosphere_km {
+                                ui.label("Lithosphere");
+                                ui.label(format!("{:.1} km", g.geo(lon, lat)));
+                                ui.end_row();
+                            }
+                            if let Some(g) = &self.world.heatflow {
+                                ui.label("Heat flow");
+                                ui.label(format!("{:.1} mW/m²", g.geo(lon, lat)));
+                                ui.end_row();
+                            }
+                        });
+                } else {
+                    ui.label("Select a location on the map to inspect the scientific fields.");
                 }
-            }
-            ui.add_space(7.0);
-            if let Some(idx)=self.selected_marker {
-                if let Some(m)=self.project.markers.get_mut(idx) {
-                    ui.label("Name");
-                    if ui.text_edit_singleline(&mut m.name).changed() { self.changed=true; }
-                    ui.label("Notes");
-                    if ui.text_edit_multiline(&mut m.description).changed() { self.changed=true; }
-                    ui.small(format!("{}°, {}°",m.latitude_deg,m.longitude_deg));
+                ui.separator();
+                ui.label(egui::RichText::new("ANNOTATIONS").small().weak());
+                if self.project.markers.is_empty() {
+                    ui.small("No points yet. Choose 'Add point' and click the map.");
                 }
-                if ui.button("Delete selected point").clicked() {
-                    self.project.markers.remove(idx);
-                    self.selected_marker=None;
-                    self.changed=true;
+                for (index, marker) in self.project.markers.iter().enumerate() {
+                    if ui
+                        .selectable_label(self.selected_marker == Some(index), &marker.name)
+                        .clicked()
+                    {
+                        self.selected_marker = Some(index);
+                        self.picked = Some((marker.longitude_deg, marker.latitude_deg));
+                    }
                 }
-            }
-        });
+                ui.add_space(7.0);
+                if let Some(idx) = self.selected_marker {
+                    if let Some(m) = self.project.markers.get_mut(idx) {
+                        ui.label("Name");
+                        if ui.text_edit_singleline(&mut m.name).changed() {
+                            self.changed = true;
+                        }
+                        ui.label("Notes");
+                        if ui.text_edit_multiline(&mut m.description).changed() {
+                            self.changed = true;
+                        }
+                        ui.small(format!("{}°, {}°", m.latitude_deg, m.longitude_deg));
+                    }
+                    if ui.button("Delete selected point").clicked() {
+                        self.project.markers.remove(idx);
+                        self.selected_marker = None;
+                        self.changed = true;
+                    }
+                }
+            });
     }
 
     fn current_uv(&self) -> Rect {
-        let span=1.0/self.zoom;
-        let half=span*0.5;
-        let u=self.pan_u.clamp(half,1.0-half);
-        let v=self.pan_v.clamp(half,1.0-half);
-        Rect::from_min_max(egui::pos2(u-half,v-half),egui::pos2(u+half,v+half))
+        let span = 1.0 / self.zoom;
+        let half = span * 0.5;
+        let u = self.pan_u.clamp(half, 1.0 - half);
+        let v = self.pan_v.clamp(half, 1.0 - half);
+        Rect::from_min_max(
+            egui::pos2(u - half, v - half),
+            egui::pos2(u + half, v + half),
+        )
     }
 
     fn canvas(&mut self, ctx: &egui::Context) {
-        egui::CentralPanel::default().show(ctx, |ui|{
-            let available=ui.available_size();
-            let ratio=if self.view==ViewMode::Globe {1.0}
-                else {self.world.width as f32/self.world.height as f32};
-            let width=available.x.min(available.y*ratio).max(5.0);
-            let height=width/ratio;
-            ui.vertical_centered(|ui|{
-                ui.label(egui::RichText::new(format!("{}  ·  {}",self.project.name,self.theme.name())).strong());
-                let (rect,response)=ui.allocate_exact_size(egui::vec2(width,(height-30.0).max(5.0)),Sense::click_and_drag());
-                let painter=ui.painter_at(rect);
-                painter.rect_filled(rect,4.0,Color32::from_rgb(17,23,33));
-                let uv=self.current_uv();
+        egui::CentralPanel::default().show(ctx, |ui| {
+            let available = ui.available_size();
+            let ratio = if self.view == ViewMode::Globe {
+                1.0
+            } else {
+                self.world.width as f32 / self.world.height as f32
+            };
+            let width = available.x.min(available.y * ratio).max(5.0);
+            let height = width / ratio;
+            ui.vertical_centered(|ui| {
+                ui.label(
+                    egui::RichText::new(format!("{}  ·  {}", self.project.name, self.theme.name()))
+                        .strong(),
+                );
+                let (rect, response) = ui.allocate_exact_size(
+                    egui::vec2(width, (height - 30.0).max(5.0)),
+                    Sense::click_and_drag(),
+                );
+                let painter = ui.painter_at(rect);
+                painter.rect_filled(rect, 4.0, Color32::from_rgb(17, 23, 33));
+                let uv = self.current_uv();
                 match self.view {
-                    ViewMode::Atlas => if let Some(ref image)=self.atlas {
-                        painter.image(image.id(),rect,uv,Color32::WHITE);
+                    ViewMode::Atlas => {
+                        if let Some(ref image) = self.atlas {
+                            painter.image(image.id(), rect, uv, Color32::WHITE);
+                        }
                     }
-                    ViewMode::Globe => if let Some(ref image)=self.globe {
-                        painter.image(image.id(),rect,Rect::from_min_max(
-                            egui::pos2(0.0,0.0),egui::pos2(1.0,1.0)),Color32::WHITE);
+                    ViewMode::Globe => {
+                        if let Some(ref image) = self.globe {
+                            painter.image(
+                                image.id(),
+                                rect,
+                                Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)),
+                                Color32::WHITE,
+                            );
+                        }
                     }
                 }
-                for (i,marker) in self.project.markers.iter().enumerate() {
-                    let pos=match self.view {
-                        ViewMode::Atlas=>{
-                            let (u,v)=geo_to_uv(marker.longitude_deg,marker.latitude_deg);
-                            if u<uv.min.x as f64 || u>uv.max.x as f64 ||
-                                v<uv.min.y as f64 || v>uv.max.y as f64 { None }
-                            else {
-                                Some(egui::pos2(rect.min.x+((u-uv.min.x as f64)/(uv.width() as f64)) as f32*rect.width(),
-                                    rect.min.y+((v-uv.min.y as f64)/(uv.height() as f64)) as f32*rect.height()))
+                for (i, marker) in self.project.markers.iter().enumerate() {
+                    let pos = match self.view {
+                        ViewMode::Atlas => {
+                            let (u, v) = geo_to_uv(marker.longitude_deg, marker.latitude_deg);
+                            if u < uv.min.x as f64
+                                || u > uv.max.x as f64
+                                || v < uv.min.y as f64
+                                || v > uv.max.y as f64
+                            {
+                                None
+                            } else {
+                                Some(egui::pos2(
+                                    rect.min.x
+                                        + ((u - uv.min.x as f64) / (uv.width() as f64)) as f32
+                                            * rect.width(),
+                                    rect.min.y
+                                        + ((v - uv.min.y as f64) / (uv.height() as f64)) as f32
+                                            * rect.height(),
+                                ))
                             }
                         }
-                        ViewMode::Globe=> forward_globe(
-                            marker.longitude_deg,marker.latitude_deg,self.globe_lon,self.globe_lat
-                        ).map(|(x,y)|egui::pos2(rect.center().x+x*rect.width()*0.5,
-                            rect.center().y-y*rect.height()*0.5)),
+                        ViewMode::Globe => forward_globe(
+                            marker.longitude_deg,
+                            marker.latitude_deg,
+                            self.globe_lon,
+                            self.globe_lat,
+                        )
+                        .map(|(x, y)| {
+                            egui::pos2(
+                                rect.center().x + x * rect.width() * 0.5,
+                                rect.center().y - y * rect.height() * 0.5,
+                            )
+                        }),
                     };
-                    if let Some(pos)=pos {
-                        painter.circle_filled(pos,5.0,Color32::from_rgb(253,195,91));
-                        painter.circle_stroke(pos,7.5,Stroke::new(
-                            if self.selected_marker==Some(i) {2.0} else {1.0}, Color32::WHITE));
+                    if let Some(pos) = pos {
+                        painter.circle_filled(pos, 5.0, Color32::from_rgb(253, 195, 91));
+                        painter.circle_stroke(
+                            pos,
+                            7.5,
+                            Stroke::new(
+                                if self.selected_marker == Some(i) {
+                                    2.0
+                                } else {
+                                    1.0
+                                },
+                                Color32::WHITE,
+                            ),
+                        );
                     }
                 }
-                if self.view==ViewMode::Globe && response.dragged() {
-                    let delta=ui.input(|input|input.pointer.delta());
-                    if delta!=Vec2::ZERO {
-                        self.globe_lon=(self.globe_lon-(delta.x as f64)*0.45+180.0)
-                            .rem_euclid(360.0)-180.0;
-                        self.globe_lat=(self.globe_lat+(delta.y as f64)*0.45).clamp(-85.0,85.0);
-                        self.globe_dirty=true;
+                if self.view == ViewMode::Globe && response.dragged() {
+                    let delta = ui.input(|input| input.pointer.delta());
+                    if delta != Vec2::ZERO {
+                        self.globe_lon = (self.globe_lon - (delta.x as f64) * 0.45 + 180.0)
+                            .rem_euclid(360.0)
+                            - 180.0;
+                        self.globe_lat =
+                            (self.globe_lat + (delta.y as f64) * 0.45).clamp(-85.0, 85.0);
+                        self.globe_dirty = true;
                     }
-                } else if self.view==ViewMode::Atlas && response.dragged() {
-                    let delta=ui.input(|input|input.pointer.delta());
-                    if delta!=Vec2::ZERO {
-                        self.pan_u-=delta.x/rect.width()/self.zoom;
-                        self.pan_v-=delta.y/rect.height()/self.zoom;
+                } else if self.view == ViewMode::Atlas && response.dragged() {
+                    let delta = ui.input(|input| input.pointer.delta());
+                    if delta != Vec2::ZERO {
+                        self.pan_u -= delta.x / rect.width() / self.zoom;
+                        self.pan_v -= delta.y / rect.height() / self.zoom;
                     }
                 }
                 if response.clicked() {
-                    if let Some(pos)=response.interact_pointer_pos() {
-                        let fraction_x=((pos.x-rect.left())/rect.width()) as f64;
-                        let fraction_y=((pos.y-rect.top())/rect.height()) as f64;
-                        let geo=match self.view {
-                            ViewMode::Atlas=>Some(atlas_geo_from_fraction(
-                                uv.min.x as f64+fraction_x*(uv.width() as f64),
-                                uv.min.y as f64+fraction_y*(uv.height() as f64))),
-                            ViewMode::Globe=>globe_geo_from_fraction(
-                                fraction_x,fraction_y,self.globe_lon,self.globe_lat),
+                    if let Some(pos) = response.interact_pointer_pos() {
+                        let fraction_x = ((pos.x - rect.left()) / rect.width()) as f64;
+                        let fraction_y = ((pos.y - rect.top()) / rect.height()) as f64;
+                        let geo = match self.view {
+                            ViewMode::Atlas => Some(atlas_geo_from_fraction(
+                                uv.min.x as f64 + fraction_x * (uv.width() as f64),
+                                uv.min.y as f64 + fraction_y * (uv.height() as f64),
+                            )),
+                            ViewMode::Globe => globe_geo_from_fraction(
+                                fraction_x,
+                                fraction_y,
+                                self.globe_lon,
+                                self.globe_lat,
+                            ),
                         };
-                        if let Some((lon,lat))=geo {
-                            self.picked=Some((lon,lat));
+                        if let Some((lon, lat)) = geo {
+                            self.picked = Some((lon, lat));
                             if self.placing_marker {
-                                let idx=self.project.add_marker(lon,lat);
-                                self.selected_marker=Some(idx);
-                                self.changed=true;
-                                self.placing_marker=false;
+                                let idx = self.project.add_marker(lon, lat);
+                                self.selected_marker = Some(idx);
+                                self.changed = true;
+                                self.placing_marker = false;
                             } else {
-                                let nearest=self.project.markers.iter().enumerate().find(|(_,m)| {
-                                    let dlon=(m.longitude_deg-lon+180.0).rem_euclid(360.0)-180.0;
-                                    dlon.abs()<3.0 && (m.latitude_deg-lat).abs()<3.0
-                                }).map(|(i,_)|i);
-                                self.selected_marker=nearest;
+                                let nearest = self
+                                    .project
+                                    .markers
+                                    .iter()
+                                    .enumerate()
+                                    .find(|(_, m)| {
+                                        let dlon = (m.longitude_deg - lon + 180.0)
+                                            .rem_euclid(360.0)
+                                            - 180.0;
+                                        dlon.abs() < 3.0 && (m.latitude_deg - lat).abs() < 3.0
+                                    })
+                                    .map(|(i, _)| i);
+                                self.selected_marker = nearest;
                             }
                         }
                     }
                 }
-                ui.label(egui::RichText::new(
-                    if self.view==ViewMode::Atlas {"Mirrored and inverted original atlas · drag to pan"}
-                    else {"Orthographic globe · drag to rotate"}
-                ).small().weak());
+                ui.label(
+                    egui::RichText::new(if self.view == ViewMode::Atlas {
+                        "Mirrored and inverted original atlas · drag to pan"
+                    } else {
+                        "Orthographic globe · drag to rotate"
+                    })
+                    .small()
+                    .weak(),
+                );
             });
         });
     }
 }
 
 impl eframe::App for Studio {
-    fn update(&mut self,ctx: &egui::Context,_frame:&mut eframe::Frame) {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         self.topbar(ctx);
         self.layers_panel(ctx);
         self.inspector(ctx);
         self.refresh_textures(ctx);
         self.canvas(ctx);
-        egui::TopBottomPanel::bottom("status").show(ctx,|ui|{
-            ui.horizontal(|ui|{
+        egui::TopBottomPanel::bottom("status").show(ctx, |ui| {
+            ui.horizontal(|ui| {
                 ui.label(egui::RichText::new(&self.status).small().weak());
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center),|ui|{
-                    if let Some((lon,lat))=self.picked {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if let Some((lon, lat)) = self.picked {
                         ui.monospace(format!("{lat:.2}°  {lon:.2}°"));
                     } else {
                         ui.label("No location selected");
@@ -354,64 +513,92 @@ impl eframe::App for Studio {
 }
 
 fn repo_dataset_dir() -> Option<PathBuf> {
-    let mut location=env::current_dir().ok()?;
+    let mut location = env::current_dir().ok()?;
     for _ in 0..6 {
-        let path=location.join("data/aegaea/tectonics/v1");
-        if path.join("plate_id.tif").exists() { return Some(path); }
-        if !location.pop() { break; }
+        let path = location.join("data/aegaea/tectonics/v1");
+        if path.join("plate_id.tif").exists() {
+            return Some(path);
+        }
+        if !location.pop() {
+            break;
+        }
     }
     None
 }
 
-fn boot() -> (World,Project,PathBuf,String) {
-    let args=env::args().collect::<Vec<_>>();
-    let new=args.iter().position(|a|a=="--new").and_then(|i|args.get(i+1));
-    let existing=args.iter().position(|a|a=="--project").and_then(|i|args.get(i+1));
-    if let Some(folder)=new {
-        let dir=PathBuf::from(folder);
-        let world=World::empty(dir.clone());
-        let path=dir.join("world.json");
-        let project=Project::load(&path,"New World").unwrap_or_else(|_|Project::new("New World"));
-        return (world,project,path,format!("Blank world project: {}",dir.display()));
+fn boot() -> (World, Project, PathBuf, String) {
+    let args = env::args().collect::<Vec<_>>();
+    let new = args
+        .iter()
+        .position(|a| a == "--new")
+        .and_then(|i| args.get(i + 1));
+    let existing = args
+        .iter()
+        .position(|a| a == "--project")
+        .and_then(|i| args.get(i + 1));
+    if let Some(folder) = new {
+        let dir = PathBuf::from(folder);
+        let world = World::empty(dir.clone());
+        let path = dir.join("world.json");
+        let project =
+            Project::load(&path, "New World").unwrap_or_else(|_| Project::new("New World"));
+        return (
+            world,
+            project,
+            path,
+            format!("Blank world project: {}", dir.display()),
+        );
     }
-    let folder=existing.map(PathBuf::from).or_else(repo_dataset_dir);
-    if let Some(root)=folder {
-        let (path,name)=if existing.is_some() {
-            (root.join("world.json"),"Custom World")
+    let folder = existing.map(PathBuf::from).or_else(repo_dataset_dir);
+    if let Some(root) = folder {
+        let (path, name) = if existing.is_some() {
+            (root.join("world.json"), "Custom World")
         } else {
-            (PathBuf::from("projects/aegaea-workspace.json"),"Aegaea")
+            (PathBuf::from("projects/aegaea-workspace.json"), "Aegaea")
         };
-        let project=Project::load(&path,name).unwrap_or_else(|_|Project::new(name));
+        let project = Project::load(&path, name).unwrap_or_else(|_| Project::new(name));
         match World::load(root.clone()) {
-            Ok(world)=>{
-                let note=if world.elevation.is_some() {
+            Ok(world) => {
+                let note = if world.elevation.is_some() {
                     "Source geology loaded (fictional scenario)".to_owned()
                 } else if world.has_any_source() {
                     "Partial geology loaded; elevation asset needs restoration".to_owned()
-                } else { "Blank dataset; import geological layers to populate it".to_owned() };
-                (world,project,path,note)
+                } else {
+                    "Blank dataset; import geological layers to populate it".to_owned()
+                };
+                (world, project, path, note)
             }
-            Err(e)=>{
-                (World::empty(root),project,path,format!("Source data load failed: {e}"))
-            }
+            Err(e) => (
+                World::empty(root),
+                project,
+                path,
+                format!("Source data load failed: {e}"),
+            ),
         }
     } else {
-        let root=PathBuf::from("projects/untitled");
-        let path=root.join("world.json");
-        (World::empty(root),Project::new("Untitled World"),path,
-            "No reference data found. Run from repository root or use --project PATH".to_owned())
+        let root = PathBuf::from("projects/untitled");
+        let path = root.join("world.json");
+        (
+            World::empty(root),
+            Project::new("Untitled World"),
+            path,
+            "No reference data found. Run from repository root or use --project PATH".to_owned(),
+        )
     }
 }
 
 fn main() -> eframe::Result {
-    let (world,project,path,status)=boot();
-    let options=eframe::NativeOptions {
+    let (world, project, path, status) = boot();
+    let options = eframe::NativeOptions {
         renderer: eframe::Renderer::Wgpu,
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([1440.0,900.0])
-            .with_min_inner_size([1050.0,680.0]),
+            .with_inner_size([1440.0, 900.0])
+            .with_min_inner_size([1050.0, 680.0]),
         ..Default::default()
     };
-    eframe::run_native("Aegaea Studio",options,
-        Box::new(move |cc|Ok(Box::new(Studio::new(cc,world,project,path,status)))))
+    eframe::run_native(
+        "Aegaea Studio",
+        options,
+        Box::new(move |cc| Ok(Box::new(Studio::new(cc, world, project, path, status)))),
+    )
 }
