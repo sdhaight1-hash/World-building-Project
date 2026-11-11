@@ -36,10 +36,12 @@ pub enum Theme {
     MonthlyWindNorth,
     SurfaceHeatCapacity,
     TransportedVaporColumn,
+    TransportedPressure,
+    TransportedSpecificHumidity,
 }
 
 impl Theme {
-    pub const ALL: [Self; 25] = [
+    pub const ALL: [Self; 27] = [
         Self::Terrain,
         Self::Slope,
         Self::Plates,
@@ -65,6 +67,8 @@ impl Theme {
         Self::MonthlyWindNorth,
         Self::SurfaceHeatCapacity,
         Self::TransportedVaporColumn,
+        Self::TransportedPressure,
+        Self::TransportedSpecificHumidity,
     ];
 
     pub fn name(self) -> &'static str {
@@ -94,6 +98,8 @@ impl Theme {
             Self::MonthlyWindNorth => "Monthly wind · northward component",
             Self::SurfaceHeatCapacity => "Surface areal heat capacity",
             Self::TransportedVaporColumn => "Transported vapor-column proxy",
+            Self::TransportedPressure => "Pressure after transport · diagnostic",
+            Self::TransportedSpecificHumidity => "Humidity after transport · diagnostic",
         }
     }
 
@@ -124,6 +130,8 @@ impl Theme {
             Self::MonthlyWindNorth => "monthly-wind-north",
             Self::SurfaceHeatCapacity => "surface-heat-capacity",
             Self::TransportedVaporColumn => "transported-vapor-column",
+            Self::TransportedPressure => "transported-pressure-diagnostic",
+            Self::TransportedSpecificHumidity => "transported-humidity-diagnostic",
         }
     }
 
@@ -152,7 +160,9 @@ impl Theme {
             | Self::MonthlySpecificHumidity
             | Self::MonthlyWindEast
             | Self::MonthlyWindNorth
-            | Self::TransportedVaporColumn => self
+            | Self::TransportedVaporColumn
+            | Self::TransportedPressure
+            | Self::TransportedSpecificHumidity => self
                 .scientific_id()
                 .is_some_and(|id| w.scientific_fields.contains_key(id)),
         }
@@ -183,6 +193,10 @@ impl Theme {
             Some(crate::planetary::INSOLATION_ID)
         } else if self == Self::TransportedVaporColumn {
             Some(crate::moisture_transport::WATER_COLUMN_ID)
+        } else if self == Self::TransportedPressure {
+            Some(crate::moisture_transport::PRESSURE_PREVIEW_ID)
+        } else if self == Self::TransportedSpecificHumidity {
+            Some(crate::moisture_transport::HUMIDITY_PREVIEW_ID)
         } else {
             self.monthly_source()
                 .map(|kind| kind.id())
@@ -190,9 +204,19 @@ impl Theme {
         }
     }
 
+    pub fn is_transport_preview(self) -> bool {
+        matches!(
+            self,
+            Self::TransportedVaporColumn
+                | Self::TransportedPressure
+                | Self::TransportedSpecificHumidity
+        )
+    }
+
     pub fn is_monthly(self) -> bool {
         self.monthly_source().is_some()
-            || matches!(self, Self::MonthlyInsolation | Self::TransportedVaporColumn)
+            || self == Self::MonthlyInsolation
+            || self.is_transport_preview()
     }
 
     pub fn units(self) -> &'static str {
@@ -213,6 +237,8 @@ impl Theme {
             Self::MonthlyWindEast | Self::MonthlyWindNorth => "m/s",
             Self::SurfaceHeatCapacity => "MJ/(m²·K)",
             Self::TransportedVaporColumn => "kg/m²",
+            Self::TransportedPressure => "hPa",
+            Self::TransportedSpecificHumidity => "g/kg",
             Self::PlateConvergence | Self::PlateDivergence | Self::PlateShear => "cm/year",
             _ => "named categories",
         }
@@ -319,14 +345,14 @@ pub fn export_atlas_png(
         "month":theme.is_monthly().then_some(world.active_month),
         "month_name":theme.is_monthly().then(|| month_name(world.active_month)),
         "planetary_calendar":(theme == Theme::MonthlyInsolation || theme == Theme::AnnualTemperature).then_some(&world.calendar),
-        "moisture_transport_budget":(theme == Theme::TransportedVaporColumn).then_some(&world.moisture_transport_budget),
+        "moisture_transport_budget":theme.is_transport_preview().then_some(&world.moisture_transport_budget),
         "provenance":if theme == Theme::SurfaceHeatCapacity {
             serde_json::json!({"kind":"authored","note":"Project-local hand-authored stationary heat capacity; not derived from land/ocean mask"})
         } else {
             serde_json::json!(provenance)
         },
-        "derived_from":if theme == Theme::TransportedVaporColumn {
-            "authored monthly surface pressure, specific humidity, signed wind components and planet radius; vertically uniform humidity assumed"
+        "derived_from":if theme.is_transport_preview() {
+            "same coupled finite-volume fluxes advect hydrostatic moist-air mass and water vapor; prescribed wind, planetary radius and surface gravity"
         } else if theme == Theme::SurfaceHeatCapacity {
             "project-local explicitly authored surface areal heat capacity; land/ocean status is not inferred"
         } else if theme == Theme::MonthlyInsolation {
@@ -339,8 +365,8 @@ pub fn export_atlas_png(
             "native map fields, source geology and/or authored geometry"
         },
         "legend":legend,
-        "scientific_status":if theme == Theme::TransportedVaporColumn {
-            "read-only conservative column-vapor transport proxy; no pressure evolution, air mass continuity, condensation, rainfall, evaporation, ocean, or climate simulation"
+        "scientific_status":if theme.is_transport_preview() {
+            "read-only coupled air/water continuity with diagnostic pressure and humidity; prescribed winds only, no momentum, energy, vertical atmosphere, rainfall, or climate simulation"
         } else if theme == Theme::SurfaceHeatCapacity {
             "author-specified areal heat capacity input, not computed ocean or soil thermal physics"
         } else if theme == Theme::MonthlyInsolation {
@@ -518,7 +544,7 @@ mod tests {
             "An opt-in numerical preview cannot exist before it is computed"
         );
         for theme in Theme::ALL {
-            if theme == Theme::TransportedVaporColumn {
+            if theme.is_transport_preview() {
                 continue;
             }
             assert!(theme.available(&world), "{} should be usable", theme.name());
