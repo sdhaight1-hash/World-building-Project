@@ -1845,6 +1845,10 @@ fn main() -> eframe::Result {
             .get(index + 1)
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("maps/diagnostics/geology-consistency.json"));
+        if let Err(error) = project.layers.apply(&mut world) {
+            eprintln!("Could not load authored project layers: {error}");
+            std::process::exit(2);
+        }
         let report = geology_diagnostics::examine(&world);
         if let Err(error) = report.write(&target) {
             eprintln!("Could not export geology diagnostics: {error}");
@@ -1865,6 +1869,10 @@ fn main() -> eframe::Result {
             .get(index + 1)
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("maps/generated-terrain"));
+        if let Err(error) = project.layers.apply(&mut world) {
+            eprintln!("Could not load authored project layers: {error}");
+            std::process::exit(2);
+        }
         let result = match terrain_generation::generate(&world, &project.terrain_recipe) {
             Ok(generated) => generated,
             Err(error) => {
