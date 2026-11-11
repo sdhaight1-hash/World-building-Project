@@ -637,10 +637,14 @@ mod tests {
         ] {
             sources.create_month(&mut world, kind, 4, value).unwrap();
         }
-        let input = world.scientific_fields[MonthlyField::SpecificHumidity.id()].cells.clone();
+        let input = world.scientific_fields[MonthlyField::SpecificHumidity.id()]
+            .cells
+            .clone();
         assert!(!Theme::TransportedVaporColumn.available(&world));
         let result = moisture_transport::preview(&world, 6371.0, 120.0).unwrap();
-        world.scientific_fields.insert(WATER_COLUMN_ID.into(), result.column_kg_m2);
+        world
+            .scientific_fields
+            .insert(WATER_COLUMN_ID.into(), result.column_kg_m2);
         world.scientific_provenance.insert(
             WATER_COLUMN_ID.into(),
             Provenance::Derived {
@@ -657,20 +661,24 @@ mod tests {
         let art = Cartography::new(&world);
         assert!(Theme::TransportedVaporColumn.available(&world));
         assert_eq!(art.legend(&world, Theme::TransportedVaporColumn).len(), 7);
-        assert_eq!(atlas_image(&world, &art, Theme::TransportedVaporColumn).size, [48, 24]);
-        let path = std::env::temp_dir().join(format!(
-            "aegaea-transport-{}.png", std::process::id()
-        ));
+        assert_eq!(
+            atlas_image(&world, &art, Theme::TransportedVaporColumn).size,
+            [48, 24]
+        );
+        let path =
+            std::env::temp_dir().join(format!("aegaea-transport-{}.png", std::process::id()));
         export_atlas_png(&world, &art, Theme::TransportedVaporColumn, &path).unwrap();
-        let meta: serde_json::Value = serde_json::from_slice(
-            &std::fs::read(path.with_extension("json")).unwrap()
-        ).unwrap();
+        let meta: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(path.with_extension("json")).unwrap()).unwrap();
         assert_eq!(meta["month"], 4);
         assert_eq!(meta["units"], "kg/m²");
         assert_eq!(meta["dataset_id"], WATER_COLUMN_ID);
         assert_eq!(meta["provenance"]["kind"], "derived");
         assert_eq!(meta["moisture_transport_budget"]["month"], 4);
-        assert_eq!(meta["moisture_transport_budget"]["substeps"].is_number(), true);
+        assert_eq!(
+            meta["moisture_transport_budget"]["substeps"].is_number(),
+            true
+        );
         std::fs::remove_file(path.with_extension("json")).unwrap();
         std::fs::remove_file(path).unwrap();
         assert_eq!(
