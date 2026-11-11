@@ -243,6 +243,19 @@ impl Cartography {
             }
         }
         art.load_boundary_segments(w);
+        for segment in &w.boundary_segments {
+            if segment.validate().is_err() {
+                continue;
+            }
+            let xy = |point: [f64; 2]| {
+                (
+                    (180.0 - point[0]) / 360.0 * width as f64,
+                    (point[1] + 90.0) / 180.0 * height as f64,
+                )
+            };
+            art.line(xy(segment.start), xy(segment.end), segment.class);
+            art.classified_segments += 1;
+        }
         art
     }
 
