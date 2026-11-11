@@ -1,5 +1,6 @@
 //! Aegaea Studio P0: a modern wgpu-backed desktop shell around physical-world maps.
 //! Purposefully scoped: shared atlas/globe source data, inspector, local point annotation.
+mod atmosphere_dynamics;
 mod cartography;
 mod datasets;
 mod geology_diagnostics;
@@ -80,7 +81,9 @@ fn source_for_theme(theme: Theme) -> Option<LayerKind> {
         | Theme::MonthlyWindNorth
         | Theme::TransportedVaporColumn
         | Theme::TransportedPressure
-        | Theme::TransportedSpecificHumidity => None,
+        | Theme::TransportedSpecificHumidity
+        | Theme::EvolvingWindEast
+        | Theme::EvolvingWindNorth => None,
     }
 }
 
@@ -163,6 +166,7 @@ struct Studio {
     layer_redo: Vec<LayerStroke>,
     dataset_brush: bool,
     transport_seconds: f64,
+    dynamics_seconds: f64,
     dataset_radius: u32,
     dataset_paint_value: f32,
     copy_from_month: u8,
@@ -271,6 +275,7 @@ impl Studio {
             layer_redo: Vec::new(),
             dataset_brush: false,
             transport_seconds: 120.0,
+            dynamics_seconds: 10.0,
             dataset_radius: 5,
             dataset_paint_value: 20.0,
             copy_from_month: 1,
@@ -1120,6 +1125,46 @@ impl Studio {
                 .speed(5.0),
         );
         ui.small("A bounded outward Courant number controls the time step; unstable or excessive intervals are rejected.");
+        ui.separator();
+        ui.label(egui::RichText::new("PRESSURE-GRADIENT + CORIOLIS WIND TEST").strong().small());
+        ui.small("Experimental linearized momentum tendency; dynamically updates BOTH wind components from pressure gradients and rotation, then advects moist air and vapor. No vertical atmosphere or nonlinear momentum advection.");
+        ui.small("Sidereal rotation is inferred from mean solar day + orbital year for a prograde circular orbit. Retrograde spin is unsupported.");
+        ui.label("Effective barotropic wave speed (m/s) · assumed");
+        if ui.add(egui::DragValue::new(&mut self.project.dynamics_wave_speed_m_s)
+            .range(1.0..=400.0).speed(1.0)).changed() {
+            moisture_transport::clear_preview(&mut self.world);
+            self.atlas_dirty = true;
+            self.globe_dirty = true;
+            self.changed = true;
+        }
+        ui.label("Dynamic interval (seconds)");
+        ui.add(egui::DragValue::new(&mut self.dynamics_seconds)
+            .range(0.01..=86_400.0).speed(1.0));
+        ui.small("Spherical latitude/longitude cells near the poles require short stable steps. Excessively long or expensive runs are refused.");
+        if ui.button("Compute evolving-wind preview").clicked() {
+            self.finish_dataset_stroke();
+            match atmosphere_dynamics::preview(
+                &self.world,
+                self.project.terrain_recipe.planet_radius_km,
+                self.project.terrain_recipe.surface_gravity_m_s2,
+                self.dynamics_seconds,
+                self.project.dynamics_wave_speed_m_s,
+            ) {
+                Ok(preview) => {
+                    let air_error = preview.mass.budget.air_relative_mass_error;
+                    let water_error = preview.mass.budget.relative_mass_error;
+                    let steps = preview.mass.budget.substeps;
+                    atmosphere_dynamics::publish(&mut self.world, preview);
+                    self.status = format!(
+                        "Rotating wind preview: {steps} steps · air {air_error:.2e} · vapor {water_error:.2e}"
+                    );
+                    self.atlas_dirty = true;
+                    self.globe_dirty = true;
+                }
+                Err(error) => self.status = format!("Wind dynamics refused: {error}"),
+            }
+        }
+        ui.separator();
         if ui.button("Compute read-only coupled preview").clicked() {
             self.finish_dataset_stroke();
             match moisture_transport::preview(
@@ -1180,7 +1225,25 @@ impl Studio {
                 "Vapor-column proxy: {:.2}–{:.2} kg/m²",
                 report.minimum_column_kg_m2, report.maximum_column_kg_m2
             ));
-            ui.small("Three available outputs: pressure, humidity, vapor column. Select a diagnostic map from Map library.");
+            if let Some(ref dynamics) = report.dynamics {
+                ui.small(format!(
+                    "Derived sidereal rotation: {:.4} h · Ω = {:.6e} rad/s",
+                    dynamics.inferred_sidereal_rotation_hours,
+                    dynamics.angular_velocity_rad_s
+                ));
+                ui.small(format!(
+                    "Wind peak: {:.2} → {:.2} m/s · wave Courant: {:.4}",
+                    dynamics.max_initial_wind_m_s, dynamics.max_final_wind_m_s,
+                    dynamics.max_gravity_wave_courant
+                ));
+                ui.small(format!(
+                    "Max pressure-gradient acceleration: {:.4e} m/s²",
+                    dynamics.maximum_pressure_acceleration_m_s2
+                ));
+                ui.small("Five derived maps available: pressure, humidity, vapor column, and two evolving wind components.");
+            } else {
+                ui.small("Three derived maps available: pressure, humidity, vapor column. Winds remain fixed.");
+            }
             if ui.button("Export air + water budget JSON").clicked() {
                 let path = self.project_path.with_file_name(format!(
                     "{}-budget.json",
