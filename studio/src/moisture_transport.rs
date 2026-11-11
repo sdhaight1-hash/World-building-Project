@@ -10,7 +10,7 @@
 //! or thermodynamics is solved. These outputs are ephemeral, never authored
 //! source data.
 use crate::{
-    datasets::MonthlyField,
+    datasets::{MonthlyField, Provenance},
     world::{Grid, World},
 };
 use serde::{Deserialize, Serialize};
@@ -61,6 +61,44 @@ struct Face {
     to: usize,
     /// Face length (m) times outward upwind velocity (m/s): m²/s.
     swept_m2_s: f64,
+}
+
+/// An explicit preview is ephemeral: register only computed fields, never the
+/// dataset registry or project serialization. Replacing a prior preview is safe.
+pub fn publish(world: &mut World, preview: Preview) {
+    let inputs = vec![
+        MonthlyField::Pressure.id().into(),
+        MonthlyField::SpecificHumidity.id().into(),
+        MonthlyField::WindEast.id().into(),
+        MonthlyField::WindNorth.id().into(),
+        "planet.radius".into(),
+        "planet.surface_gravity".into(),
+    ];
+    for (id, grid) in [
+        (WATER_COLUMN_ID, preview.column_kg_m2),
+        (PRESSURE_PREVIEW_ID, preview.pressure_hpa),
+        (HUMIDITY_PREVIEW_ID, preview.specific_humidity_g_kg),
+    ] {
+        world.scientific_fields.insert(id.into(), grid);
+        world.scientific_provenance.insert(
+            id.into(),
+            Provenance::Derived {
+                operator: OPERATOR.into(),
+                inputs: inputs.clone(),
+            },
+        );
+    }
+    world.moisture_transport_budget = Some(preview.budget);
+}
+
+/// Input reactivation clears these results; physical-parameter edits clear them
+/// explicitly to prevent showing maps from an obsolete radius or gravity.
+pub fn clear_preview(world: &mut World) {
+    for id in [WATER_COLUMN_ID, PRESSURE_PREVIEW_ID, HUMIDITY_PREVIEW_ID] {
+        world.scientific_fields.remove(id);
+        world.scientific_provenance.remove(id);
+    }
+    world.moisture_transport_budget = None;
 }
 
 pub fn missing_sources(world: &World) -> Vec<&'static str> {
