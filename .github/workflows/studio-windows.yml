@@ -1,0 +1,36 @@
+name: Aegaea Studio (Windows)
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@v2
+      - name: Normalize Rust formatting
+        run: cargo fmt --all
+      - name: Commit formatter-only changes to feature branches
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/feat/')
+        shell: pwsh
+        run: |
+          git add studio/src
+          git diff --cached --quiet
+          if ($LASTEXITCODE -eq 0) { exit 0 }
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+          git commit -m "style: apply rustfmt to studio source"
+          git push origin HEAD:${{ github.ref_name }}
+      - name: Format validation
+        run: cargo fmt --all -- --check
+      - name: Tests
+        run: cargo test --workspace
+      - name: Check
+        run: cargo check --workspace --all-targets
