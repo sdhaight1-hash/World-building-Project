@@ -38,10 +38,12 @@ pub enum Theme {
     TransportedVaporColumn,
     TransportedPressure,
     TransportedSpecificHumidity,
+    EvolvingWindEast,
+    EvolvingWindNorth,
 }
 
 impl Theme {
-    pub const ALL: [Self; 27] = [
+    pub const ALL: [Self; 29] = [
         Self::Terrain,
         Self::Slope,
         Self::Plates,
@@ -69,6 +71,8 @@ impl Theme {
         Self::TransportedVaporColumn,
         Self::TransportedPressure,
         Self::TransportedSpecificHumidity,
+        Self::EvolvingWindEast,
+        Self::EvolvingWindNorth,
     ];
 
     pub fn name(self) -> &'static str {
@@ -100,6 +104,8 @@ impl Theme {
             Self::TransportedVaporColumn => "Transported vapor-column proxy",
             Self::TransportedPressure => "Pressure after transport · diagnostic",
             Self::TransportedSpecificHumidity => "Humidity after transport · diagnostic",
+            Self::EvolvingWindEast => "Wind after dynamics · eastward",
+            Self::EvolvingWindNorth => "Wind after dynamics · northward",
         }
     }
 
@@ -132,6 +138,8 @@ impl Theme {
             Self::TransportedVaporColumn => "transported-vapor-column",
             Self::TransportedPressure => "transported-pressure-diagnostic",
             Self::TransportedSpecificHumidity => "transported-humidity-diagnostic",
+            Self::EvolvingWindEast => "evolving-wind-east",
+            Self::EvolvingWindNorth => "evolving-wind-north",
         }
     }
 
@@ -162,7 +170,9 @@ impl Theme {
             | Self::MonthlyWindNorth
             | Self::TransportedVaporColumn
             | Self::TransportedPressure
-            | Self::TransportedSpecificHumidity => self
+            | Self::TransportedSpecificHumidity
+            | Self::EvolvingWindEast
+            | Self::EvolvingWindNorth => self
                 .scientific_id()
                 .is_some_and(|id| w.scientific_fields.contains_key(id)),
         }
@@ -197,6 +207,10 @@ impl Theme {
             Some(crate::moisture_transport::PRESSURE_PREVIEW_ID)
         } else if self == Self::TransportedSpecificHumidity {
             Some(crate::moisture_transport::HUMIDITY_PREVIEW_ID)
+        } else if self == Self::EvolvingWindEast {
+            Some(crate::atmosphere_dynamics::WIND_EAST_PREVIEW_ID)
+        } else if self == Self::EvolvingWindNorth {
+            Some(crate::atmosphere_dynamics::WIND_NORTH_PREVIEW_ID)
         } else {
             self.monthly_source()
                 .map(|kind| kind.id())
@@ -210,6 +224,8 @@ impl Theme {
             Self::TransportedVaporColumn
                 | Self::TransportedPressure
                 | Self::TransportedSpecificHumidity
+                | Self::EvolvingWindEast
+                | Self::EvolvingWindNorth
         )
     }
 
@@ -239,6 +255,7 @@ impl Theme {
             Self::TransportedVaporColumn => "kg/m²",
             Self::TransportedPressure => "hPa",
             Self::TransportedSpecificHumidity => "g/kg",
+            Self::EvolvingWindEast | Self::EvolvingWindNorth => "m/s",
             Self::PlateConvergence | Self::PlateDivergence | Self::PlateShear => "cm/year",
             _ => "named categories",
         }
@@ -351,7 +368,9 @@ pub fn export_atlas_png(
         } else {
             serde_json::json!(provenance)
         },
-        "derived_from":if theme.is_transport_preview() {
+        "derived_from":if theme.is_transport_preview() && world.moisture_transport_budget.as_ref().is_some_and(|b| b.dynamics.is_some()) {
+            "linearized barotropic pressure-gradient tendency and exact local Coriolis rotation, inferred prograde spin, then conservative coupled spherical air-vapor finite-volume transport"
+        } else if theme.is_transport_preview() {
             "same coupled finite-volume fluxes advect hydrostatic moist-air mass and water vapor; prescribed wind, planetary radius and surface gravity"
         } else if theme == Theme::SurfaceHeatCapacity {
             "project-local explicitly authored surface areal heat capacity; land/ocean status is not inferred"
@@ -365,7 +384,9 @@ pub fn export_atlas_png(
             "native map fields, source geology and/or authored geometry"
         },
         "legend":legend,
-        "scientific_status":if theme.is_transport_preview() {
+        "scientific_status":if theme.is_transport_preview() && world.moisture_transport_budget.as_ref().is_some_and(|b| b.dynamics.is_some()) {
+            "experimental linearized pressure-gradient and Coriolis wind tendencies coupled to air-vapor mass conservation; no nonlinear momentum advection, spherical metric forces, vertical structure, energy closure, rainfall or full circulation model"
+        } else if theme.is_transport_preview() {
             "read-only coupled air/water continuity with diagnostic pressure and humidity; prescribed winds only, no momentum, energy, vertical atmosphere, rainfall, or climate simulation"
         } else if theme == Theme::SurfaceHeatCapacity {
             "author-specified areal heat capacity input, not computed ocean or soil thermal physics"
