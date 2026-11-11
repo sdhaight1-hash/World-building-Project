@@ -368,7 +368,9 @@ pub fn export_atlas_png(
         } else {
             serde_json::json!(provenance)
         },
-        "derived_from":if theme.is_transport_preview() && world.moisture_transport_budget.as_ref().is_some_and(|b| b.dynamics.is_some()) {
+        "derived_from":if theme.is_transport_preview() && world.moisture_transport_budget.as_ref().and_then(|b| b.dynamics.as_ref()).is_some_and(|d| d.momentum.is_some()) {
+            "spherical barotropic mass and vapor continuity; conservative global absolute axial angular momentum, paired pressure torques, curvature-aware meridional momentum, energy drift audit"
+        } else if theme.is_transport_preview() && world.moisture_transport_budget.as_ref().is_some_and(|b| b.dynamics.is_some()) {
             "linearized barotropic pressure-gradient tendency and exact local Coriolis rotation, inferred prograde spin, then conservative coupled spherical air-vapor finite-volume transport"
         } else if theme.is_transport_preview() {
             "same coupled finite-volume fluxes advect hydrostatic moist-air mass and water vapor; prescribed wind, planetary radius and surface gravity"
@@ -384,7 +386,9 @@ pub fn export_atlas_png(
             "native map fields, source geology and/or authored geometry"
         },
         "legend":legend,
-        "scientific_status":if theme.is_transport_preview() && world.moisture_transport_budget.as_ref().is_some_and(|b| b.dynamics.is_some()) {
+        "scientific_status":if theme.is_transport_preview() && world.moisture_transport_budget.as_ref().and_then(|b| b.dynamics.as_ref()).is_some_and(|d| d.momentum.is_some()) {
+            "experimental spherical barotropic-column momentum finite volume; global air, vapor and axial angular momentum budgets enforced; first-order energy dissipative, polar faces closed, no full primitive-equation circulation or rainfall prediction"
+        } else if theme.is_transport_preview() && world.moisture_transport_budget.as_ref().is_some_and(|b| b.dynamics.is_some()) {
             "experimental linearized pressure-gradient and Coriolis wind tendencies coupled to air-vapor mass conservation; no nonlinear momentum advection, spherical metric forces, vertical structure, energy closure, rainfall or full circulation model"
         } else if theme.is_transport_preview() {
             "read-only coupled air/water continuity with diagnostic pressure and humidity; prescribed winds only, no momentum, energy, vertical atmosphere, rainfall, or climate simulation"
