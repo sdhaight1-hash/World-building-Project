@@ -540,18 +540,60 @@ mod tests {
         original.height = 24;
         let mut layers = ProjectLayers::default();
         assert!(original.surface_heat_capacity.is_none());
-        layers.create(&mut original, LayerKind::SurfaceHeatCapacity, 2.0).unwrap();
-        assert_eq!(original.surface_heat_capacity.as_ref().unwrap().at(0, 0), 2.0);
-        let stroke = layers.paint(
-            &mut original, LayerKind::SurfaceHeatCapacity, 179.9, 0.0, 2, 200.0
-        ).unwrap();
+        layers
+            .create(&mut original, LayerKind::SurfaceHeatCapacity, 2.0)
+            .unwrap();
+        assert_eq!(
+            original.surface_heat_capacity.as_ref().unwrap().at(0, 0),
+            2.0
+        );
+        let stroke = layers
+            .paint(
+                &mut original,
+                LayerKind::SurfaceHeatCapacity,
+                179.9,
+                0.0,
+                2,
+                200.0,
+            )
+            .unwrap();
         assert!(!stroke.is_empty());
-        assert!(original.surface_heat_capacity.as_ref().unwrap().cells.iter().any(|&v| v == 200.0));
+        assert!(original
+            .surface_heat_capacity
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .any(|&v| v == 200.0));
         stroke.undo(&mut original, &mut layers);
-        assert!(original.surface_heat_capacity.as_ref().unwrap().cells.iter().all(|&v| v == 2.0));
+        assert!(original
+            .surface_heat_capacity
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .all(|&v| v == 2.0));
         stroke.redo(&mut original, &mut layers);
-        assert!(layers.paint(&mut original, LayerKind::SurfaceHeatCapacity, 0.0, 0.0, 1, 0.0).is_err());
-        assert!(layers.paint(&mut original, LayerKind::SurfaceHeatCapacity, 0.0, 0.0, 1, f32::NAN).is_err());
+        assert!(layers
+            .paint(
+                &mut original,
+                LayerKind::SurfaceHeatCapacity,
+                0.0,
+                0.0,
+                1,
+                0.0
+            )
+            .is_err());
+        assert!(layers
+            .paint(
+                &mut original,
+                LayerKind::SurfaceHeatCapacity,
+                0.0,
+                0.0,
+                1,
+                f32::NAN
+            )
+            .is_err());
         let saved = serde_json::to_string(&layers).unwrap();
         let reopened: ProjectLayers = serde_json::from_str(&saved).unwrap();
         let mut independent = World::empty(PathBuf::from("independent"));
