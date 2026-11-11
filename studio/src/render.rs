@@ -114,8 +114,10 @@ impl Theme {
             Self::Lithosphere => w.lithosphere_km.is_some(),
             Self::HeatFlow => w.heatflow.is_some(),
             Self::RainShadow => w.rain_shadow.is_some(),
-            Self::MonthlyTemperature | Self::MonthlyPrecipitation
-            | Self::AnnualTemperature | Self::AnnualPrecipitation => self
+            Self::MonthlyTemperature
+            | Self::MonthlyPrecipitation
+            | Self::AnnualTemperature
+            | Self::AnnualPrecipitation => self
                 .scientific_id()
                 .is_some_and(|id| w.scientific_fields.contains_key(id)),
         }
@@ -138,7 +140,8 @@ impl Theme {
     }
 
     pub fn scientific_id(self) -> Option<&'static str> {
-        self.climate_field().map(|kind| kind.id())
+        self.climate_field()
+            .map(|kind| kind.id())
             .or_else(|| self.annual_field().map(|kind| kind.annual_id()))
     }
 
@@ -486,8 +489,12 @@ mod tests {
         world.height = 24;
         let mut registry = crate::datasets::DatasetRegistry::default();
         for month in 1..=12u8 {
-            registry.create_month(&mut world, ClimateField::Temperature, month, 20.0).unwrap();
-            registry.create_month(&mut world, ClimateField::Precipitation, month, 125.0).unwrap();
+            registry
+                .create_month(&mut world, ClimateField::Temperature, month, 20.0)
+                .unwrap();
+            registry
+                .create_month(&mut world, ClimateField::Precipitation, month, 125.0)
+                .unwrap();
         }
         let art = Cartography::new(&world);
         for theme in [Theme::AnnualTemperature, Theme::AnnualPrecipitation] {
@@ -495,7 +502,9 @@ mod tests {
             assert_eq!(atlas_image(&world, &art, theme).size, [48, 24]);
             assert_eq!(art.legend(&world, theme).len(), 7);
             let target = std::env::temp_dir().join(format!(
-                "aegaea-annual-{}-{}.png", std::process::id(), theme.slug()
+                "aegaea-annual-{}-{}.png",
+                std::process::id(),
+                theme.slug()
             ));
             export_atlas_png(&world, &art, theme, &target).unwrap();
             let meta = std::fs::read_to_string(target.with_extension("json")).unwrap();
@@ -507,8 +516,14 @@ mod tests {
             std::fs::remove_file(target.with_extension("json")).unwrap();
             std::fs::remove_file(target).unwrap();
         }
-        assert_eq!(world.scientific_fields[ClimateField::Temperature.annual_id()].at(0,0), 20.0);
-        assert_eq!(world.scientific_fields[ClimateField::Precipitation.annual_id()].at(0,0), 1500.0);
+        assert_eq!(
+            world.scientific_fields[ClimateField::Temperature.annual_id()].at(0, 0),
+            20.0
+        );
+        assert_eq!(
+            world.scientific_fields[ClimateField::Precipitation.annual_id()].at(0, 0),
+            1500.0
+        );
     }
 
     #[test]

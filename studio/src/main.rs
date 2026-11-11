@@ -648,7 +648,11 @@ impl Studio {
     fn refresh_dataset_map(&mut self) {
         // Annual summaries depend on every edited monthly slice. Rebuild them
         // after each committed stroke, undo, redo or month insertion.
-        if let Err(error) = self.project.datasets.activate(&mut self.world, self.project.month) {
+        if let Err(error) = self
+            .project
+            .datasets
+            .activate(&mut self.world, self.project.month)
+        {
             self.status = format!("Climate data validation failed: {error}");
         }
         self.atlas_dirty = true;
@@ -709,11 +713,21 @@ impl Studio {
     }
 
     fn annual_workshop(&mut self, ui: &mut egui::Ui) {
-        let Some(kind) = self.theme.annual_field() else { return };
-        let count = self.project.datasets.fields.get(kind.id())
+        let Some(kind) = self.theme.annual_field() else {
+            return;
+        };
+        let count = self
+            .project
+            .datasets
+            .fields
+            .get(kind.id())
             .map_or(0, |f| f.months.len());
         ui.separator();
-        ui.label(egui::RichText::new("ANNUAL DATA DEPENDENCIES").strong().small());
+        ui.label(
+            egui::RichText::new("ANNUAL DATA DEPENDENCIES")
+                .strong()
+                .small(),
+        );
         ui.small(format!("{} of 12 monthly source periods available", count));
         if count == 12 {
             ui.small(match kind {
@@ -1573,12 +1587,20 @@ impl Studio {
                             if let Some(id) = self.theme.scientific_id() {
                                 if let Some(field) = self.world.scientific_fields.get(id) {
                                     let name = if self.theme.climate_field().is_some() {
-                                        format!("{} · {}", self.theme.name(), month_name(self.project.month))
+                                        format!(
+                                            "{} · {}",
+                                            self.theme.name(),
+                                            month_name(self.project.month)
+                                        )
                                     } else {
                                         self.theme.name().into()
                                     };
                                     ui.label(name);
-                                    ui.monospace(format!("{:.2} {}", field.geo(lon, lat), self.theme.units()));
+                                    ui.monospace(format!(
+                                        "{:.2} {}",
+                                        field.geo(lon, lat),
+                                        self.theme.units()
+                                    ));
                                     ui.end_row();
                                     if let Some(source) = self.world.scientific_provenance.get(id) {
                                         ui.label("Provenance");

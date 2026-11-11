@@ -525,8 +525,10 @@ impl Cartography {
                     base_relief
                 }
             }
-            Theme::MonthlyTemperature | Theme::MonthlyPrecipitation
-            | Theme::AnnualTemperature | Theme::AnnualPrecipitation => {
+            Theme::MonthlyTemperature
+            | Theme::MonthlyPrecipitation
+            | Theme::AnnualTemperature
+            | Theme::AnnualPrecipitation => {
                 if let Some(id) = theme.scientific_id() {
                     if let Some(grid) = w.scientific_fields.get(id) {
                         blend(gradient(grid.at(x, y), climate_ramp(theme)), base, 0.07)
@@ -688,13 +690,13 @@ impl Cartography {
                 ("Neutral · near zero".into(), [172, 181, 175]),
                 ("Leeward · positive index".into(), [218, 92, 52]),
             ],
-            Theme::MonthlyTemperature | Theme::MonthlyPrecipitation
-            | Theme::AnnualTemperature | Theme::AnnualPrecipitation => {
-                climate_ramp(theme)
-                    .iter()
-                    .map(|&(value, rgb)| (format!("{value:.0} {}", theme.units()), rgb))
-                    .collect()
-            }
+            Theme::MonthlyTemperature
+            | Theme::MonthlyPrecipitation
+            | Theme::AnnualTemperature
+            | Theme::AnnualPrecipitation => climate_ramp(theme)
+                .iter()
+                .map(|&(value, rgb)| (format!("{value:.0} {}", theme.units()), rgb))
+                .collect(),
         };
         items
             .into_iter()
