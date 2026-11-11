@@ -17,7 +17,7 @@ The `studio/` directory contains an **initial desktop vertical slice**, not a co
 
 - A dark, map-first Rust/egui desktop interface backed by **wgpu**.
 - A 2D atlas and a **wgpu-rendered height-displaced 3D globe mesh** using the same underlying native geological fields, terrain DEM, and thematic styles. No voxel engine.
-- **Ten map styles** including physical relief/bathymetry, tectonic plates, classified plate contacts, craton IDs, craton basement age, named crustal provinces, crust thickness, lithosphere thickness, heat flow and rain-shadow exposure.
+- **Fourteen map styles** including physical relief/bathymetry, tectonic plates, classified plate contacts, craton IDs, craton basement age, named crustal provinces, crust thickness, lithosphere thickness, heat flow and rain-shadow exposure.
 - Built-in legends, native-resolution **PNG + JSON map metadata**, and self-contained **publication SVG sheets** with vector titles, legends, graticules, equatorial scale annotations, and provenance.
 - Thematic display of terrain, plate IDs, cratons, crustal provinces and selected numeric geophysical fields.
 - **Dedicated Rain Shadow map**: DEM-derived windward/leeward exposure, selectable incoming wind, inspector, legend, TIFF + metadata export. This is not a precipitation simulation.
@@ -127,3 +127,7 @@ See [generation contract, provenance and limitations](docs/TERRAIN_GENERATION.md
 ### Euler-based plate motion forcing
 
 The source `plates.csv` already provides Euler poles and signed rotation rates. The terrain pipeline now computes present-day relative velocity at real plate contacts and classifies normal convergence, normal opening and tangential slip, exporting all three fields as numeric TIFFs alongside the separately identified *hypothetical* resulting relief. The calculations work without the legacy DEM; they are **instantaneous kinematics**, not simulated deep-time evolution, slab polarity or erosion. See [terrain generation](docs/TERRAIN_GENERATION.md).
+
+### Plate-motion diagnostic maps
+
+Select **Plate convergence**, **Plate spreading**, or **Plate shear** in the map library. All three are computed from Euler poles and real adjacent plate IDs (not the old elevation source), displayed on the native atlas and wgpu globe with separate cm/year color legends and per-location inspector readouts. The same numeric inputs are included in automated PNG/SVG map exports. Zero means no modeled motion *component at that sampled cell*, not verified tectonic inactivity. These are present-day velocity diagnostics, **not deep-time reconstructions or physically integrated elevation change**.
