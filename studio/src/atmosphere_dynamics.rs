@@ -60,11 +60,15 @@ fn source<'a>(world: &'a World, kind: MonthlyField) -> Result<&'a Grid, String> 
     if raster.width != world.width
         || raster.height != world.height
         || raster.cells.len() != world.width * world.height
-        || raster.cells.iter().any(|&v| {
-            !v.is_finite() || !(kind.bounds()[0]..=kind.bounds()[1]).contains(&v)
-        })
+        || raster
+            .cells
+            .iter()
+            .any(|&v| !v.is_finite() || !(kind.bounds()[0]..=kind.bounds()[1]).contains(&v))
     {
-        return Err(format!("Invalid {} raster dimensions or source values", kind.name()));
+        return Err(format!(
+            "Invalid {} raster dimensions or source values",
+            kind.name()
+        ));
     }
     Ok(raster)
 }
@@ -87,22 +91,20 @@ pub fn preview(
     duration_s: f64,
     effective_wave_speed_m_s: f64,
 ) -> Result<DynamicsPreview, String> {
-    if world.width == 0 || world.height == 0
-        || world.width.checked_mul(world.height).is_none()
-    {
+    if world.width == 0 || world.height == 0 || world.width.checked_mul(world.height).is_none() {
         return Err("Dynamics require a nonempty finite grid".into());
     }
-    if !radius_km.is_finite() || !(100.0..=100_000.0).contains(&radius_km)
-        || !gravity_m_s2.is_finite() || !(0.1..=100.0).contains(&gravity_m_s2)
+    if !radius_km.is_finite()
+        || !(100.0..=100_000.0).contains(&radius_km)
+        || !gravity_m_s2.is_finite()
+        || !(0.1..=100.0).contains(&gravity_m_s2)
     {
         return Err("Dynamics require valid planet radius and surface gravity".into());
     }
     if !duration_s.is_finite() || !(0.01..=86_400.0).contains(&duration_s) {
         return Err("Dynamics duration must be 0.01–86,400 seconds".into());
     }
-    if !effective_wave_speed_m_s.is_finite()
-        || !(1.0..=400.0).contains(&effective_wave_speed_m_s)
-    {
+    if !effective_wave_speed_m_s.is_finite() || !(1.0..=400.0).contains(&effective_wave_speed_m_s) {
         return Err("Effective barotropic wave speed must be 1–400 m/s".into());
     }
     let omega = rotation_rate(world)?;
@@ -123,8 +125,7 @@ pub fn preview(
     let mut cos_lat = vec![0.0f64; height];
     let mut min_cell_m = f64::INFINITY;
     for y in 0..height {
-        areas[y] = radius_m * radius_m * dlon
-            * (lat_edge(y + 1).sin() - lat_edge(y).sin());
+        areas[y] = radius_m * radius_m * dlon * (lat_edge(y + 1).sin() - lat_edge(y).sin());
         let lat = -FRAC_PI_2 + (y as f64 + 0.5) * dlat;
         lat_sine[y] = lat.sin();
         cos_lat[y] = lat.cos();
@@ -141,8 +142,8 @@ pub fn preview(
     }
     // The polar-longitude wave limit alone gives a strict lower bound on
     // required steps. Refuse impossible intervals before any large iteration.
-    let unavoidable_steps = (duration_s * (effective_wave_speed_m_s + 1.0)
-        / (CFL * min_cell_m)).ceil();
+    let unavoidable_steps =
+        (duration_s * (effective_wave_speed_m_s + 1.0) / (CFL * min_cell_m)).ceil();
     if !unavoidable_steps.is_finite() || unavoidable_steps > MAX_SUBSTEPS as f64 {
         return Err(format!(
             "Dynamics require at least {unavoidable_steps:.0} substeps (>512) at this resolution. Shorten the interval or use a smaller wave speed."
@@ -175,7 +176,9 @@ pub fn preview(
 
     while elapsed < duration_s {
         if steps >= MAX_SUBSTEPS {
-            return Err("Dynamics need >512 stable substeps. Reduce duration, wind or wave speed.".into());
+            return Err(
+                "Dynamics need >512 stable substeps. Reduce duration, wind or wave speed.".into(),
+            );
         }
         // Pressure acceleration of an equivalent barotropic/isothermal
         // column: -c² ∇ln(p). This deliberately omits vertical structure.
@@ -205,8 +208,10 @@ pub fn preview(
                 } else {
                     0.0
                 };
-                if !local_p.is_finite() || local_p <= 0.0
-                    || !accel_e[i].is_finite() || !accel_n[i].is_finite()
+                if !local_p.is_finite()
+                    || local_p <= 0.0
+                    || !accel_e[i].is_finite()
+                    || !accel_n[i].is_finite()
                 {
                     return Err("Dynamics pressure state became nonfinite or nonpositive".into());
                 }
@@ -214,7 +219,9 @@ pub fn preview(
             }
         }
 
-        let max_speed = east.iter().zip(&north)
+        let max_speed = east
+            .iter()
+            .zip(&north)
             .map(|(&u, &v)| u.hypot(v))
             .fold(0.0f64, f64::max);
         if !max_speed.is_finite() || max_speed > MAX_WIND_M_S {
@@ -224,8 +231,7 @@ pub fn preview(
         // Acoustic-gravity proxy and material transport must BOTH fit the
         // finest polar cells. A small explicit safety factor also bounds
         // acceleration-generated winds in the same step.
-        let dt = remaining.min(CFL * min_cell_m
-            / (effective_wave_speed_m_s + max_speed + 1.0));
+        let dt = remaining.min(CFL * min_cell_m / (effective_wave_speed_m_s + max_speed + 1.0));
         if !dt.is_finite() || dt <= 0.0 {
             return Err("No finite dynamics time step available".into());
         }
@@ -241,7 +247,8 @@ pub fn preview(
                 let kicked_v = north[i] + 0.5 * dt * accel_n[i];
                 east[i] = kicked_u * c + kicked_v * s + 0.5 * dt * accel_e[i];
                 north[i] = kicked_v * c - kicked_u * s + 0.5 * dt * accel_n[i];
-                if !east[i].is_finite() || !north[i].is_finite()
+                if !east[i].is_finite()
+                    || !north[i].is_finite()
                     || east[i].hypot(north[i]) > MAX_WIND_M_S
                 {
                     return Err("Dynamics produced nonfinite or excessive wind".into());
@@ -258,21 +265,37 @@ pub fn preview(
                     let west = y * width + (x + 1) % width;
                     let toward_west = -0.5 * (east[i] + east[west]);
                     if toward_west != 0.0 {
-                        let (from, to) = if toward_west > 0.0 {(i, west)} else {(west, i)};
+                        let (from, to) = if toward_west > 0.0 {
+                            (i, west)
+                        } else {
+                            (west, i)
+                        };
                         let sweep = toward_west.abs() * north_face_m;
                         outgoing[from] += sweep / areas[y];
-                        faces.push(Face { from, to, sweep_m2_s: sweep });
+                        faces.push(Face {
+                            from,
+                            to,
+                            sweep_m2_s: sweep,
+                        });
                     }
                 }
                 if y + 1 < height {
                     let neighbor = i + width;
                     let toward_north = 0.5 * (north[i] + north[neighbor]);
                     if toward_north != 0.0 {
-                        let (from, to) = if toward_north > 0.0 {(i, neighbor)} else {(neighbor, i)};
-                        let sweep = toward_north.abs() * radius_m * dlon
-                            * lat_edge(y + 1).cos().max(0.0);
+                        let (from, to) = if toward_north > 0.0 {
+                            (i, neighbor)
+                        } else {
+                            (neighbor, i)
+                        };
+                        let sweep =
+                            toward_north.abs() * radius_m * dlon * lat_edge(y + 1).cos().max(0.0);
                         outgoing[from] += sweep / areas[from / width];
-                        faces.push(Face { from, to, sweep_m2_s: sweep });
+                        faces.push(Face {
+                            from,
+                            to,
+                            sweep_m2_s: sweep,
+                        });
                     }
                 }
             }
@@ -297,8 +320,10 @@ pub fn preview(
         for i in 0..n {
             air_mass[i] += air_change[i];
             vapor_mass[i] += vapor_change[i];
-            if !air_mass[i].is_finite() || air_mass[i] <= 0.0
-                || !vapor_mass[i].is_finite() || vapor_mass[i] < -1.0e-12 * air_mass[i]
+            if !air_mass[i].is_finite()
+                || air_mass[i] <= 0.0
+                || !vapor_mass[i].is_finite()
+                || vapor_mass[i] < -1.0e-12 * air_mass[i]
                 || vapor_mass[i] > air_mass[i] * (1.0 + 1.0e-12)
             {
                 return Err("Dynamics violated positive moist-air/tracer mass".into());
@@ -321,32 +346,49 @@ pub fn preview(
     let mut final_max_speed = 0.0f64;
     for i in 0..n {
         vapor_column.cells[i] = (vapor_mass[i] / areas[i / width]) as f32;
-        pressure_map.cells[i] = (gravity_m_s2 / 100.0
-            * air_mass[i] / areas[i / width]) as f32;
+        pressure_map.cells[i] = (gravity_m_s2 / 100.0 * air_mass[i] / areas[i / width]) as f32;
         humidity_map.cells[i] = (1000.0 * vapor_mass[i] / air_mass[i]) as f32;
         east_map.cells[i] = east[i] as f32;
         north_map.cells[i] = north[i] as f32;
         final_max_speed = final_max_speed.max(east[i].hypot(north[i]));
     }
-    for map in [&vapor_column, &pressure_map, &humidity_map, &east_map, &north_map] {
+    for map in [
+        &vapor_column,
+        &pressure_map,
+        &humidity_map,
+        &east_map,
+        &north_map,
+    ] {
         if map.cells.iter().any(|v| !v.is_finite()) {
             return Err("Dynamics output exceeds finite map range".into());
         }
     }
 
     // Verify both conserved substances on the ACTUAL published float32 maps.
-    let air_after: f64 = pressure_map.cells.iter().enumerate()
-        .map(|(i, &p)| p as f64 * 100.0 / gravity_m_s2 * areas[i / width]).sum();
-    let water_after: f64 = vapor_column.cells.iter().enumerate()
-        .map(|(i, &w)| w as f64 * areas[i / width]).sum();
+    let air_after: f64 = pressure_map
+        .cells
+        .iter()
+        .enumerate()
+        .map(|(i, &p)| p as f64 * 100.0 / gravity_m_s2 * areas[i / width])
+        .sum();
+    let water_after: f64 = vapor_column
+        .cells
+        .iter()
+        .enumerate()
+        .map(|(i, &w)| w as f64 * areas[i / width])
+        .sum();
     let air_error = (air_after - air_before).abs() / air_before.max(1.0);
     let water_error = (water_after - water_before).abs() / water_before.max(1.0);
     if air_error > 1.0e-6 || water_error > 1.0e-6 {
-        return Err(format!("Dynamics mass budget failed: air {air_error:.3e}, vapor {water_error:.3e}"));
+        return Err(format!(
+            "Dynamics mass budget failed: air {air_error:.3e}, vapor {water_error:.3e}"
+        ));
     }
     let extrema = |grid: &Grid| -> (f32, f32) {
-        (grid.cells.iter().copied().fold(f32::INFINITY, f32::min),
-         grid.cells.iter().copied().fold(f32::NEG_INFINITY, f32::max))
+        (
+            grid.cells.iter().copied().fold(f32::INFINITY, f32::min),
+            grid.cells.iter().copied().fold(f32::NEG_INFINITY, f32::max),
+        )
     };
     let (min_water, max_water) = extrema(&vapor_column);
     let (min_pressure, max_pressure) = extrema(&pressure_map);
@@ -456,22 +498,45 @@ mod tests {
         assert!(result.mass.pressure_hpa.cells.iter().all(|&p| p == 1013.25));
         assert!(result.mass.budget.air_relative_mass_error < 1.0e-7);
         assert!(result.mass.budget.relative_mass_error < 1.0e-7);
-        assert!(result.mass.budget.dynamics.as_ref().unwrap().max_gravity_wave_courant <= CFL);
+        assert!(
+            result
+                .mass
+                .budget
+                .dynamics
+                .as_ref()
+                .unwrap()
+                .max_gravity_wave_courant
+                <= CFL
+        );
     }
 
     #[test]
     fn pressure_gradient_accelerates_toward_low_pressure_across_the_seam() {
         let mut world = fixture(48, 24, 1013.25, 10.0, 0.0, 0.0);
-        let p = &mut world.scientific_fields
-            .get_mut(MonthlyField::Pressure.id()).unwrap().cells;
+        let p = &mut world
+            .scientific_fields
+            .get_mut(MonthlyField::Pressure.id())
+            .unwrap()
+            .cells;
         p[12 * 48 + 47] = 900.0; // low east of x=0
         p[12 * 48 + 1] = 1100.0; // high west of x=0
         let result = preview(&world, 6371.0, 9.80665, 180.0, 80.0).unwrap();
-        assert!(result.wind_east_m_s.cells[12 * 48] > 0.0,
-            "low pressure lies geographically east: eastward wind accelerates");
+        assert!(
+            result.wind_east_m_s.cells[12 * 48] > 0.0,
+            "low pressure lies geographically east: eastward wind accelerates"
+        );
         assert!(result.mass.budget.air_relative_mass_error < 1.0e-7);
         assert!(result.mass.budget.relative_mass_error < 1.0e-7);
-        assert!(result.mass.budget.dynamics.as_ref().unwrap().maximum_pressure_acceleration_m_s2 > 0.0);
+        assert!(
+            result
+                .mass
+                .budget
+                .dynamics
+                .as_ref()
+                .unwrap()
+                .maximum_pressure_acceleration_m_s2
+                > 0.0
+        );
     }
 
     #[test]
@@ -507,19 +572,40 @@ mod tests {
         let fast_v = fast.wind_north_m_s.cells[15 * 20].abs();
         let slow_v = slow.wind_north_m_s.cells[15 * 20].abs();
         assert!(fast_v > 1.8 * slow_v);
-        assert!(fast.mass.budget.dynamics.as_ref().unwrap().angular_velocity_rad_s >
-            slow.mass.budget.dynamics.as_ref().unwrap().angular_velocity_rad_s);
+        assert!(
+            fast.mass
+                .budget
+                .dynamics
+                .as_ref()
+                .unwrap()
+                .angular_velocity_rad_s
+                > slow
+                    .mass
+                    .budget
+                    .dynamics
+                    .as_ref()
+                    .unwrap()
+                    .angular_velocity_rad_s
+        );
     }
 
     #[test]
     fn evolving_winds_keep_air_and_water_conservative_and_q_bounded() {
         let mut world = fixture(48, 24, 1013.25, 10.0, 30.0, -15.0);
-        let p = &mut world.scientific_fields.get_mut(MonthlyField::Pressure.id()).unwrap().cells;
+        let p = &mut world
+            .scientific_fields
+            .get_mut(MonthlyField::Pressure.id())
+            .unwrap()
+            .cells;
         for (i, item) in p.iter_mut().enumerate() {
             *item = if i % 9 == 0 { 1100.0 } else { 990.0 };
         }
         let pressure_before = p.clone();
-        let q = &mut world.scientific_fields.get_mut(MonthlyField::SpecificHumidity.id()).unwrap().cells;
+        let q = &mut world
+            .scientific_fields
+            .get_mut(MonthlyField::SpecificHumidity.id())
+            .unwrap()
+            .cells;
         for (i, item) in q.iter_mut().enumerate() {
             *item = if i % 7 == 0 { 50.0 } else { 3.0 };
         }
@@ -529,9 +615,20 @@ mod tests {
         assert!(result.mass.budget.max_outflow_courant <= MAX_OUTFLOW_COURANT + 1.0e-12);
         assert!(result.mass.budget.air_relative_mass_error < 1.0e-7);
         assert!(result.mass.budget.relative_mass_error < 1.0e-7);
-        assert!(result.mass.specific_humidity_g_kg.cells.iter().all(|&q| q >= 0.0 && q <= 50.001));
-        assert_eq!(world.scientific_fields[MonthlyField::Pressure.id()].cells, pressure_before);
-        assert_eq!(world.scientific_fields[MonthlyField::SpecificHumidity.id()].cells, humidity_before);
+        assert!(result
+            .mass
+            .specific_humidity_g_kg
+            .cells
+            .iter()
+            .all(|&q| q >= 0.0 && q <= 50.001));
+        assert_eq!(
+            world.scientific_fields[MonthlyField::Pressure.id()].cells,
+            pressure_before
+        );
+        assert_eq!(
+            world.scientific_fields[MonthlyField::SpecificHumidity.id()].cells,
+            humidity_before
+        );
     }
 
     #[test]
@@ -544,23 +641,40 @@ mod tests {
         assert!(preview(&world, 6371.0, 9.80665, 10.0, 80.0).is_err());
         let world = fixture(256, 128, 1013.25, 10.0, 0.0, 0.0);
         assert!(preview(&world, 6371.0, 9.80665, 86_400.0, 400.0)
-            .unwrap_err().contains("512"));
+            .unwrap_err()
+            .contains("512"));
     }
 
     #[test]
     fn dynamic_publish_is_ephemeral_and_fixed_preview_clears_winds() {
         let mut world = fixture(24, 12, 1013.25, 10.0, 20.0, 0.0);
-        let input = world.scientific_fields[MonthlyField::WindEast.id()].cells.clone();
+        let input = world.scientific_fields[MonthlyField::WindEast.id()]
+            .cells
+            .clone();
         let result = preview(&world, 6371.0, 9.80665, 20.0, 50.0).unwrap();
         publish(&mut world, result);
         assert!(world.scientific_fields.contains_key(WIND_EAST_PREVIEW_ID));
         assert!(world.scientific_fields.contains_key(WIND_NORTH_PREVIEW_ID));
-        assert_eq!(world.scientific_fields[MonthlyField::WindEast.id()].cells, input);
-        assert_eq!(world.scientific_provenance[WIND_EAST_PREVIEW_ID].label(), "Derived");
+        assert_eq!(
+            world.scientific_fields[MonthlyField::WindEast.id()].cells,
+            input
+        );
+        assert_eq!(
+            world.scientific_provenance[WIND_EAST_PREVIEW_ID].label(),
+            "Derived"
+        );
         let fixed = moisture_transport::preview(&world, 6371.0, 9.80665, 20.0).unwrap();
         moisture_transport::publish(&mut world, fixed);
         assert!(!world.scientific_fields.contains_key(WIND_EAST_PREVIEW_ID));
-        assert!(world.moisture_transport_budget.as_ref().unwrap().dynamics.is_none());
-        assert_eq!(world.scientific_fields[MonthlyField::WindEast.id()].cells, input);
+        assert!(world
+            .moisture_transport_budget
+            .as_ref()
+            .unwrap()
+            .dynamics
+            .is_none());
+        assert_eq!(
+            world.scientific_fields[MonthlyField::WindEast.id()].cells,
+            input
+        );
     }
 }

@@ -1126,20 +1126,33 @@ impl Studio {
         );
         ui.small("A bounded outward Courant number controls the time step; unstable or excessive intervals are rejected.");
         ui.separator();
-        ui.label(egui::RichText::new("PRESSURE-GRADIENT + CORIOLIS WIND TEST").strong().small());
+        ui.label(
+            egui::RichText::new("PRESSURE-GRADIENT + CORIOLIS WIND TEST")
+                .strong()
+                .small(),
+        );
         ui.small("Experimental linearized momentum tendency; dynamically updates BOTH wind components from pressure gradients and rotation, then advects moist air and vapor. No vertical atmosphere or nonlinear momentum advection.");
         ui.small("Sidereal rotation is inferred from mean solar day + orbital year for a prograde circular orbit. Retrograde spin is unsupported.");
         ui.label("Effective barotropic wave speed (m/s) · assumed");
-        if ui.add(egui::DragValue::new(&mut self.project.dynamics_wave_speed_m_s)
-            .range(1.0..=400.0).speed(1.0)).changed() {
+        if ui
+            .add(
+                egui::DragValue::new(&mut self.project.dynamics_wave_speed_m_s)
+                    .range(1.0..=400.0)
+                    .speed(1.0),
+            )
+            .changed()
+        {
             moisture_transport::clear_preview(&mut self.world);
             self.atlas_dirty = true;
             self.globe_dirty = true;
             self.changed = true;
         }
         ui.label("Dynamic interval (seconds)");
-        ui.add(egui::DragValue::new(&mut self.dynamics_seconds)
-            .range(0.01..=86_400.0).speed(1.0));
+        ui.add(
+            egui::DragValue::new(&mut self.dynamics_seconds)
+                .range(0.01..=86_400.0)
+                .speed(1.0),
+        );
         ui.small("Spherical latitude/longitude cells near the poles require short stable steps. Excessively long or expensive runs are refused.");
         if ui.button("Compute evolving-wind preview").clicked() {
             self.finish_dataset_stroke();
@@ -1228,12 +1241,12 @@ impl Studio {
             if let Some(ref dynamics) = report.dynamics {
                 ui.small(format!(
                     "Derived sidereal rotation: {:.4} h · Ω = {:.6e} rad/s",
-                    dynamics.inferred_sidereal_rotation_hours,
-                    dynamics.angular_velocity_rad_s
+                    dynamics.inferred_sidereal_rotation_hours, dynamics.angular_velocity_rad_s
                 ));
                 ui.small(format!(
                     "Wind peak: {:.2} → {:.2} m/s · wave Courant: {:.4}",
-                    dynamics.max_initial_wind_m_s, dynamics.max_final_wind_m_s,
+                    dynamics.max_initial_wind_m_s,
+                    dynamics.max_final_wind_m_s,
                     dynamics.max_gravity_wave_courant
                 ));
                 ui.small(format!(

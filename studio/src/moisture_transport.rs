@@ -78,7 +78,10 @@ pub fn publish(world: &mut World, preview: Preview) {
         "planet.surface_gravity".into(),
     ];
     if preview.budget.dynamics.is_some() {
-        inputs.extend(["planet.calendar".into(), "atmosphere.equivalent_wave_speed".into()]);
+        inputs.extend([
+            "planet.calendar".into(),
+            "atmosphere.equivalent_wave_speed".into(),
+        ]);
     }
     let operator = preview.budget.operator.clone();
     for (id, grid) in [

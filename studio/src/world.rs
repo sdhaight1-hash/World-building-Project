@@ -566,7 +566,9 @@ mod tests {
     #[test]
     fn dynamics_wave_speed_defaults_on_legacy_project_and_round_trips() {
         let mut old = serde_json::to_value(Project::new("old")).unwrap();
-        old.as_object_mut().unwrap().remove("dynamics_wave_speed_m_s");
+        old.as_object_mut()
+            .unwrap()
+            .remove("dynamics_wave_speed_m_s");
         let restored: Project = serde_json::from_value(old).unwrap();
         assert_eq!(restored.dynamics_wave_speed_m_s, 80.0);
         let mut world = Project::new("another");
@@ -575,7 +577,8 @@ mod tests {
         let loaded: Project = serde_json::from_str(&json).unwrap();
         assert_eq!(loaded.dynamics_wave_speed_m_s, 34.5);
         let path = std::env::temp_dir().join(format!(
-            "aegaea-invalid-wave-speed-{}.json", std::process::id()
+            "aegaea-invalid-wave-speed-{}.json",
+            std::process::id()
         ));
         world.dynamics_wave_speed_m_s = f64::NAN;
         assert!(world.save(&path).unwrap_err().contains("wave speed"));

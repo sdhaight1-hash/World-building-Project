@@ -799,39 +799,57 @@ mod tests {
         }
         assert!(!Theme::EvolvingWindEast.available(&w));
         assert!(!Theme::EvolvingWindNorth.available(&w));
-        let original = w.scientific_fields[MonthlyField::WindEast.id()].cells.clone();
+        let original = w.scientific_fields[MonthlyField::WindEast.id()]
+            .cells
+            .clone();
         let derived = atmosphere_dynamics::preview(&w, 6371.0, 9.80665, 100.0, 60.0).unwrap();
         atmosphere_dynamics::publish(&mut w, derived);
         let art = Cartography::new(&w);
-        for theme in [
-            Theme::EvolvingWindEast,
-            Theme::EvolvingWindNorth,
-        ] {
+        for theme in [Theme::EvolvingWindEast, Theme::EvolvingWindNorth] {
             assert!(theme.available(&w));
             assert_eq!(theme.units(), "m/s");
             assert_eq!(art.legend(&w, theme).len(), 7);
             assert_eq!(atlas_image(&w, &art, theme).size, [36, 18]);
             let path = std::env::temp_dir().join(format!(
-                "aegaea-dynamic-{}-{}.png", std::process::id(), theme.slug()
+                "aegaea-dynamic-{}-{}.png",
+                std::process::id(),
+                theme.slug()
             ));
             export_atlas_png(&w, &art, theme, &path).unwrap();
-            let meta: serde_json::Value = serde_json::from_slice(
-                &std::fs::read(path.with_extension("json")).unwrap()
-            ).unwrap();
+            let meta: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(path.with_extension("json")).unwrap())
+                    .unwrap();
             assert_eq!(meta["month"], 4);
             assert_eq!(meta["dataset_id"], theme.scientific_id().unwrap());
             assert_eq!(meta["units"], "m/s");
             assert_eq!(meta["provenance"]["kind"], "derived");
-            assert_eq!(meta["provenance"]["operator"], atmosphere_dynamics::OPERATOR);
-            assert!(meta["moisture_transport_budget"]["dynamics"]["angular_velocity_rad_s"]
-                .as_f64().unwrap() > 0.0);
-            assert!(meta["moisture_transport_budget"]["relative_mass_error"]
-                .as_f64().unwrap() < 1.0e-6);
-            assert!(meta["scientific_status"].as_str().unwrap().contains("momentum"));
+            assert_eq!(
+                meta["provenance"]["operator"],
+                atmosphere_dynamics::OPERATOR
+            );
+            assert!(
+                meta["moisture_transport_budget"]["dynamics"]["angular_velocity_rad_s"]
+                    .as_f64()
+                    .unwrap()
+                    > 0.0
+            );
+            assert!(
+                meta["moisture_transport_budget"]["relative_mass_error"]
+                    .as_f64()
+                    .unwrap()
+                    < 1.0e-6
+            );
+            assert!(meta["scientific_status"]
+                .as_str()
+                .unwrap()
+                .contains("momentum"));
             std::fs::remove_file(path.with_extension("json")).unwrap();
             std::fs::remove_file(path).unwrap();
         }
-        assert_eq!(original, w.scientific_fields[MonthlyField::WindEast.id()].cells);
+        assert_eq!(
+            original,
+            w.scientific_fields[MonthlyField::WindEast.id()].cells
+        );
         authored.activate(&mut w, 5).unwrap();
         assert!(!Theme::EvolvingWindEast.available(&w));
         assert!(!Theme::EvolvingWindNorth.available(&w));
