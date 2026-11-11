@@ -160,17 +160,29 @@ pub fn preview(
                     let (from, to) = if westward > 0.0 { (i, west) } else { (west, i) };
                     let sweep = westward.abs() * meridional_face_m;
                     outward_per_second[from] += sweep / area_per_row[y];
-                    faces.push(Face { from, to, swept_m2_s: sweep });
+                    faces.push(Face {
+                        from,
+                        to,
+                        swept_m2_s: sweep,
+                    });
                 }
             }
             if y + 1 < height {
                 let north = i + width;
                 let northward = 0.5 * (v.cells[i] as f64 + v.cells[north] as f64);
                 if northward != 0.0 {
-                    let (from, to) = if northward > 0.0 { (i, north) } else { (north, i) };
+                    let (from, to) = if northward > 0.0 {
+                        (i, north)
+                    } else {
+                        (north, i)
+                    };
                     let sweep = northward.abs() * radius * dlon * lat_edge(y + 1).cos().max(0.0);
                     outward_per_second[from] += sweep / area_per_row[from / width];
-                    faces.push(Face { from, to, swept_m2_s: sweep });
+                    faces.push(Face {
+                        from,
+                        to,
+                        swept_m2_s: sweep,
+                    });
                 }
             }
         }
@@ -202,8 +214,10 @@ pub fn preview(
             let next_air = air_mass[i] + air_change[i];
             let next_vapor = vapor_mass[i] + vapor_change[i];
             // Same upwind operator retains 0 <= vapor <= air by construction.
-            if !next_air.is_finite() || !next_vapor.is_finite()
-                || next_air <= 0.0 || next_vapor < -1.0e-12 * next_air
+            if !next_air.is_finite()
+                || !next_vapor.is_finite()
+                || next_air <= 0.0
+                || next_vapor < -1.0e-12 * next_air
                 || next_vapor > next_air * (1.0 + 1.0e-12)
             {
                 return Err("Numerical instability: invalid moist-air or water mass".into());
@@ -230,10 +244,16 @@ pub fn preview(
     }
 
     // Compute budgets from the *published f32 rasters*, not hidden f64 state.
-    let air_after: f64 = pressure_out.cells.iter().enumerate()
+    let air_after: f64 = pressure_out
+        .cells
+        .iter()
+        .enumerate()
         .map(|(i, &p)| p as f64 * 100.0 / gravity_m_s2 * area_per_row[i / width])
         .sum();
-    let water_after: f64 = column.cells.iter().enumerate()
+    let water_after: f64 = column
+        .cells
+        .iter()
+        .enumerate()
         .map(|(i, &w)| w as f64 * area_per_row[i / width])
         .sum();
     let air_error = (air_after - air_before).abs() / air_before.max(1.0);
@@ -244,8 +264,10 @@ pub fn preview(
         ));
     }
     let range = |g: &Grid| -> (f32, f32) {
-        (g.cells.iter().copied().fold(f32::INFINITY, f32::min),
-         g.cells.iter().copied().fold(f32::NEG_INFINITY, f32::max))
+        (
+            g.cells.iter().copied().fold(f32::INFINITY, f32::min),
+            g.cells.iter().copied().fold(f32::NEG_INFINITY, f32::max),
+        )
     };
     let (min_water, max_water) = range(&column);
     let (min_pressure, max_pressure) = range(&pressure_out);
