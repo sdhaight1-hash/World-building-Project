@@ -384,7 +384,7 @@ mod tests {
     }
 
     #[test]
-    fn independently_authored_world_can_render_all_sixteen_existing_maps() {
+    fn independently_authored_world_can_render_all_eighteen_existing_maps() {
         use crate::map_layers::{LayerKind, ProjectLayers};
         use crate::world::Grid;
 
@@ -424,12 +424,14 @@ mod tests {
             crate::rainshadow::WindFrom::West,
         ));
         let mut monthly = crate::datasets::DatasetRegistry::default();
-        monthly
-            .create_month(&mut world, ClimateField::Temperature, 1, 18.0)
-            .unwrap();
-        monthly
-            .create_month(&mut world, ClimateField::Precipitation, 1, 100.0)
-            .unwrap();
+        for month in 1..=12 {
+            monthly
+                .create_month(&mut world, ClimateField::Temperature, month, 18.0)
+                .unwrap();
+            monthly
+                .create_month(&mut world, ClimateField::Precipitation, month, 100.0)
+                .unwrap();
+        }
         let art = Cartography::new(&world);
         for theme in Theme::ALL {
             assert!(theme.available(&world), "{} should be usable", theme.name());
@@ -475,6 +477,38 @@ mod tests {
         datasets.activate(&mut world, 3).unwrap();
         assert!(!Theme::MonthlyTemperature.available(&world));
         assert!(!Theme::MonthlyPrecipitation.available(&world));
+    }
+
+    #[test]
+    fn annual_climate_exports_true_derived_provenance_and_correct_units() {
+        let mut world = World::empty(PathBuf::from("annual"));
+        world.width = 48;
+        world.height = 24;
+        let mut registry = crate::datasets::DatasetRegistry::default();
+        for month in 1..=12u8 {
+            registry.create_month(&mut world, ClimateField::Temperature, month, 20.0).unwrap();
+            registry.create_month(&mut world, ClimateField::Precipitation, month, 125.0).unwrap();
+        }
+        let art = Cartography::new(&world);
+        for theme in [Theme::AnnualTemperature, Theme::AnnualPrecipitation] {
+            assert!(theme.available(&world));
+            assert_eq!(atlas_image(&world, &art, theme).size, [48, 24]);
+            assert_eq!(art.legend(&world, theme).len(), 7);
+            let target = std::env::temp_dir().join(format!(
+                "aegaea-annual-{}-{}.png", std::process::id(), theme.slug()
+            ));
+            export_atlas_png(&world, &art, theme, &target).unwrap();
+            let meta = std::fs::read_to_string(target.with_extension("json")).unwrap();
+            assert!(meta.contains("derived"));
+            assert!(meta.contains("twelve"));
+            assert!(meta.contains(theme.scientific_id().unwrap()));
+            assert!(meta.contains(theme.units()));
+            assert!(meta.contains(r#""month": null"#));
+            std::fs::remove_file(target.with_extension("json")).unwrap();
+            std::fs::remove_file(target).unwrap();
+        }
+        assert_eq!(world.scientific_fields[ClimateField::Temperature.annual_id()].at(0,0), 20.0);
+        assert_eq!(world.scientific_fields[ClimateField::Precipitation.annual_id()].at(0,0), 1500.0);
     }
 
     #[test]
