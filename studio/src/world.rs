@@ -306,7 +306,9 @@ pub struct Marker {
     pub latitude_deg: f64,
 }
 
-fn january() -> u8 { 1 }
+fn january() -> u8 {
+    1
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
