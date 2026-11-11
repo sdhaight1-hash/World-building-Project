@@ -288,10 +288,15 @@ impl DatasetRegistry {
             return Err("Month must be 1–12".into());
         }
         self.validate([world.width, world.height])?;
-        let next = self.fields.iter().filter_map(|(id, dataset)| {
+        let next: BTreeMap<String, Grid> = self.fields.iter().filter_map(|(id, dataset)| {
             dataset.materialize(month).map(|g| (id.clone(), g))
         }).collect();
+        let provenance = self.fields.iter()
+            .filter(|(id, _)| next.contains_key(*id))
+            .map(|(id, data)| (id.clone(), data.provenance.clone()))
+            .collect();
         world.scientific_fields = next;
+        world.scientific_provenance = provenance;
         world.active_month = month;
         Ok(())
     }
