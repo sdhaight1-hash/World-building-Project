@@ -662,6 +662,26 @@ mod tests {
     }
 
     #[test]
+    fn legacy_planetary_recipe_loads_earth_gravity_and_rejects_invalid_values() {
+        let legacy = r#"{"seed":5,"relief_strength":1.0,"planet_radius_km":5000.0}"#;
+        let parsed: TerrainRecipe = serde_json::from_str(legacy).unwrap();
+        assert_eq!(parsed.planet_radius_km, 5000.0);
+        assert_eq!(parsed.surface_gravity_m_s2, 9.80665);
+        parsed.validate().unwrap();
+
+        let mut custom = parsed;
+        custom.surface_gravity_m_s2 = 3.71;
+        let encoded = serde_json::to_string(&custom).unwrap();
+        let restored: TerrainRecipe = serde_json::from_str(&encoded).unwrap();
+        assert_eq!(restored.surface_gravity_m_s2, 3.71);
+        restored.validate().unwrap();
+        for invalid in [f64::NAN, 0.0, -1.0, 150.0, f64::INFINITY] {
+            custom.surface_gravity_m_s2 = invalid;
+            assert!(custom.validate().is_err());
+        }
+    }
+
+    #[test]
     fn planet_scale_changes_feature_width_and_seed_overflow_is_safe() {
         let w = fixture();
         let mut recipe = TerrainRecipe::default();
