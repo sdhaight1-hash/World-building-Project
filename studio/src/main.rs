@@ -1650,7 +1650,27 @@ impl Studio {
                         };
                         if let Some((lon, lat)) = geo {
                             self.picked = Some((lon, lat));
-                            if self.placing_marker {
+                            if self.boundary_draw {
+                                if let Some((start_lon, start_lat)) = self.boundary_start.take() {
+                                    let segment = BoundarySegment {
+                                        start: [start_lon, start_lat],
+                                        end: [lon, lat],
+                                        class: self.boundary_class,
+                                    };
+                                    match segment.validate() {
+                                        Ok(()) => {
+                                            self.project.layers.boundary_segments.push(segment.clone());
+                                            self.world.boundary_segments.push(segment);
+                                            self.refresh_layer_maps();
+                                            self.status = "Saved manually classified contact segment".into();
+                                        }
+                                        Err(error) => self.status = format!("Invalid contact: {error}"),
+                                    }
+                                } else {
+                                    self.boundary_start = Some((lon, lat));
+                                    self.status = "First contact endpoint selected; click the second endpoint".into();
+                                }
+                            } else if self.placing_marker {
                                 let idx = self.project.add_marker(lon, lat);
                                 self.selected_marker = Some(idx);
                                 self.changed = true;
