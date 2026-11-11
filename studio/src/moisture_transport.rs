@@ -45,6 +45,8 @@ pub struct Budget {
     pub maximum_column_kg_m2: f32,
     pub operator: String,
     pub assumption: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dynamics: Option<crate::atmosphere_dynamics::DynamicsBudget>,
 }
 
 #[derive(Debug)]
@@ -66,7 +68,8 @@ struct Face {
 /// An explicit preview is ephemeral: register only computed fields, never the
 /// dataset registry or project serialization. Replacing a prior preview is safe.
 pub fn publish(world: &mut World, preview: Preview) {
-    let inputs = vec![
+    clear_preview(world);
+    let mut inputs = vec![
         MonthlyField::Pressure.id().into(),
         MonthlyField::SpecificHumidity.id().into(),
         MonthlyField::WindEast.id().into(),
@@ -74,6 +77,10 @@ pub fn publish(world: &mut World, preview: Preview) {
         "planet.radius".into(),
         "planet.surface_gravity".into(),
     ];
+    if preview.budget.dynamics.is_some() {
+        inputs.extend(["planet.calendar".into(), "atmosphere.equivalent_wave_speed".into()]);
+    }
+    let operator = preview.budget.operator.clone();
     for (id, grid) in [
         (WATER_COLUMN_ID, preview.column_kg_m2),
         (PRESSURE_PREVIEW_ID, preview.pressure_hpa),
@@ -83,7 +90,7 @@ pub fn publish(world: &mut World, preview: Preview) {
         world.scientific_provenance.insert(
             id.into(),
             Provenance::Derived {
-                operator: OPERATOR.into(),
+                operator: operator.clone(),
                 inputs: inputs.clone(),
             },
         );
@@ -94,7 +101,13 @@ pub fn publish(world: &mut World, preview: Preview) {
 /// Input reactivation clears these results; physical-parameter edits clear them
 /// explicitly to prevent showing maps from an obsolete radius or gravity.
 pub fn clear_preview(world: &mut World) {
-    for id in [WATER_COLUMN_ID, PRESSURE_PREVIEW_ID, HUMIDITY_PREVIEW_ID] {
+    for id in [
+        WATER_COLUMN_ID,
+        PRESSURE_PREVIEW_ID,
+        HUMIDITY_PREVIEW_ID,
+        crate::atmosphere_dynamics::WIND_EAST_PREVIEW_ID,
+        crate::atmosphere_dynamics::WIND_NORTH_PREVIEW_ID,
+    ] {
         world.scientific_fields.remove(id);
         world.scientific_provenance.remove(id);
     }
@@ -336,6 +349,7 @@ pub fn preview(
             maximum_column_kg_m2: max_water,
             operator: OPERATOR.into(),
             assumption: "Hydrostatic total moist-air column p/g with vertically uniform specific humidity; both advected by fixed prescribed winds. No prognostic momentum, Coriolis, vertical transport, evaporation, condensation, precipitation, radiation or topography. Diagnostic pressure tendency only.".into(),
+            dynamics: None,
         },
     })
 }
