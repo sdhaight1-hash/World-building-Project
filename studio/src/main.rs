@@ -64,6 +64,7 @@ fn source_for_theme(theme: Theme) -> Option<LayerKind> {
         Theme::Crust => Some(LayerKind::Crust),
         Theme::Lithosphere => Some(LayerKind::Lithosphere),
         Theme::HeatFlow => Some(LayerKind::HeatFlow),
+        Theme::SurfaceHeatCapacity => Some(LayerKind::SurfaceHeatCapacity),
         Theme::Terrain
         | Theme::Slope
         | Theme::RainShadow
@@ -71,7 +72,11 @@ fn source_for_theme(theme: Theme) -> Option<LayerKind> {
         | Theme::MonthlyPrecipitation
         | Theme::AnnualTemperature
         | Theme::AnnualPrecipitation
-        | Theme::MonthlyInsolation => None,
+        | Theme::MonthlyInsolation
+        | Theme::MonthlyPressure
+        | Theme::MonthlySpecificHumidity
+        | Theme::MonthlyWindEast
+        | Theme::MonthlyWindNorth => None,
     }
 }
 
@@ -695,7 +700,7 @@ impl Studio {
             stroke.undo(&mut self.world, &mut self.project.datasets);
             self.dataset_redo.push(stroke);
             self.refresh_dataset_map();
-            self.status = "Undid monthly map stroke".into();
+            self.status = "Undid monthly input stroke".into();
         }
     }
 
@@ -705,7 +710,7 @@ impl Studio {
             stroke.redo(&mut self.world, &mut self.project.datasets);
             self.dataset_undo.push(stroke);
             self.refresh_dataset_map();
-            self.status = "Redid monthly map stroke".into();
+            self.status = "Redid monthly input stroke".into();
         }
     }
 
@@ -867,7 +872,7 @@ impl Studio {
     }
 
     fn monthly_workshop(&mut self, ui: &mut egui::Ui) {
-        let Some(kind) = self.theme.climate_field() else {
+        let Some(kind) = self.theme.monthly_source() else {
             return;
         };
         ui.separator();
@@ -877,7 +882,7 @@ impl Studio {
                 .small(),
         );
         ui.small(
-            "Authored climate values only. No atmosphere, rainfall or energy-balance simulation.",
+            "Explicitly authored monthly source, not an atmospheric circulation or climate simulation.",
         );
         let mut selected = self.project.month;
         egui::ComboBox::from_id_salt("active-month")
@@ -1008,7 +1013,7 @@ impl Studio {
             if ui
                 .add_enabled(
                     !self.dataset_undo.is_empty(),
-                    egui::Button::new("Undo climate"),
+                    egui::Button::new("Undo monthly input"),
                 )
                 .clicked()
             {
@@ -1017,7 +1022,7 @@ impl Studio {
             if ui
                 .add_enabled(
                     !self.dataset_redo.is_empty(),
-                    egui::Button::new("Redo climate"),
+                    egui::Button::new("Redo monthly input"),
                 )
                 .clicked()
             {
@@ -1143,6 +1148,17 @@ impl Studio {
                 }
                 _ => {
                     ui.label(format!("Paint value ({})", kind.units()));
+                    if kind == LayerKind::SurfaceHeatCapacity {
+                        ui.horizontal(|ui| {
+                            if ui.button("Land-like · 2").clicked() {
+                                self.layer_paint_value = 2.0;
+                            }
+                            if ui.button("Ocean mixed layer · 200").clicked() {
+                                self.layer_paint_value = 200.0;
+                            }
+                        });
+                        ui.small("Illustrative MJ/(m²·K) brush presets only. Paint each area yourself; coastlines and ocean depth are not inferred.");
+                    }
                     ui.add(egui::DragValue::new(&mut self.layer_paint_value).speed(0.5));
                     if !kind.valid_value(self.layer_paint_value) {
                         ui.colored_label(
@@ -1464,7 +1480,7 @@ impl Studio {
                     self.theme=theme;
                     self.layer_brush=false;
                     self.dataset_brush=false;
-                    if let Some(field) = theme.climate_field() {
+                    if let Some(field) = theme.monthly_source() {
                         self.dataset_paint_value = field.default_fill();
                     }
                     self.boundary_draw=false;
@@ -1484,7 +1500,7 @@ impl Studio {
             });
             if self.theme.annual_field().is_some() {
                 self.annual_workshop(ui);
-            } else if self.theme.climate_field().is_some() {
+            } else if self.theme.monthly_source().is_some() {
                 self.monthly_workshop(ui);
             } else if self.theme == Theme::MonthlyInsolation {
                 self.insolation_workshop(ui);
@@ -1727,6 +1743,16 @@ impl Studio {
                                     }
                                 }
                             }
+                            if self.theme == Theme::SurfaceHeatCapacity {
+                                if let Some(ref grid) = self.world.surface_heat_capacity {
+                                    ui.label("Surface areal heat capacity");
+                                    ui.monospace(format!("{:.2} MJ/(m²·K)", grid.geo(lon, lat)));
+                                    ui.end_row();
+                                    ui.label("Provenance");
+                                    ui.label("Authored source · not simulated");
+                                    ui.end_row();
+                                }
+                            }
                             if self.theme == Theme::Slope {
                                 if let Some(ref field) = self.world.slope_deg {
                                     ui.label("Surface slope");
@@ -1881,7 +1907,7 @@ impl Studio {
             };
             ui.vertical_centered(|ui| {
                 ui.label(
-                    egui::RichText::new(if self.theme.climate_field().is_some() {
+                    egui::RichText::new(if self.theme.monthly_source().is_some() {
                         format!("{} · {} · {}", self.project.name, self.theme.name(),
                             month_name(self.project.month))
                     } else {
@@ -2102,7 +2128,7 @@ impl Studio {
                 }
                 if self.dataset_brush && (response.clicked() || response.dragged()) {
                     if let (Some(kind), Some(pos)) = (
-                        self.theme.climate_field(),
+                        self.theme.monthly_source(),
                         response.interact_pointer_pos(),
                     ) {
                         let fx = ((pos.x - rect.left()) / rect.width()) as f64;
