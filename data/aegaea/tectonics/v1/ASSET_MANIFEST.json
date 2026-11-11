@@ -1,0 +1,111 @@
+{
+  "format": "aegaea-asset-manifest-v1",
+  "description": "Original binary data: direct Git blobs or ordered byte-exact chunk blobs",
+  "assets": [
+    {
+      "path": "aegaea_geology_native_1672x941.npz",
+      "bytes": 32468563,
+      "sha256": "7be2268bdef40194339bf00c0a261496677d668e4f49f0e31fc417a83ece42e8",
+      "storage": "parts",
+      "parts": 22
+    },
+    {
+      "path": "craton_id.tif",
+      "bytes": 22560,
+      "sha256": "a3ee7008d798286b20d21e556159cdbe7230abf5e38d6c021e2dc71bddea69cc",
+      "storage": "direct",
+      "parts": 0
+    },
+    {
+      "path": "crust_km.tif",
+      "bytes": 294311,
+      "sha256": "b6eac15dabc1da2040d4c7ea1c84df9c9128b0aee1b0b7e672148e895eb499ee",
+      "storage": "direct",
+      "parts": 0
+    },
+    {
+      "path": "elevation_m.tif",
+      "bytes": 4553215,
+      "sha256": "606c756efd268c48feb015f7a808bf23dee1df4b140fd3f41369bbf83b02979d",
+      "storage": "parts",
+      "parts": 4
+    },
+    {
+      "path": "heatflow_mWm2.tif",
+      "bytes": 2102747,
+      "sha256": "2ee7a9da5fc22a79fab15c527663efb64a0a0c488dd62ab7edd7ea72419f76c3",
+      "storage": "direct",
+      "parts": 0
+    },
+    {
+      "path": "lithosphere_km.tif",
+      "bytes": 2238658,
+      "sha256": "455d3d84c39e51035b3121dd4cd3d24ab43b910121c85102ae21ccccfe277c1e",
+      "storage": "direct",
+      "parts": 0
+    },
+    {
+      "path": "plate_id.tif",
+      "bytes": 28670,
+      "sha256": "7e07764afe1b51726e0672a71ed29147a4fe0d25c18f2234f256fc05e169c4bc",
+      "storage": "direct",
+      "parts": 0
+    },
+    {
+      "path": "province_id.tif",
+      "bytes": 80997,
+      "sha256": "186c790dc9a5324a9ad0dc5ca83b00ddf96398fc01320e863d4eb728b03419d7",
+      "storage": "direct",
+      "parts": 0
+    },
+    {
+      "path": "sources/fictional_craton_id_mask_1672x941.png",
+      "bytes": 12335,
+      "sha256": "b5090594b2ac0cbf3d5dc644bd39f920f0bf316289989b943d0eee38ececce20",
+      "storage": "direct",
+      "parts": 0
+    },
+    {
+      "path": "sources/fictional_paleomobile_belts_mask_1672x941.png",
+      "bytes": 11217,
+      "sha256": "35e36df8bbc35817bd39531bf4724554dd3f4272dcda4ee79e67f70fa3bc6cfe",
+      "storage": "direct",
+      "parts": 0
+    },
+    {
+      "path": "sources/fictional_shields_mask_1672x941.png",
+      "bytes": 6118,
+      "sha256": "1dde590ab5a5b578c32875335a2584000da25f143f3f367d7a959068482ae574",
+      "storage": "direct",
+      "parts": 0
+    },
+    {
+      "path": "sources/mirrored_upside_down_physical_world_map.png",
+      "bytes": 2229260,
+      "sha256": "c4b93ce6d563d0460e324fbe038674c972b06edac89ec32c64cdefb9b4fff3d2",
+      "storage": "direct",
+      "parts": 0
+    },
+    {
+      "path": "sources/reimagined_geology_heightfield_m.npy",
+      "bytes": 6293536,
+      "sha256": "7cf739e3131a3c8db3f38df27914540235d4f29ffb007eff9f4cdd4d3f2b1c93",
+      "storage": "parts",
+      "parts": 5
+    },
+    {
+      "path": "tectonic_boundaries_and_cratons.png",
+      "bytes": 5494058,
+      "sha256": "d566e2bf7ab0a799f80bf34ff433089956d93a8d7f2b65c3a6d493fdf90a20c2",
+      "storage": "parts",
+      "parts": 6
+    },
+    {
+      "path": "tectonic_data_atlas.png",
+      "bytes": 1161309,
+      "sha256": "b6dc0666e02b60b2808a949ca64f13fb595f330cf6e549dc3ed2d20dc338d061",
+      "storage": "direct",
+      "parts": 0
+    }
+  ]
+}
