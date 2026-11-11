@@ -54,7 +54,7 @@ A new blank world does not inherit Aegaea's geology. Select any style in **Map l
 | Physical relief/bathymetry | flat-ocean DEM + Terrain brush | user-authored; generation from crust/province/plates only when prerequisites met |
 | Surface slope | DEM | calculated spherical gradient |
 | Tectonic plates | plate IDs and named plate records | painted identities, not reconstructed plates |
-| Plate boundary classes | plate ID contacts; optionally imported classified GeoJSON | geometry from painted IDs; otherwise **unclassified** (not invented subduction) |
+| Plate boundary classes | plate ID contacts; imported or **two-click manually authored** classed contact lines | geometry from painted IDs; unclassified until an author assigns a contact class, no automatic subduction |
 | Plate convergence, spreading, shear | plate IDs + complete signed Euler pole/rate per plate | instantaneous relative motion, not seismic rates or reconstruction |
 | Cratonic basement | craton IDs and named records with parent plate | painted categories, consistency diagnostics available |
 | Basement age | painted craton regions + user-specified basement age in Ga | attributed from records, **not** radiometric simulation |
@@ -63,5 +63,7 @@ A new blank world does not inherit Aegaea's geology. Select any style in **Map l
 | Lithosphere depth | numeric km raster | author-assumed or imported |
 | Surface heat flow | numeric mW/m² raster | author-assumed or imported |
 | Rain shadow | DEM and chosen incoming wind direction | signed orographic exposure proxy, not monthly rainfall |
+
+**Boundary authoring:** Select **Plate boundary classes**, initialize **Plate IDs** if needed, then use **Classified contacts → Draw classified contact (two clicks)**. Choose subduction (polarity unspecified), continental collision, divergent spreading, or transform; click start and end in either projection. These are user assertions stored in `world.json`, not deductions from plate IDs. Unclassified contacts retain their own neutral legend until a classified record exists. Use **Remove last contact** to retract the most recent user segment.
 
 **Integrity constraints:** Categorical paint values must match named records, scalar paint values have finite domain bounds, painted changes can be undone and persisted, and created/source rasters retain fixed project resolution. An unclassified boundary or absent Euler rotation stays unclassified/unavailable. All mapped values remain explicitly distinguished from modeled science. Future ocean, atmosphere, monthly climate, hydrology, soils, ecosystems, resources and hazards require new **typed source layers** plus separate derivation operators and cannot be provided by relabeling unrelated rasters.
