@@ -514,28 +514,30 @@ impl Studio {
             ui.separator();
             ui.collapsing("TERRAIN SOURCE / GENERATOR",|ui| {
                 ui.label(format!("Active: {}",self.active_terrain_mode.label()));
+                let can_change_basis=self.project.terrain.overrides.is_empty()
+                    && self.project.terrain.base_fill_m.is_none();
                 ui.small("Generated height uses crustal provinces, plates, crust and cratons; not the legacy elevation TIFF.");
-                if ui.add_enabled(terrain_generation::available(&self.world),
+                if ui.add_enabled(can_change_basis && terrain_generation::available(&self.world),
                     egui::Button::new("Generate from geology")).clicked() {
                     self.select_terrain_mode(TerrainMode::Generated);
                 }
-                if ui.add_enabled(self.imported_elevation.is_some(),
+                if ui.add_enabled(can_change_basis && self.imported_elevation.is_some(),
                     egui::Button::new("View legacy DEM")).clicked() {
                     self.select_terrain_mode(TerrainMode::Imported);
                 }
                 ui.label("Generation seed");
-                if ui.add(egui::DragValue::new(&mut self.project.terrain_recipe.seed).speed(1)).changed() {
+                if ui.add_enabled(can_change_basis,egui::DragValue::new(&mut self.project.terrain_recipe.seed).speed(1)).changed() {
                     self.changed=true;
                 }
                 ui.label("Relief strength");
-                if ui.add(egui::Slider::new(
+                if ui.add_enabled(can_change_basis,egui::Slider::new(
                     &mut self.project.terrain_recipe.relief_strength,0.0..=2.5
                 )).changed() {
                     self.changed=true;
                 }
                 ui.small("After changing parameters, press Generate from geology. Project recipe is saved.");
-                if !self.project.terrain.overrides.is_empty() {
-                    ui.small("Existing brush edits lock the current terrain basis.");
+                if !can_change_basis {
+                    ui.small("Existing authored terrain locks the source and recipe.");
                 }
             });
             ui.separator();
