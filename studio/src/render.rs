@@ -35,10 +35,11 @@ pub enum Theme {
     MonthlyWindEast,
     MonthlyWindNorth,
     SurfaceHeatCapacity,
+    TransportedVaporColumn,
 }
 
 impl Theme {
-    pub const ALL: [Self; 24] = [
+    pub const ALL: [Self; 25] = [
         Self::Terrain,
         Self::Slope,
         Self::Plates,
@@ -63,6 +64,7 @@ impl Theme {
         Self::MonthlyWindEast,
         Self::MonthlyWindNorth,
         Self::SurfaceHeatCapacity,
+        Self::TransportedVaporColumn,
     ];
 
     pub fn name(self) -> &'static str {
@@ -91,6 +93,7 @@ impl Theme {
             Self::MonthlyWindEast => "Monthly wind · eastward component",
             Self::MonthlyWindNorth => "Monthly wind · northward component",
             Self::SurfaceHeatCapacity => "Surface areal heat capacity",
+            Self::TransportedVaporColumn => "Transported vapor-column proxy",
         }
     }
 
@@ -120,6 +123,7 @@ impl Theme {
             Self::MonthlyWindEast => "monthly-wind-east",
             Self::MonthlyWindNorth => "monthly-wind-north",
             Self::SurfaceHeatCapacity => "surface-heat-capacity",
+            Self::TransportedVaporColumn => "transported-vapor-column",
         }
     }
 
@@ -147,7 +151,8 @@ impl Theme {
             | Self::MonthlyPressure
             | Self::MonthlySpecificHumidity
             | Self::MonthlyWindEast
-            | Self::MonthlyWindNorth => self
+            | Self::MonthlyWindNorth
+            | Self::TransportedVaporColumn => self
                 .scientific_id()
                 .is_some_and(|id| w.scientific_fields.contains_key(id)),
         }
@@ -176,6 +181,8 @@ impl Theme {
     pub fn scientific_id(self) -> Option<&'static str> {
         if self == Self::MonthlyInsolation {
             Some(crate::planetary::INSOLATION_ID)
+        } else if self == Self::TransportedVaporColumn {
+            Some(crate::moisture_transport::WATER_COLUMN_ID)
         } else {
             self.monthly_source()
                 .map(|kind| kind.id())
@@ -184,7 +191,8 @@ impl Theme {
     }
 
     pub fn is_monthly(self) -> bool {
-        self.monthly_source().is_some() || self == Self::MonthlyInsolation
+        self.monthly_source().is_some()
+            || matches!(self, Self::MonthlyInsolation | Self::TransportedVaporColumn)
     }
 
     pub fn units(self) -> &'static str {
@@ -204,6 +212,7 @@ impl Theme {
             Self::MonthlySpecificHumidity => "g/kg",
             Self::MonthlyWindEast | Self::MonthlyWindNorth => "m/s",
             Self::SurfaceHeatCapacity => "MJ/(m²·K)",
+            Self::TransportedVaporColumn => "kg/m²",
             Self::PlateConvergence | Self::PlateDivergence | Self::PlateShear => "cm/year",
             _ => "named categories",
         }
@@ -310,12 +319,15 @@ pub fn export_atlas_png(
         "month":theme.is_monthly().then_some(world.active_month),
         "month_name":theme.is_monthly().then(|| month_name(world.active_month)),
         "planetary_calendar":(theme == Theme::MonthlyInsolation || theme == Theme::AnnualTemperature).then_some(&world.calendar),
+        "moisture_transport_budget":(theme == Theme::TransportedVaporColumn).then_some(&world.moisture_transport_budget),
         "provenance":if theme == Theme::SurfaceHeatCapacity {
             serde_json::json!({"kind":"authored","note":"Project-local hand-authored stationary heat capacity; not derived from land/ocean mask"})
         } else {
             serde_json::json!(provenance)
         },
-        "derived_from":if theme == Theme::SurfaceHeatCapacity {
+        "derived_from":if theme == Theme::TransportedVaporColumn {
+            "authored monthly surface pressure, specific humidity, signed wind components and planet radius; vertically uniform humidity assumed"
+        } else if theme == Theme::SurfaceHeatCapacity {
             "project-local explicitly authored surface areal heat capacity; land/ocean status is not inferred"
         } else if theme == Theme::MonthlyInsolation {
             "planetary calendar and circular-orbit solar geometry; no atmosphere or climate solver"
@@ -327,7 +339,9 @@ pub fn export_atlas_png(
             "native map fields, source geology and/or authored geometry"
         },
         "legend":legend,
-        "scientific_status":if theme == Theme::SurfaceHeatCapacity {
+        "scientific_status":if theme == Theme::TransportedVaporColumn {
+            "read-only conservative column-vapor transport proxy; no pressure evolution, air mass continuity, condensation, rainfall, evaporation, ocean, or climate simulation"
+        } else if theme == Theme::SurfaceHeatCapacity {
             "author-specified areal heat capacity input, not computed ocean or soil thermal physics"
         } else if theme == Theme::MonthlyInsolation {
             "daily-mean top-of-atmosphere irradiance integrated over configured month; circular orbit, no weather or climate model"
