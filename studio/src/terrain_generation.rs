@@ -572,6 +572,6 @@ mod tests {
         let r = generate(&world, &TerrainRecipe::default()).unwrap();
         assert_eq!((r.elevation.width, r.elevation.height), (1672, 941));
         assert!(r.elevation.cells.iter().any(|v| *v > 3000.0));
-        assert!(r.elevation.cells.iter().any(|v|*v < -3000.0));
+        assert!(r.elevation.cells.iter().any(|v| *v < -3000.0));
     }
 }
