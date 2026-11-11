@@ -1994,31 +1994,70 @@ mod terrain_activation_tests {
         author_world.width = 48;
         author_world.height = 24;
         let mut project = Project::new("Independent");
-        project.terrain.create_flat_world(&mut author_world, -2000.0).unwrap();
+        project
+            .terrain
+            .create_flat_world(&mut author_world, -2000.0)
+            .unwrap();
         project.terrain_mode = TerrainMode::Imported;
-        for kind in [LayerKind::Plates, LayerKind::Cratons,
-                     LayerKind::Provinces, LayerKind::Crust,
-                     LayerKind::Lithosphere, LayerKind::HeatFlow] {
-            project.layers.create(&mut author_world, kind, kind.default_fill()).unwrap();
+        for kind in [
+            LayerKind::Plates,
+            LayerKind::Cratons,
+            LayerKind::Provinces,
+            LayerKind::Crust,
+            LayerKind::Lithosphere,
+            LayerKind::HeatFlow,
+        ] {
+            project
+                .layers
+                .create(&mut author_world, kind, kind.default_fill())
+                .unwrap();
         }
         project.layers.add_craton(&mut author_world).unwrap();
-        project.layers.paint(&mut author_world, LayerKind::Cratons,
-            30.0, 20.0, 2, 1.0).unwrap();
-        project.layers.paint(&mut author_world, LayerKind::HeatFlow,
-            30.0, 20.0, 2, 100.0).unwrap();
+        project
+            .layers
+            .paint(&mut author_world, LayerKind::Cratons, 30.0, 20.0, 2, 1.0)
+            .unwrap();
+        project
+            .layers
+            .paint(&mut author_world, LayerKind::HeatFlow, 30.0, 20.0, 2, 100.0)
+            .unwrap();
         let saved = serde_json::to_string(&project).unwrap();
         let restored: Project = serde_json::from_str(&saved).unwrap();
         let mut reload = World::empty(PathBuf::from("custom"));
         reload.width = 48;
         reload.height = 24;
-        assert_eq!(activate_terrain(&mut reload, &restored).unwrap(), TerrainMode::Imported);
-        assert!(reload.elevation.as_ref().unwrap().cells.iter().all(|&v| v == -2000.0));
+        assert_eq!(
+            activate_terrain(&mut reload, &restored).unwrap(),
+            TerrainMode::Imported
+        );
+        assert!(reload
+            .elevation
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .all(|&v| v == -2000.0));
         assert_eq!(reload.plates.len(), 1);
         assert_eq!(reload.cratons.len(), 1);
         assert_eq!(reload.provinces.len(), 11);
-        assert!(reload.heatflow.as_ref().unwrap().cells.iter().any(|&v| v == 100.0));
-        assert!(reload.craton_ids.as_ref().unwrap().cells.iter().any(|&v| v == 1.0));
-        assert!(reload.plate_motion.is_none(), "unknown Euler motion is not fabricated");
+        assert!(reload
+            .heatflow
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .any(|&v| v == 100.0));
+        assert!(reload
+            .craton_ids
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .any(|&v| v == 1.0));
+        assert!(
+            reload.plate_motion.is_none(),
+            "unknown Euler motion is not fabricated"
+        );
     }
 
     #[test]
