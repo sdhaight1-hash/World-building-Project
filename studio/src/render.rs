@@ -368,7 +368,9 @@ pub fn export_atlas_png(
         } else {
             serde_json::json!(provenance)
         },
-        "derived_from":if theme.is_transport_preview() && world.moisture_transport_budget.as_ref().is_some_and(|b| b.dynamics.is_some()) {
+        "derived_from":if theme.is_transport_preview() && world.moisture_transport_budget.as_ref().and_then(|b| b.dynamics.as_ref()).is_some_and(|d| d.momentum.is_some()) {
+            "spherical barotropic mass and vapor continuity; conservative global absolute axial angular momentum, paired pressure torques, curvature-aware meridional momentum, energy drift audit"
+        } else if theme.is_transport_preview() && world.moisture_transport_budget.as_ref().is_some_and(|b| b.dynamics.is_some()) {
             "linearized barotropic pressure-gradient tendency and exact local Coriolis rotation, inferred prograde spin, then conservative coupled spherical air-vapor finite-volume transport"
         } else if theme.is_transport_preview() {
             "same coupled finite-volume fluxes advect hydrostatic moist-air mass and water vapor; prescribed wind, planetary radius and surface gravity"
@@ -384,7 +386,9 @@ pub fn export_atlas_png(
             "native map fields, source geology and/or authored geometry"
         },
         "legend":legend,
-        "scientific_status":if theme.is_transport_preview() && world.moisture_transport_budget.as_ref().is_some_and(|b| b.dynamics.is_some()) {
+        "scientific_status":if theme.is_transport_preview() && world.moisture_transport_budget.as_ref().and_then(|b| b.dynamics.as_ref()).is_some_and(|d| d.momentum.is_some()) {
+            "experimental spherical barotropic-column momentum finite volume; global air, vapor and axial angular momentum budgets enforced; first-order energy dissipative, polar faces closed, no full primitive-equation circulation or rainfall prediction"
+        } else if theme.is_transport_preview() && world.moisture_transport_budget.as_ref().is_some_and(|b| b.dynamics.is_some()) {
             "experimental linearized pressure-gradient and Coriolis wind tendencies coupled to air-vapor mass conservation; no nonlinear momentum advection, spherical metric forces, vertical structure, energy closure, rainfall or full circulation model"
         } else if theme.is_transport_preview() {
             "read-only coupled air/water continuity with diagnostic pressure and humidity; prescribed winds only, no momentum, energy, vertical atmosphere, rainfall, or climate simulation"
@@ -856,6 +860,88 @@ mod tests {
         assert!(!Theme::TransportedPressure.available(&w));
         assert!(w.moisture_transport_budget.is_none());
         assert!(moisture_transport::missing_sources(&w).len() >= 4);
+    }
+
+    #[test]
+    fn spherical_momentum_maps_export_axial_and_energy_audits_without_source_overwrite() {
+        use crate::{
+            atmosphere_dynamics,
+            datasets::{DatasetRegistry, MonthlyField},
+            spherical_momentum,
+        };
+        let mut world = World::empty(PathBuf::from("spherical-map"));
+        world.width = 36;
+        world.height = 18;
+        let mut source = DatasetRegistry::default();
+        for (kind, value) in [
+            (MonthlyField::Pressure, 1013.25),
+            (MonthlyField::SpecificHumidity, 10.0),
+            (MonthlyField::WindEast, 12.0),
+            (MonthlyField::WindNorth, 8.0),
+        ] {
+            source.create_month(&mut world, kind, 3, value).unwrap();
+        }
+        let p_original = world.scientific_fields[MonthlyField::Pressure.id()]
+            .cells
+            .clone();
+        let u_original = world.scientific_fields[MonthlyField::WindEast.id()]
+            .cells
+            .clone();
+        assert!(!Theme::EvolvingWindEast.available(&world));
+        let preview = spherical_momentum::preview(&world, 6371.0, 9.80665, 45.0, 60.0).unwrap();
+        atmosphere_dynamics::publish(&mut world, preview);
+        let art = Cartography::new(&world);
+        for theme in [
+            Theme::TransportedVaporColumn,
+            Theme::TransportedPressure,
+            Theme::TransportedSpecificHumidity,
+            Theme::EvolvingWindEast,
+            Theme::EvolvingWindNorth,
+        ] {
+            assert!(theme.available(&world));
+            assert_eq!(atlas_image(&world, &art, theme).size, [36, 18]);
+            let path = std::env::temp_dir().join(format!(
+                "aegaea-spherical-{}-{}.png",
+                std::process::id(),
+                theme.slug()
+            ));
+            export_atlas_png(&world, &art, theme, &path).unwrap();
+            let meta: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(path.with_extension("json")).unwrap())
+                    .unwrap();
+            assert_eq!(meta["month"], 3);
+            assert_eq!(meta["dataset_id"], theme.scientific_id().unwrap());
+            assert_eq!(meta["provenance"]["kind"], "derived");
+            assert_eq!(meta["provenance"]["operator"], spherical_momentum::OPERATOR);
+            assert!(
+                meta["moisture_transport_budget"]["dynamics"]["momentum"]
+                    ["relative_axial_momentum_error"]
+                    .as_f64()
+                    .unwrap()
+                    < 1.0e-6
+            );
+            assert!(meta["moisture_transport_budget"]["dynamics"]["momentum"]
+                ["relative_energy_drift"]
+                .is_number());
+            assert!(meta["scientific_status"]
+                .as_str()
+                .unwrap()
+                .contains("energy"));
+            std::fs::remove_file(path.with_extension("json")).unwrap();
+            std::fs::remove_file(path).unwrap();
+        }
+        assert_eq!(
+            world.scientific_fields[MonthlyField::Pressure.id()].cells,
+            p_original
+        );
+        assert_eq!(
+            world.scientific_fields[MonthlyField::WindEast.id()].cells,
+            u_original
+        );
+        source.activate(&mut world, 4).unwrap();
+        assert!(!Theme::EvolvingWindEast.available(&world));
+        assert!(!Theme::TransportedPressure.available(&world));
+        assert!(world.moisture_transport_budget.is_none());
     }
 
     #[test]

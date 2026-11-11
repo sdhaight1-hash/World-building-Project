@@ -13,6 +13,7 @@ mod plate_kinematics;
 mod publication;
 mod rainshadow;
 mod render;
+mod spherical_momentum;
 mod terrain_edit;
 mod terrain_generation;
 mod world;
@@ -1178,6 +1179,46 @@ impl Studio {
             }
         }
         ui.separator();
+        ui.label(
+            egui::RichText::new("SPHERICAL MOMENTUM & ENERGY AUDIT")
+                .strong()
+                .small(),
+        );
+        ui.small("Conservative moist-air and vapor transport plus absolute axial angular momentum. Eastward pressure torques are pairwise balanced; northward momentum includes spherical curvature and Coriolis. First-order upwind is energy dissipative.");
+        if ui
+            .button("Compute conservative spherical momentum preview")
+            .clicked()
+        {
+            self.finish_dataset_stroke();
+            match spherical_momentum::preview(
+                &self.world,
+                self.project.terrain_recipe.planet_radius_km,
+                self.project.terrain_recipe.surface_gravity_m_s2,
+                self.dynamics_seconds,
+                self.project.dynamics_wave_speed_m_s,
+            ) {
+                Ok(preview) => {
+                    let report = &preview.mass.budget;
+                    let axial = report
+                        .dynamics
+                        .as_ref()
+                        .and_then(|d| d.momentum.as_ref())
+                        .map(|m| m.relative_axial_momentum_error)
+                        .unwrap_or(f64::NAN);
+                    self.status = format!(
+                        "Spherical momentum: {} steps · air {:.2e} · vapor {:.2e} · axial AM {:.2e}",
+                        report.substeps, report.air_relative_mass_error,
+                        report.relative_mass_error, axial,
+                    );
+                    atmosphere_dynamics::publish(&mut self.world, preview);
+                    self.atlas_dirty = true;
+                    self.globe_dirty = true;
+                }
+                Err(error) => self.status = format!("Spherical momentum refused: {error}"),
+            }
+        }
+        ui.small("This is a barotropic-column numerical model, NOT a full primitive-equation atmosphere or an energy-conserving weather simulation.");
+        ui.separator();
         if ui.button("Compute read-only coupled preview").clicked() {
             self.finish_dataset_stroke();
             match moisture_transport::preview(
@@ -1253,6 +1294,41 @@ impl Studio {
                     "Max pressure-gradient acceleration: {:.4e} m/s²",
                     dynamics.maximum_pressure_acceleration_m_s2
                 ));
+                if let Some(ref momentum) = dynamics.momentum {
+                    ui.separator();
+                    ui.label(
+                        egui::RichText::new("GLOBAL MOMENTUM & ENERGY DIAGNOSTICS")
+                            .strong()
+                            .small(),
+                    );
+                    ui.small(format!(
+                        "Absolute axial AM: {:.6e} → {:.6e} kg·m²/s",
+                        momentum.absolute_axial_momentum_before_kg_m2_s,
+                        momentum.absolute_axial_momentum_after_kg_m2_s
+                    ));
+                    ui.small(format!(
+                        "Relative axial AM error: {:.3e}",
+                        momentum.relative_axial_momentum_error
+                    ));
+                    ui.small(format!(
+                        "Kinetic energy: {:.5e} → {:.5e} J",
+                        momentum.kinetic_energy_j_before, momentum.kinetic_energy_j_after
+                    ));
+                    ui.small(format!(
+                        "Barotropic compressional potential: {:.5e} → {:.5e} J",
+                        momentum.compressional_energy_j_before,
+                        momentum.compressional_energy_j_after
+                    ));
+                    ui.small(format!(
+                        "Total energy drift: {:+.3e} · polar face flux: {:.1} kg",
+                        momentum.relative_energy_drift, momentum.pole_boundary_mass_flux_kg
+                    ));
+                    ui.small(format!(
+                        "Minimum longitude cell width: {:.1} m · max outflow Courant: {:.3}",
+                        momentum.minimum_polar_cell_width_m, momentum.maximum_outflow_courant
+                    ));
+                    ui.small("Energy drift is observed, not constrained: donor-cell numerical diffusion and a simplified barotropic closure remain.");
+                }
                 ui.small("Five derived maps available: pressure, humidity, vapor column, and two evolving wind components.");
             } else {
                 ui.small("Three derived maps available: pressure, humidity, vapor column. Winds remain fixed.");
