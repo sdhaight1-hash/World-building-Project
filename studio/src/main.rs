@@ -2450,6 +2450,49 @@ mod terrain_activation_tests {
     }
 
     #[test]
+    fn authored_monthly_climate_reopens_without_reference_world_or_inferred_values() {
+        let mut world = World::empty(PathBuf::from("independent-climate"));
+        world.width = 48;
+        world.height = 24;
+        let mut project = Project::new("Climate test");
+        project.terrain_mode = TerrainMode::Imported;
+        project.terrain.create_flat_world(&mut world, -2_000.0).unwrap();
+        project.datasets.create_month(
+            &mut world, datasets::ClimateField::Temperature, 1, 18.0
+        ).unwrap();
+        project.datasets.create_month(
+            &mut world, datasets::ClimateField::Temperature, 7, 27.0
+        ).unwrap();
+        project.datasets.create_month(
+            &mut world, datasets::ClimateField::Precipitation, 1, 100.0
+        ).unwrap();
+        project.month = 1;
+        let json = serde_json::to_string(&project).unwrap();
+        let project: Project = serde_json::from_str(&json).unwrap();
+
+        let mut first = World::empty(PathBuf::from("independent-climate"));
+        first.width = 48;
+        first.height = 24;
+        activate_terrain(&mut first, &project).unwrap();
+        assert_eq!(first.active_month, 1);
+        assert_eq!(first.scientific_fields[datasets::ClimateField::Temperature.id()].at(0, 0), 18.0);
+        assert_eq!(first.scientific_fields[datasets::ClimateField::Precipitation.id()].at(0, 0), 100.0);
+        assert!(first.plates.is_empty());
+
+        let mut july = project;
+        july.month = 7;
+        let mut second = World::empty(PathBuf::from("independent-climate"));
+        second.width = 48;
+        second.height = 24;
+        activate_terrain(&mut second, &july).unwrap();
+        assert_eq!(second.scientific_fields[datasets::ClimateField::Temperature.id()].at(0, 0), 27.0);
+        assert!(!second.scientific_fields.contains_key(datasets::ClimateField::Precipitation.id()));
+        assert!(second.scientific_provenance.values().all(
+            |p| matches!(p, datasets::Provenance::Authored { .. })
+        ));
+    }
+
+    #[test]
     fn explicitly_imported_source_is_preserved() {
         let mut w = fixture();
         let mut project = Project::new("New");
