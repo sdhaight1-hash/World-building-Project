@@ -474,7 +474,7 @@ impl Studio {
             for theme in Theme::ALL {
                 let enabled=theme.available(&self.world);
                 let text=if enabled { theme.name().to_string() } else { format!("{}  · unavailable",theme.name()) };
-                if ui.add_enabled(enabled,egui::SelectableLabel::new(self.theme==theme,text)).clicked() {
+                if ui.add_enabled(enabled,egui::Button::selectable(self.theme==theme,text)).clicked() {
                     self.theme=theme;
                     self.atlas_dirty=true;
                     self.globe_dirty=true;
@@ -906,9 +906,9 @@ impl Studio {
                             7.5,
                             Stroke::new(
                                 if self.selected_marker == Some(i) {
-                                    2.0
+                                    2.0_f32
                                 } else {
-                                    1.0
+                                    1.0_f32
                                 },
                                 Color32::WHITE,
                             ),
@@ -991,7 +991,7 @@ impl Studio {
                         painter.circle_stroke(
                             pos,
                             10.0,
-                            Stroke::new(1.5, Color32::from_rgb(250, 215, 117)),
+                            Stroke::new(1.5_f32, Color32::from_rgb(250, 215, 117)),
                         );
                     }
                 }

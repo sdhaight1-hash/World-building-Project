@@ -31,7 +31,10 @@ const ATTRIBUTES: [wgpu::VertexAttribute; 3] =
 pub struct GlobeMesh {
     pub vertices: Vec<GlobeVertex>,
     pub indices: Vec<u32>,
+    // Needed by mesh invariants in tests, not by the GPU rendering path.
+    #[cfg(test)]
     pub lon_segments: usize,
+    #[cfg(test)]
     pub lat_segments: usize,
 }
 
@@ -103,11 +106,14 @@ impl GlobeMesh {
         Self {
             vertices,
             indices,
+            #[cfg(test)]
             lon_segments,
+            #[cfg(test)]
             lat_segments,
         }
     }
 
+    #[cfg(test)]
     pub fn triangle_count(&self) -> usize {
         self.indices.len() / 3
     }

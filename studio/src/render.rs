@@ -3,10 +3,10 @@
 //! The globe is a projection of the same fields, not a separately painted texture.
 use crate::{
     cartography::Cartography,
-    world::{geo_to_uv, uv_to_geo, World},
+    world::{uv_to_geo, World},
 };
 use eframe::egui;
-use std::{f64::consts::PI, path::Path};
+use std::path::Path;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Theme {
@@ -159,37 +159,6 @@ pub fn forward_globe(lon: f64, lat: f64, center_lon: f64, center_lat: f64) -> Op
     } else {
         Some((x as f32, y as f32))
     }
-}
-
-pub fn globe_image(
-    world: &World,
-    art: &Cartography,
-    theme: Theme,
-    center_lon: f64,
-    center_lat: f64,
-) -> egui::ColorImage {
-    const SIZE: usize = 896;
-    let mut rgba = Vec::with_capacity(SIZE * SIZE * 4);
-    for y in 0..SIZE {
-        for x in 0..SIZE {
-            let sx = ((x as f64 + 0.5) / SIZE as f64) * 2.0 - 1.0;
-            let sy = 1.0 - ((y as f64 + 0.5) / SIZE as f64) * 2.0;
-            if let Some((lon, lat, z)) = inverse_globe(sx, sy, center_lon, center_lat) {
-                let (u, v) = geo_to_uv(lon, lat);
-                let ix = ((u * world.width as f64).floor() as usize) % world.width;
-                let iy = ((v * world.height as f64).floor() as usize).min(world.height - 1);
-                let mut c = art.sample(world, theme, ix, iy);
-                let light = (0.53 + 0.5 * (0.22 * sx + 0.24 * sy + 0.92 * z)) as f32;
-                for ch in &mut c {
-                    *ch = ((*ch as f32) * light).clamp(0.0, 255.0) as u8;
-                }
-                rgba.extend_from_slice(&[c[0], c[1], c[2], 255]);
-            } else {
-                rgba.extend_from_slice(&[16, 24, 35, 255]);
-            }
-        }
-    }
-    egui::ColorImage::from_rgba_unmultiplied([SIZE, SIZE], &rgba)
 }
 
 /// Image and machine-readable legend are exported from the same style used
@@ -362,6 +331,5 @@ mod tests {
         let lon0 = crate::world::geo_to_uv(180.0, 0.0).0;
         let lon1 = crate::world::geo_to_uv(-180.0, 0.0).0;
         assert!((lon0 - lon1).abs() < 1e-10);
-        assert!((PI - std::f64::consts::PI).abs() < 1e-10);
     }
 }

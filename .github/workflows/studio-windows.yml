@@ -34,6 +34,8 @@ jobs:
         run: cargo test --workspace
       - name: Check
         run: cargo check --workspace --all-targets
+      - name: Enforce warning-free desktop build
+        run: cargo rustc -p aegaea-studio --bin aegaea-studio -- -D warnings
       - name: Export native Aegaea cartographic maps
         run: cargo run -p aegaea-studio -- --export-maps maps/aegaea
       - name: Build derived numeric maps from example graph
