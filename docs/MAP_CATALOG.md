@@ -44,3 +44,24 @@ The source `plates.csv` declares each Aegaea plate's signed Euler rotation rate 
 The active atlas and wgpu globe use the same newly generated numeric fields, with subtle source-relief context, distinct palettes and five-step legends. The inspector reports the raw derived value at the selected coordinate; `--export-maps` produces native-resolution PNG and publication SVG sheets for all three. For blank worlds or imports without Euler motion metadata, these maps are unavailable rather than silently synthesized. Existing geological source TIFFs are never rewritten.
 
 **Interpretation:** The values are localized at sampled plate contacts. A zero may indicate no contact, a transform-dominated boundary, or a zero component; it is not proof of geological inactivity. No subduction polarity, deep-time integration, plate reconstruction, erosion or earthquake rate has been inferred.
+
+## Independent-world authoring for the fourteen current map styles
+
+A new blank world does not inherit Aegaea's geology. Select any style in **Map library**, including those labeled *needs source*, and use **Map Layer Workshop** to create and paint the input fields. Six input families are stored as sparse project-local typed rasters, with explicit initial author assumptions and editable records for named entities. The `world.json` overlay is separate from immutable source TIFFs; the same authored fields render in the atlas and displaced globe.
+
+| Map styles | Source data users author | Actual computation / caveat |
+| --- | --- | --- |
+| Physical relief/bathymetry | flat-ocean DEM + Terrain brush | user-authored; generation from crust/province/plates only when prerequisites met |
+| Surface slope | DEM | calculated spherical gradient |
+| Tectonic plates | plate IDs and named plate records | painted identities, not reconstructed plates |
+| Plate boundary classes | plate ID contacts; optionally imported classified GeoJSON | geometry from painted IDs; otherwise **unclassified** (not invented subduction) |
+| Plate convergence, spreading, shear | plate IDs + complete signed Euler pole/rate per plate | instantaneous relative motion, not seismic rates or reconstruction |
+| Cratonic basement | craton IDs and named records with parent plate | painted categories, consistency diagnostics available |
+| Basement age | painted craton regions + user-specified basement age in Ga | attributed from records, **not** radiometric simulation |
+| Crustal provinces | province IDs 0–10 | class IDs follow the current terrain-generation v1 scheme |
+| Crust thickness | numeric km raster | author-assumed or imported, not inferred from elevation |
+| Lithosphere depth | numeric km raster | author-assumed or imported |
+| Surface heat flow | numeric mW/m² raster | author-assumed or imported |
+| Rain shadow | DEM and chosen incoming wind direction | signed orographic exposure proxy, not monthly rainfall |
+
+**Integrity constraints:** Categorical paint values must match named records, scalar paint values have finite domain bounds, painted changes can be undone and persisted, and created/source rasters retain fixed project resolution. An unclassified boundary or absent Euler rotation stays unclassified/unavailable. All mapped values remain explicitly distinguished from modeled science. Future ocean, atmosphere, monthly climate, hydrology, soils, ecosystems, resources and hazards require new **typed source layers** plus separate derivation operators and cannot be provided by relabeling unrelated rasters.
