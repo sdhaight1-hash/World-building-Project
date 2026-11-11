@@ -15,7 +15,7 @@ mod terrain_generation;
 mod world;
 
 use cartography::Cartography;
-use datasets::{month_name, ClimateField, DatasetStroke};
+use datasets::{month_name, DatasetStroke};
 use eframe::{
     egui,
     egui::{Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Vec2},
@@ -880,6 +880,7 @@ impl Studio {
             && self.layer_brush
         {
             self.terrain_brush = false;
+            self.dataset_brush = false;
             self.boundary_draw = false;
             self.boundary_start = None;
             self.placing_marker = false;
@@ -978,6 +979,7 @@ impl Studio {
                 self.boundary_start = None;
                 if self.boundary_draw {
                     self.layer_brush = false;
+                    self.dataset_brush = false;
                     self.terrain_brush = false;
                     self.placing_marker = false;
                 }
@@ -1365,6 +1367,7 @@ impl Studio {
             } else {
                 if ui.checkbox(&mut self.terrain_brush,"Terrain brush").clicked() && self.terrain_brush {
                     self.layer_brush=false;
+                    self.dataset_brush=false;
                     self.placing_marker=false;
                 }
                 if self.terrain_brush {
@@ -1942,14 +1945,18 @@ impl eframe::App for Studio {
         let undo = ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Z));
         let redo = ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Y));
         if undo {
-            if self.layer_brush {
+            if self.dataset_brush {
+                self.undo_dataset();
+            } else if self.layer_brush {
                 self.undo_layer();
             } else {
                 self.undo_terrain();
             }
         }
         if redo {
-            if self.layer_brush {
+            if self.dataset_brush {
+                self.redo_dataset();
+            } else if self.layer_brush {
                 self.redo_layer();
             } else {
                 self.redo_terrain();
