@@ -214,9 +214,11 @@ impl World {
         }
         let provinces_path = root.join("crustal_provinces.csv");
         if provinces_path.exists() {
-            let mut reader=csv::Reader::from_path(&provinces_path).map_err(|e| e.to_string())?;
+            let mut reader = csv::Reader::from_path(&provinces_path).map_err(|e| e.to_string())?;
             for row in reader.deserialize() {
-                world.provinces.push(row.map_err(|e| format!("{}: {e}", provinces_path.display()))?);
+                world
+                    .provinces
+                    .push(row.map_err(|e| format!("{}: {e}", provinces_path.display()))?);
             }
         }
         Ok(world)

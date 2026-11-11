@@ -5,10 +5,22 @@ use std::fs;
 
 const NO_BOUNDARY: u8 = 255;
 const PLATE_FALLBACK: [[u8; 3]; 17] = [
-    [121, 161, 184], [228, 168, 105], [88, 172, 166], [202, 134, 121],
-    [161, 145, 203], [98, 171, 209], [229, 193, 121], [139, 178, 123],
-    [92, 163, 189], [185, 135, 174], [191, 117, 127], [186, 177, 105],
-    [113, 143, 188], [133, 183, 139], [202, 149, 162], [132, 180, 186],
+    [121, 161, 184],
+    [228, 168, 105],
+    [88, 172, 166],
+    [202, 134, 121],
+    [161, 145, 203],
+    [98, 171, 209],
+    [229, 193, 121],
+    [139, 178, 123],
+    [92, 163, 189],
+    [185, 135, 174],
+    [191, 117, 127],
+    [186, 177, 105],
+    [113, 143, 188],
+    [133, 183, 139],
+    [202, 149, 162],
+    [132, 180, 186],
     [180, 164, 145],
 ];
 const PROVINCE_COLORS: [[u8; 3]; 11] = [
@@ -46,121 +58,152 @@ pub struct Cartography {
 
 fn blend(a: [u8; 3], b: [u8; 3], t: f32) -> [u8; 3] {
     let t = t.clamp(0.0, 1.0);
-    let c = |i| ((a[i] as f32) * (1.0-t) + (b[i] as f32)*t).round() as u8;
-    [c(0),c(1),c(2)]
+    let c = |i| ((a[i] as f32) * (1.0 - t) + (b[i] as f32) * t).round() as u8;
+    [c(0), c(1), c(2)]
 }
 
 fn scale(color: [u8; 3], value: f32) -> [u8; 3] {
-    let f = value.clamp(0.35,1.30);
-    color.map(|channel| ((channel as f32)*f).clamp(0.0,255.0) as u8)
+    let f = value.clamp(0.35, 1.30);
+    color.map(|channel| ((channel as f32) * f).clamp(0.0, 255.0) as u8)
 }
 
-fn gradient(value: f32, breaks: &[(f32,[u8;3])]) -> [u8;3] {
-    if !value.is_finite() { return [89,99,111]; }
-    if value <= breaks[0].0 { return breaks[0].1; }
+fn gradient(value: f32, breaks: &[(f32, [u8; 3])]) -> [u8; 3] {
+    if !value.is_finite() {
+        return [89, 99, 111];
+    }
+    if value <= breaks[0].0 {
+        return breaks[0].1;
+    }
     for pair in breaks.windows(2) {
         if value <= pair[1].0 {
-            let t=(value-pair[0].0)/(pair[1].0-pair[0].0);
-            return blend(pair[0].1,pair[1].1,t);
+            let t = (value - pair[0].0) / (pair[1].0 - pair[0].0);
+            return blend(pair[0].1, pair[1].1, t);
         }
     }
-    breaks[breaks.len()-1].1
+    breaks[breaks.len() - 1].1
 }
 
-pub fn terrain_color(m: f32) -> [u8;3] {
+pub fn terrain_color(m: f32) -> [u8; 3] {
     // Physical DEM in metres: explicit separate ocean-depth and land-elevation ramps.
     if m < 0.0 {
-        gradient(m, &[
-            (-9000.0,[10,29,60]),(-6000.0,[18,47,94]),
-            (-4000.0,[26,81,135]),(-2000.0,[35,113,155]),
-            (-200.0,[70,151,178]),(0.0,[116,183,191]),
-        ])
+        gradient(
+            m,
+            &[
+                (-9000.0, [10, 29, 60]),
+                (-6000.0, [18, 47, 94]),
+                (-4000.0, [26, 81, 135]),
+                (-2000.0, [35, 113, 155]),
+                (-200.0, [70, 151, 178]),
+                (0.0, [116, 183, 191]),
+            ],
+        )
     } else {
-        gradient(m, &[
-            (0.0,[64,118,85]),(250.0,[111,151,101]),
-            (800.0,[157,170,117]),(1600.0,[185,160,111]),
-            (2800.0,[160,134,110]),(4200.0,[145,136,135]),
-            (5500.0,[197,195,190]),(7000.0,[245,243,233]),
-        ])
+        gradient(
+            m,
+            &[
+                (0.0, [64, 118, 85]),
+                (250.0, [111, 151, 101]),
+                (800.0, [157, 170, 117]),
+                (1600.0, [185, 160, 111]),
+                (2800.0, [160, 134, 110]),
+                (4200.0, [145, 136, 135]),
+                (5500.0, [197, 195, 190]),
+                (7000.0, [245, 243, 233]),
+            ],
+        )
     }
 }
 
-fn discrete_color(id: usize) -> [u8;3] {
-    PLATE_FALLBACK[id%PLATE_FALLBACK.len()]
+fn discrete_color(id: usize) -> [u8; 3] {
+    PLATE_FALLBACK[id % PLATE_FALLBACK.len()]
 }
 
-fn plate_color(w: &World, id: usize) -> [u8;3] {
-    w.plates.iter().find(|p| usize::from(p.plate_id)==id)
-        .and_then(|p| parse_rgb(&p.color_rgb)).unwrap_or_else(|| discrete_color(id))
+fn plate_color(w: &World, id: usize) -> [u8; 3] {
+    w.plates
+        .iter()
+        .find(|p| usize::from(p.plate_id) == id)
+        .and_then(|p| parse_rgb(&p.color_rgb))
+        .unwrap_or_else(|| discrete_color(id))
 }
 
-fn parse_rgb(raw: &str) -> Option<[u8;3]> {
-    let mut fields=raw.split(',').map(|x| x.trim().parse::<u8>().ok());
-    Some([fields.next()??,fields.next()??,fields.next()??])
+fn parse_rgb(raw: &str) -> Option<[u8; 3]> {
+    let mut fields = raw.split(',').map(|x| x.trim().parse::<u8>().ok());
+    Some([fields.next()??, fields.next()??, fields.next()??])
 }
 
-fn contact_color(id: u8) -> [u8;3] {
+fn contact_color(id: u8) -> [u8; 3] {
     match id {
-        0 => [240,89,81],   // subduction
-        1 => [238,169,82], // continental collision
-        2 => [83,224,207], // spreading/divergence
-        3 => [191,125,236],// transform
-        _ => [226,234,238],
+        0 => [240, 89, 81],   // subduction
+        1 => [238, 169, 82],  // continental collision
+        2 => [83, 224, 207],  // spreading/divergence
+        3 => [191, 125, 236], // transform
+        _ => [226, 234, 238],
     }
 }
 
 impl Cartography {
     pub fn new(w: &World) -> Self {
-        let width=w.width;
-        let height=w.height;
-        let len=width*height;
-        let mut art=Self {
-            width,height,
-            relief:vec![1.0;len],coast:vec![false;len],
-            plate_edge:vec![false;len],craton_edge:vec![false;len],
-            province_edge:vec![false;len],contact_class:vec![NO_BOUNDARY;len],
-            classified_segments:0
+        let width = w.width;
+        let height = w.height;
+        let len = width * height;
+        let mut art = Self {
+            width,
+            height,
+            relief: vec![1.0; len],
+            coast: vec![false; len],
+            plate_edge: vec![false; len],
+            craton_edge: vec![false; len],
+            province_edge: vec![false; len],
+            contact_class: vec![NO_BOUNDARY; len],
+            classified_segments: 0,
         };
-        if let Some(e)=&w.elevation {
-            let sphere_radius_m=6_371_000.0_f64;
-            let spacing_y=std::f64::consts::PI*sphere_radius_m/height as f64;
+        if let Some(e) = &w.elevation {
+            let sphere_radius_m = 6_371_000.0_f64;
+            let spacing_y = std::f64::consts::PI * sphere_radius_m / height as f64;
             for y in 0..height {
-                let lat=-std::f64::consts::FRAC_PI_2+
-                    std::f64::consts::PI*((y as f64+0.5)/(height as f64));
-                let spacing_x=(std::f64::consts::TAU*sphere_radius_m
-                    *lat.cos().abs()/width as f64).max(1500.0);
+                let lat = -std::f64::consts::FRAC_PI_2
+                    + std::f64::consts::PI * ((y as f64 + 0.5) / (height as f64));
+                let spacing_x = (std::f64::consts::TAU * sphere_radius_m * lat.cos().abs()
+                    / width as f64)
+                    .max(1500.0);
                 for x in 0..width {
-                    let id=y*width+x;
-                    let height_here=e.at(x,y);
-                    let east=e.at((x+width-1)%width,y);
-                    let west=e.at((x+1)%width,y);
-                    let north=e.at(x,(y+1).min(height-1));
-                    let south=e.at(x,y.saturating_sub(1));
-                    let dh_e=(east-west) as f64/(2.0*spacing_x);
-                    let dh_n=(north-south) as f64/(2.0*spacing_y);
+                    let id = y * width + x;
+                    let height_here = e.at(x, y);
+                    let east = e.at((x + width - 1) % width, y);
+                    let west = e.at((x + 1) % width, y);
+                    let north = e.at(x, (y + 1).min(height - 1));
+                    let south = e.at(x, y.saturating_sub(1));
+                    let dh_e = (east - west) as f64 / (2.0 * spacing_x);
+                    let dh_n = (north - south) as f64 / (2.0 * spacing_y);
                     // Exaggerated *lighting* only; source metre elevations remain untouched.
-                    let (nx,ny,nz)=(-dh_e*11.0,-dh_n*11.0,1.0);
-                    let norm=(nx*nx+ny*ny+nz*nz).sqrt();
-                    let sun=(nx*0.52+ny*0.48+nz*0.71)/norm;
-                    art.relief[id]=(0.58+0.46*sun.max(-0.8)) as f32;
-                    art.coast[id]=[east,west,north,south].iter()
-                        .any(|other| (*other<0.0)!=(height_here<0.0));
+                    let (nx, ny, nz) = (-dh_e * 11.0, -dh_n * 11.0, 1.0);
+                    let norm = (nx * nx + ny * ny + nz * nz).sqrt();
+                    let sun = (nx * 0.52 + ny * 0.48 + nz * 0.71) / norm;
+                    art.relief[id] = (0.58 + 0.46 * sun.max(-0.8)) as f32;
+                    art.coast[id] = [east, west, north, south]
+                        .iter()
+                        .any(|other| (*other < 0.0) != (height_here < 0.0));
                 }
             }
         }
-        for (kind, (grid,mask)) in [
-            (&w.plate_ids,&mut art.plate_edge),
-            (&w.craton_ids,&mut art.craton_edge),
-            (&w.province_ids,&mut art.province_edge),
-        ].into_iter().enumerate() {
-            if let Some(g)=grid {
+        for (kind, (grid, mask)) in [
+            (&w.plate_ids, &mut art.plate_edge),
+            (&w.craton_ids, &mut art.craton_edge),
+            (&w.province_ids, &mut art.province_edge),
+        ]
+        .into_iter()
+        .enumerate()
+        {
+            if let Some(g) = grid {
                 for y in 0..height {
                     for x in 0..width {
-                        let id=g.at(x,y) as usize;
+                        let id = g.at(x, y) as usize;
                         // A craton ID of zero is background, not a boundary to highlight.
-                        if kind==1 && id==0 { continue; }
-                        mask[y*width+x]=id!=g.at((x+1)%width,y) as usize
-                            || (y+1<height && id!=g.at(x,y+1) as usize);
+                        if kind == 1 && id == 0 {
+                            continue;
+                        }
+                        mask[y * width + x] = id != g.at((x + 1) % width, y) as usize
+                            || (y + 1 < height && id != g.at(x, y + 1) as usize);
                     }
                 }
             }
@@ -169,226 +212,380 @@ impl Cartography {
         art
     }
 
-    fn load_boundary_segments(&mut self,w: &World) {
-        let path=w.root.join("boundary_segments.geojson");
-        let Ok(contents)=fs::read_to_string(&path) else { return; };
-        let Ok(file)=serde_json::from_str::<serde_json::Value>(&contents) else { return; };
-        let Some(features)=file.get("features").and_then(|v|v.as_array()) else { return; };
+    fn load_boundary_segments(&mut self, w: &World) {
+        let path = w.root.join("boundary_segments.geojson");
+        let Ok(contents) = fs::read_to_string(&path) else {
+            return;
+        };
+        let Ok(file) = serde_json::from_str::<serde_json::Value>(&contents) else {
+            return;
+        };
+        let Some(features) = file.get("features").and_then(|v| v.as_array()) else {
+            return;
+        };
         for feature in features {
-            let class=match feature["properties"]["type"].as_str() {
-                Some("subduction")=>0,Some("continental_collision")=>1,
-                Some("divergent_spreading")=>2,Some("transform")=>3,_=>continue
+            let class = match feature["properties"]["type"].as_str() {
+                Some("subduction") => 0,
+                Some("continental_collision") => 1,
+                Some("divergent_spreading") => 2,
+                Some("transform") => 3,
+                _ => continue,
             };
-            let Some(coords)=feature["geometry"]["coordinates"].as_array() else {continue};
-            let mut previous=None;
+            let Some(coords) = feature["geometry"]["coordinates"].as_array() else {
+                continue;
+            };
+            let mut previous = None;
             for coord in coords {
-                let (Some(lon),Some(lat))=(coord.get(0).and_then(|v|v.as_f64()),
-                                          coord.get(1).and_then(|v|v.as_f64()))
-                else {continue};
-                let pixel=((180.0-lon)/360.0*self.width as f64,
-                    (lat+90.0)/180.0*self.height as f64);
-                if let Some(p)=previous {self.line(p,pixel,class);}
-                previous=Some(pixel);
+                let (Some(lon), Some(lat)) = (
+                    coord.get(0).and_then(|v| v.as_f64()),
+                    coord.get(1).and_then(|v| v.as_f64()),
+                ) else {
+                    continue;
+                };
+                let pixel = (
+                    (180.0 - lon) / 360.0 * self.width as f64,
+                    (lat + 90.0) / 180.0 * self.height as f64,
+                );
+                if let Some(p) = previous {
+                    self.line(p, pixel, class);
+                }
+                previous = Some(pixel);
             }
-            self.classified_segments+=1;
+            self.classified_segments += 1;
         }
     }
 
-    fn line(&mut self,a:(f64,f64),mut b:(f64,f64),class:u8) {
-        let w=self.width as f64;
-        if b.0-a.0>w/2.0 {b.0-=w;}
-        if a.0-b.0>w/2.0 {b.0+=w;}
-        let dx=b.0-a.0;
-        let dy=b.1-a.1;
-        let steps=((dx.abs().max(dy.abs())*2.0).ceil() as usize).max(1);
+    fn line(&mut self, a: (f64, f64), mut b: (f64, f64), class: u8) {
+        let w = self.width as f64;
+        if b.0 - a.0 > w / 2.0 {
+            b.0 -= w;
+        }
+        if a.0 - b.0 > w / 2.0 {
+            b.0 += w;
+        }
+        let dx = b.0 - a.0;
+        let dy = b.1 - a.1;
+        let steps = ((dx.abs().max(dy.abs()) * 2.0).ceil() as usize).max(1);
         for i in 0..=steps {
-            let t=i as f64/steps as f64;
-            let x=(a.0+dx*t).round() as isize;
-            let y=(a.1+dy*t).round() as isize;
+            let t = i as f64 / steps as f64;
+            let x = (a.0 + dx * t).round() as isize;
+            let y = (a.1 + dy * t).round() as isize;
             // A 2-pixel classified line remains readable in native atlas exports.
-            for (px,py) in [(x,y),(x+1,y),(x,y+1)] {
-                if py<0 || py>=self.height as isize {continue;}
-                let xx=px.rem_euclid(self.width as isize) as usize;
-                self.contact_class[py as usize*self.width+xx]=class;
+            for (px, py) in [(x, y), (x + 1, y), (x, y + 1)] {
+                if py < 0 || py >= self.height as isize {
+                    continue;
+                }
+                let xx = px.rem_euclid(self.width as isize) as usize;
+                self.contact_class[py as usize * self.width + xx] = class;
             }
         }
     }
 
-    pub fn sample(&self,w: &World,theme:Theme,x:usize,y:usize) -> [u8;3] {
-        let index=y*self.width+x;
-        let elev=w.elevation.as_ref().map(|g|g.at(x,y));
-        let base=elev.map(terrain_color).unwrap_or([54,66,79]);
-        let relief=self.relief[index];
-        let base_relief=scale(base,relief);
-        let mut fill=match theme {
+    pub fn sample(&self, w: &World, theme: Theme, x: usize, y: usize) -> [u8; 3] {
+        let index = y * self.width + x;
+        let elev = w.elevation.as_ref().map(|g| g.at(x, y));
+        let base = elev.map(terrain_color).unwrap_or([54, 66, 79]);
+        let relief = self.relief[index];
+        let base_relief = scale(base, relief);
+        let mut fill = match theme {
             Theme::Terrain => base_relief,
             Theme::Plates | Theme::Boundaries => {
-                if theme==Theme::Boundaries {
-                    scale(blend(base,[94,106,114],0.50),relief)
-                } else if let Some(ref g)=w.plate_ids {
-                    let color=plate_color(w,g.at(x,y) as usize);
-                    scale(blend(base,color,0.82),relief)
-                } else {base_relief}
-            }
-            Theme::Cratons => if let Some(ref g)=w.craton_ids {
-                let id=g.at(x,y) as usize;
-                if id==0 {
-                    scale(blend(base,[105,111,116],0.37),relief)
+                if theme == Theme::Boundaries {
+                    scale(blend(base, [94, 106, 114], 0.50), relief)
+                } else if let Some(ref g) = w.plate_ids {
+                    let color = plate_color(w, g.at(x, y) as usize);
+                    scale(blend(base, color, 0.82), relief)
                 } else {
-                    scale(blend(base,discrete_color(id+4),0.86),relief)
+                    base_relief
                 }
-            } else {base_relief},
-            Theme::BasementAge => if let Some(ref g)=w.craton_ids {
-                let id=g.at(x,y) as u8;
-                let age=w.cratons.iter().find(|c|c.craton_id==id).map(|c|c.basement_age_ga);
-                if let Some(age)=age {
-                    scale(blend(base,gradient(age,&[
-                        (2.4,[227,202,122]),(2.8,[219,146,107]),
-                        (3.1,[176,106,143]),(3.5,[115,93,176])
-                    ]),0.90),relief)
-                } else {scale(blend(base,[127,135,136],0.43),relief)}
-            } else {base_relief},
-            Theme::Provinces => if let Some(ref g)=w.province_ids {
-                let id=g.at(x,y) as usize;
-                let tint=if id<PROVINCE_COLORS.len() {PROVINCE_COLORS[id]} else {discrete_color(id)};
-                scale(blend(base,tint,0.90),relief)
-            } else {base_relief},
-            Theme::Crust => if let Some(ref g)=w.crust_km {
-                let tint=gradient(g.at(x,y),&[(0.0,[41,102,154]),(10.0,[56,159,169]),
-                    (25.0,[136,192,149]),(40.0,[227,191,107]),(70.0,[192,89,91])]);
-                scale(blend(base,tint,0.92),relief)
-            } else {base_relief},
-            Theme::Lithosphere => if let Some(ref g)=w.lithosphere_km {
-                let tint=gradient(g.at(x,y),&[(0.0,[33,97,160]),(50.0,[76,163,183]),
-                    (110.0,[134,195,157]),(170.0,[224,187,115]),(260.0,[167,98,135])]);
-                scale(blend(base,tint,0.92),relief)
-            } else {base_relief},
-            Theme::HeatFlow => if let Some(ref g)=w.heatflow {
-                let tint=gradient(g.at(x,y),&[(20.0,[47,104,169]),(40.0,[73,153,187]),
-                    (60.0,[163,199,151]),(90.0,[239,181,97]),(150.0,[196,70,70])]);
-                scale(blend(base,tint,0.91),relief)
-            } else {base_relief},
-            Theme::RainShadow => if let Some(ref g)=w.rain_shadow {
-                let value=g.at(x,y);
-                if !value.is_finite() {return [21,64,94];}
-                let neutral=[172,181,175];
-                let tint=if value<0.0 {blend(neutral,[47,140,190],-value)}
-                    else {blend(neutral,[218,92,52],value)};
-                scale(blend(base,tint,0.93),relief)
-            } else {base_relief},
+            }
+            Theme::Cratons => {
+                if let Some(ref g) = w.craton_ids {
+                    let id = g.at(x, y) as usize;
+                    if id == 0 {
+                        scale(blend(base, [105, 111, 116], 0.37), relief)
+                    } else {
+                        scale(blend(base, discrete_color(id + 4), 0.86), relief)
+                    }
+                } else {
+                    base_relief
+                }
+            }
+            Theme::BasementAge => {
+                if let Some(ref g) = w.craton_ids {
+                    let id = g.at(x, y) as u8;
+                    let age = w
+                        .cratons
+                        .iter()
+                        .find(|c| c.craton_id == id)
+                        .map(|c| c.basement_age_ga);
+                    if let Some(age) = age {
+                        scale(
+                            blend(
+                                base,
+                                gradient(
+                                    age,
+                                    &[
+                                        (2.4, [227, 202, 122]),
+                                        (2.8, [219, 146, 107]),
+                                        (3.1, [176, 106, 143]),
+                                        (3.5, [115, 93, 176]),
+                                    ],
+                                ),
+                                0.90,
+                            ),
+                            relief,
+                        )
+                    } else {
+                        scale(blend(base, [127, 135, 136], 0.43), relief)
+                    }
+                } else {
+                    base_relief
+                }
+            }
+            Theme::Provinces => {
+                if let Some(ref g) = w.province_ids {
+                    let id = g.at(x, y) as usize;
+                    let tint = if id < PROVINCE_COLORS.len() {
+                        PROVINCE_COLORS[id]
+                    } else {
+                        discrete_color(id)
+                    };
+                    scale(blend(base, tint, 0.90), relief)
+                } else {
+                    base_relief
+                }
+            }
+            Theme::Crust => {
+                if let Some(ref g) = w.crust_km {
+                    let tint = gradient(
+                        g.at(x, y),
+                        &[
+                            (0.0, [41, 102, 154]),
+                            (10.0, [56, 159, 169]),
+                            (25.0, [136, 192, 149]),
+                            (40.0, [227, 191, 107]),
+                            (70.0, [192, 89, 91]),
+                        ],
+                    );
+                    scale(blend(base, tint, 0.92), relief)
+                } else {
+                    base_relief
+                }
+            }
+            Theme::Lithosphere => {
+                if let Some(ref g) = w.lithosphere_km {
+                    let tint = gradient(
+                        g.at(x, y),
+                        &[
+                            (0.0, [33, 97, 160]),
+                            (50.0, [76, 163, 183]),
+                            (110.0, [134, 195, 157]),
+                            (170.0, [224, 187, 115]),
+                            (260.0, [167, 98, 135]),
+                        ],
+                    );
+                    scale(blend(base, tint, 0.92), relief)
+                } else {
+                    base_relief
+                }
+            }
+            Theme::HeatFlow => {
+                if let Some(ref g) = w.heatflow {
+                    let tint = gradient(
+                        g.at(x, y),
+                        &[
+                            (20.0, [47, 104, 169]),
+                            (40.0, [73, 153, 187]),
+                            (60.0, [163, 199, 151]),
+                            (90.0, [239, 181, 97]),
+                            (150.0, [196, 70, 70]),
+                        ],
+                    );
+                    scale(blend(base, tint, 0.91), relief)
+                } else {
+                    base_relief
+                }
+            }
+            Theme::RainShadow => {
+                if let Some(ref g) = w.rain_shadow {
+                    let value = g.at(x, y);
+                    if !value.is_finite() {
+                        return [21, 64, 94];
+                    }
+                    let neutral = [172, 181, 175];
+                    let tint = if value < 0.0 {
+                        blend(neutral, [47, 140, 190], -value)
+                    } else {
+                        blend(neutral, [218, 92, 52], value)
+                    };
+                    scale(blend(base, tint, 0.93), relief)
+                } else {
+                    base_relief
+                }
+            }
         };
-        if self.coast[index] && theme!=Theme::RainShadow {
-            fill=blend(fill,[19,32,43],0.67);
+        if self.coast[index] && theme != Theme::RainShadow {
+            fill = blend(fill, [19, 32, 43], 0.67);
         }
         match theme {
             Theme::Terrain => {
-                if let Some(ref grid)=w.elevation {
-                    let e=grid.at(x,y);
-                    let e_next=grid.at((x+1)%self.width,y);
-                    if e>100.0 && e_next>100.0 &&
-                        (e/1000.0).floor()!=(e_next/1000.0).floor() {
-                        fill=blend(fill,[59,68,70],0.23);
+                if let Some(ref grid) = w.elevation {
+                    let e = grid.at(x, y);
+                    let e_next = grid.at((x + 1) % self.width, y);
+                    if e > 100.0
+                        && e_next > 100.0
+                        && (e / 1000.0).floor() != (e_next / 1000.0).floor()
+                    {
+                        fill = blend(fill, [59, 68, 70], 0.23);
                     }
                 }
             }
             Theme::Plates | Theme::Boundaries => {
                 if self.plate_edge[index] {
-                    fill=blend(fill,[18,28,38],0.64);
+                    fill = blend(fill, [18, 28, 38], 0.64);
                 }
-                let class=self.contact_class[index];
-                if class!=NO_BOUNDARY {fill=contact_color(class);}
+                let class = self.contact_class[index];
+                if class != NO_BOUNDARY {
+                    fill = contact_color(class);
+                }
             }
             Theme::Cratons | Theme::BasementAge => {
-                if self.craton_edge[index] {fill=blend(fill,[32,33,43],0.82);}
+                if self.craton_edge[index] {
+                    fill = blend(fill, [32, 33, 43], 0.82);
+                }
             }
             Theme::Provinces => {
-                if self.province_edge[index] {fill=blend(fill,[24,33,43],0.54);}
+                if self.province_edge[index] {
+                    fill = blend(fill, [24, 33, 43], 0.54);
+                }
             }
-            _=>{}
+            _ => {}
         }
         fill
     }
 
-    pub fn legend(&self,w:&World,theme:Theme) -> Vec<LegendItem> {
-        let items:Vec<(String,[u8;3])>=match theme {
+    pub fn legend(&self, w: &World, theme: Theme) -> Vec<LegendItem> {
+        let items: Vec<(String, [u8; 3])> = match theme {
             Theme::Terrain => vec![
-                ("Ocean abyss · < -6000 m".into(),terrain_color(-6500.0)),
-                ("Continental slope · -2000 m".into(),terrain_color(-2000.0)),
-                ("Shallow seas · -200 m".into(),terrain_color(-200.0)),
-                ("Lowlands · 250 m".into(),terrain_color(250.0)),
-                ("Highlands · 1600 m".into(),terrain_color(1600.0)),
-                ("Mountains · 4200 m".into(),terrain_color(4200.0)),
-                ("High peaks · 6000 m".into(),terrain_color(6000.0))
+                ("Ocean abyss · < -6000 m".into(), terrain_color(-6500.0)),
+                ("Continental slope · -2000 m".into(), terrain_color(-2000.0)),
+                ("Shallow seas · -200 m".into(), terrain_color(-200.0)),
+                ("Lowlands · 250 m".into(), terrain_color(250.0)),
+                ("Highlands · 1600 m".into(), terrain_color(1600.0)),
+                ("Mountains · 4200 m".into(), terrain_color(4200.0)),
+                ("High peaks · 6000 m".into(), terrain_color(6000.0)),
             ],
-            Theme::Plates => w.plates.iter().map(|p|(p.plate.clone(),parse_rgb(&p.color_rgb)
-                .unwrap_or(discrete_color(p.plate_id as usize)))).collect(),
+            Theme::Plates => w
+                .plates
+                .iter()
+                .map(|p| {
+                    (
+                        p.plate.clone(),
+                        parse_rgb(&p.color_rgb).unwrap_or(discrete_color(p.plate_id as usize)),
+                    )
+                })
+                .collect(),
             Theme::Boundaries => vec![
-                ("Subduction".into(),contact_color(0)),
-                ("Continental collision".into(),contact_color(1)),
-                ("Divergent spreading".into(),contact_color(2)),
-                ("Transform".into(),contact_color(3))],
-            Theme::Cratons => w.cratons.iter().map(|c|(
-                c.name.clone(),discrete_color(c.craton_id as usize+4))).collect(),
+                ("Subduction".into(), contact_color(0)),
+                ("Continental collision".into(), contact_color(1)),
+                ("Divergent spreading".into(), contact_color(2)),
+                ("Transform".into(), contact_color(3)),
+            ],
+            Theme::Cratons => w
+                .cratons
+                .iter()
+                .map(|c| (c.name.clone(), discrete_color(c.craton_id as usize + 4)))
+                .collect(),
             Theme::BasementAge => vec![
-                ("2.4 Ga · younger".into(),[227,202,122]),
-                ("2.8 Ga".into(),[219,146,107]),
-                ("3.1 Ga".into(),[176,106,143]),
-                ("3.5 Ga · older".into(),[115,93,176])],
-            Theme::Provinces => w.provinces.iter().map(|p|(
-                p.name.replace('_'," "),PROVINCE_COLORS
-                    .get(p.province_id as usize).copied().unwrap_or_else(||discrete_color(p.province_id as usize))
-            )).collect(),
+                ("2.4 Ga · younger".into(), [227, 202, 122]),
+                ("2.8 Ga".into(), [219, 146, 107]),
+                ("3.1 Ga".into(), [176, 106, 143]),
+                ("3.5 Ga · older".into(), [115, 93, 176]),
+            ],
+            Theme::Provinces => w
+                .provinces
+                .iter()
+                .map(|p| {
+                    (
+                        p.name.replace('_', " "),
+                        PROVINCE_COLORS
+                            .get(p.province_id as usize)
+                            .copied()
+                            .unwrap_or_else(|| discrete_color(p.province_id as usize)),
+                    )
+                })
+                .collect(),
             Theme::Crust => vec![
-                ("0–10 km".into(),[41,102,154]),("25 km".into(),[136,192,149]),
-                ("40 km".into(),[227,191,107]),("70 km".into(),[192,89,91])],
+                ("0–10 km".into(), [41, 102, 154]),
+                ("25 km".into(), [136, 192, 149]),
+                ("40 km".into(), [227, 191, 107]),
+                ("70 km".into(), [192, 89, 91]),
+            ],
             Theme::Lithosphere => vec![
-                ("0–50 km".into(),[33,97,160]),("110 km".into(),[134,195,157]),
-                ("170 km".into(),[224,187,115]),("260 km".into(),[167,98,135])],
+                ("0–50 km".into(), [33, 97, 160]),
+                ("110 km".into(), [134, 195, 157]),
+                ("170 km".into(), [224, 187, 115]),
+                ("260 km".into(), [167, 98, 135]),
+            ],
             Theme::HeatFlow => vec![
-                ("20 mW/m²".into(),[47,104,169]),("60 mW/m²".into(),[163,199,151]),
-                ("90 mW/m²".into(),[239,181,97]),("150 mW/m²".into(),[196,70,70])],
+                ("20 mW/m²".into(), [47, 104, 169]),
+                ("60 mW/m²".into(), [163, 199, 151]),
+                ("90 mW/m²".into(), [239, 181, 97]),
+                ("150 mW/m²".into(), [196, 70, 70]),
+            ],
             Theme::RainShadow => vec![
-                ("Windward · negative index".into(),[47,140,190]),
-                ("Neutral · near zero".into(),[172,181,175]),
-                ("Leeward · positive index".into(),[218,92,52])]
+                ("Windward · negative index".into(), [47, 140, 190]),
+                ("Neutral · near zero".into(), [172, 181, 175]),
+                ("Leeward · positive index".into(), [218, 92, 52]),
+            ],
         };
-        items.into_iter().map(|(label,rgb)|LegendItem{label,rgb}).collect()
+        items
+            .into_iter()
+            .map(|(label, rgb)| LegendItem { label, rgb })
+            .collect()
     }
 
-    pub fn size(&self)->(usize,usize){(self.width,self.height)}
+    pub fn size(&self) -> (usize, usize) {
+        (self.width, self.height)
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
     use crate::world::Grid;
+    use std::path::PathBuf;
 
     #[test]
     fn terrain_ramp_preserves_elevation_ordering() {
-        assert_ne!(terrain_color(-8000.0),terrain_color(-2000.0));
-        assert_ne!(terrain_color(500.0),terrain_color(4200.0));
+        assert_ne!(terrain_color(-8000.0), terrain_color(-2000.0));
+        assert_ne!(terrain_color(500.0), terrain_color(4200.0));
     }
 
     #[test]
     fn actual_reference_boundaries_and_layers_are_used() {
-        let root=PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/aegaea/tectonics/v1");
-        let world=World::load(root).expect("reference import");
-        let cart=Cartography::new(&world);
-        assert!(cart.classified_segments>4500,"must load source boundary linework");
-        assert_eq!(cart.size(),(1672,941));
-        assert_eq!(cart.legend(&world,Theme::Plates).len(),17);
-        assert_eq!(cart.legend(&world,Theme::Provinces).len(),11);
-        assert!(cart.contact_class.iter().any(|&x|x==0));
-        assert!(cart.contact_class.iter().any(|&x|x==2));
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/aegaea/tectonics/v1");
+        let world = World::load(root).expect("reference import");
+        let cart = Cartography::new(&world);
+        assert!(
+            cart.classified_segments > 4500,
+            "must load source boundary linework"
+        );
+        assert_eq!(cart.size(), (1672, 941));
+        assert_eq!(cart.legend(&world, Theme::Plates).len(), 17);
+        assert_eq!(cart.legend(&world, Theme::Provinces).len(), 11);
+        assert!(cart.contact_class.iter().any(|&x| x == 0));
+        assert!(cart.contact_class.iter().any(|&x| x == 2));
     }
 
     #[test]
     fn classified_boundaries_use_real_source_geometry() {
-        let mut world=World::empty(PathBuf::new());
-        world.width=4;world.height=3;
-        world.elevation=Some(Grid::new(4,3,500.0));
-        let map=Cartography::new(&world);
-        assert!(map.contact_class.iter().all(|&v|v==NO_BOUNDARY));
+        let mut world = World::empty(PathBuf::new());
+        world.width = 4;
+        world.height = 3;
+        world.elevation = Some(Grid::new(4, 3, 500.0));
+        let map = Cartography::new(&world);
+        assert!(map.contact_class.iter().all(|&v| v == NO_BOUNDARY));
     }
 }

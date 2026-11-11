@@ -5,11 +5,11 @@ mod rainshadow;
 mod render;
 mod world;
 
+use cartography::Cartography;
 use eframe::{
     egui,
     egui::{Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Vec2},
 };
-use cartography::Cartography;
 use rainshadow::WindFrom;
 use render::{atlas_geo_from_fraction, forward_globe, globe_geo_from_fraction, Theme};
 use std::{
@@ -116,7 +116,13 @@ impl Studio {
         if self.globe_dirty && self.view == ViewMode::Globe {
             self.globe = Some(ctx.load_texture(
                 "world-globe",
-                render::globe_image(&self.world, &self.cartography, self.theme, self.globe_lon, self.globe_lat),
+                render::globe_image(
+                    &self.world,
+                    &self.cartography,
+                    self.theme,
+                    self.globe_lon,
+                    self.globe_lat,
+                ),
                 egui::TextureOptions::LINEAR,
             ));
             self.globe_dirty = false;
@@ -178,10 +184,22 @@ impl Studio {
                     self.save();
                 }
                 if ui.button("Export map PNG").clicked() {
-                    let target=self.project_path.with_file_name(format!("{}.png",self.theme.slug()));
-                    match render::export_atlas_png(&self.world,&self.cartography,self.theme,&target) {
-                        Ok(())=>self.status=format!("Exported native-resolution map and legend: {}",target.display()),
-                        Err(error)=>self.status=format!("Map export failed: {error}"),
+                    let target = self
+                        .project_path
+                        .with_file_name(format!("{}.png", self.theme.slug()));
+                    match render::export_atlas_png(
+                        &self.world,
+                        &self.cartography,
+                        self.theme,
+                        &target,
+                    ) {
+                        Ok(()) => {
+                            self.status = format!(
+                                "Exported native-resolution map and legend: {}",
+                                target.display()
+                            )
+                        }
+                        Err(error) => self.status = format!("Map export failed: {error}"),
                     }
                 }
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -333,11 +351,15 @@ impl Studio {
                                 ui.label(&plate.plate);
                                 ui.end_row();
                             }
-                            if let (Some(grid),true)=(&self.world.province_ids,!self.world.provinces.is_empty()) {
-                                let id=grid.geo(lon,lat) as u8;
-                                if let Some(province)=self.world.provinces.iter().find(|p|p.province_id==id) {
+                            if let (Some(grid), true) =
+                                (&self.world.province_ids, !self.world.provinces.is_empty())
+                            {
+                                let id = grid.geo(lon, lat) as u8;
+                                if let Some(province) =
+                                    self.world.provinces.iter().find(|p| p.province_id == id)
+                                {
                                     ui.label("Crustal province");
-                                    ui.label(province.name.replace('_'," "));
+                                    ui.label(province.name.replace('_', " "));
                                     ui.end_row();
                                 }
                             }
@@ -678,24 +700,40 @@ fn boot() -> (World, Project, PathBuf, String) {
 
 fn main() -> eframe::Result {
     let (mut world, project, path, status) = boot();
-    let args=env::args().collect::<Vec<_>>();
-    if let Some(index)=args.iter().position(|a|a=="--export-maps") {
-        let output=args.get(index+1).map(PathBuf::from).unwrap_or_else(||PathBuf::from("maps"));
-        world.rain_shadow=world.elevation.as_ref()
-            .map(|dem|rainshadow::derive(dem,project.wind_from));
-        let art=Cartography::new(&world);
-        let mut completed=0;
+    let args = env::args().collect::<Vec<_>>();
+    if let Some(index) = args.iter().position(|a| a == "--export-maps") {
+        let output = args
+            .get(index + 1)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from("maps"));
+        world.rain_shadow = world
+            .elevation
+            .as_ref()
+            .map(|dem| rainshadow::derive(dem, project.wind_from));
+        let art = Cartography::new(&world);
+        let mut completed = 0;
         for theme in Theme::ALL {
-            if !theme.available(&world) { continue; }
-            let target=output.join(format!("{}.png",theme.slug()));
-            if let Err(error)=render::export_atlas_png(&world,&art,theme,&target) {
-                eprintln!("Failed to export {}: {}",theme.name(),error);
+            if !theme.available(&world) {
+                continue;
+            }
+            let target = output.join(format!("{}.png", theme.slug()));
+            if let Err(error) = render::export_atlas_png(&world, &art, theme, &target) {
+                eprintln!("Failed to export {}: {}", theme.name(), error);
                 return Ok(());
             }
-            println!("Exported {} ({}, native {}x{})",target.display(),theme.units(),world.width,world.height);
-            completed+=1;
+            println!(
+                "Exported {} ({}, native {}x{})",
+                target.display(),
+                theme.units(),
+                world.width,
+                world.height
+            );
+            completed += 1;
         }
-        println!("{} data-driven maps exported. Source geological data was not modified.",completed);
+        println!(
+            "{} data-driven maps exported. Source geological data was not modified.",
+            completed
+        );
         return Ok(());
     }
     let options = eframe::NativeOptions {
