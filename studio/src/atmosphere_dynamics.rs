@@ -36,6 +36,8 @@ pub struct DynamicsBudget {
     pub max_initial_wind_m_s: f64,
     pub max_final_wind_m_s: f64,
     pub assumption: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub momentum: Option<crate::spherical_momentum::MomentumAudit>,
 }
 
 #[derive(Debug)]
@@ -76,7 +78,7 @@ fn source<'a>(world: &'a World, kind: MonthlyField) -> Result<&'a Grid, String> 
 /// Uses the calendar's mean solar day and year length to infer prograde
 /// sidereal rotation: Ω = 2π / T_solar + 2π / T_orbit. This is an explicit
 /// circular prograde assumption, NOT arbitrary sidereal spin.
-fn rotation_rate(world: &World) -> Result<f64, String> {
+pub(crate) fn rotation_rate(world: &World) -> Result<f64, String> {
     world.calendar.validate()?;
     let day = world.calendar.solar_day_hours * 3600.0;
     let year = world.calendar.year_hours() * 3600.0;
@@ -403,6 +405,7 @@ pub fn preview(
         max_initial_wind_m_s: initial_max_speed,
         max_final_wind_m_s: final_max_speed,
         assumption: "Linearized equivalent barotropic pressure-gradient acceleration -c²∇ln(p), exact local Coriolis rotation f=2Ωsin(latitude), Ω inferred for prograde circular orbit from solar day+year. Cell-centered winds; no nonlinear momentum advection, spherical metric/curvature forces, energy conservation, friction or poles cap model. Conservative moist-air/water continuity only.".into(),
+        momentum: None,
     };
     Ok(DynamicsPreview {
         mass: Preview {
@@ -441,6 +444,7 @@ pub fn preview(
 /// Publish all five ephemeral diagnostic maps. This never writes the project
 /// or changes authored monthly pressure/humidity/wind rasters.
 pub fn publish(world: &mut World, preview: DynamicsPreview) {
+    let operator = preview.mass.budget.operator.clone();
     moisture_transport::publish(world, preview.mass);
     let inputs = vec![
         MonthlyField::Pressure.id().into(),
@@ -460,7 +464,7 @@ pub fn publish(world: &mut World, preview: DynamicsPreview) {
         world.scientific_provenance.insert(
             id.into(),
             Provenance::Derived {
-                operator: OPERATOR.into(),
+                operator: operator.clone(),
                 inputs: inputs.clone(),
             },
         );
