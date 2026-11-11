@@ -84,17 +84,17 @@ pub fn export_sheet(
     let source_text = if let Some(id) = theme.scientific_id() {
         let provenance = world.scientific_provenance.get(id);
         let source = provenance.map(|p| p.label()).unwrap_or("Undeclared source");
-        let period = if theme.climate_field().is_some() {
+        let period = if theme.is_monthly() {
             month_name(world.active_month)
         } else {
-            "twelve-month aggregation"
+            "calendar-weighted annual reduction"
         };
         escape_xml(&format!("Source: {source} · {id} · {period}"))
     } else {
         "Source: native planetary dataset · classified and styled programmatically".into()
     };
     let heading = escape_xml(world_name);
-    let title = if theme.climate_field().is_some() {
+    let title = if theme.is_monthly() {
         escape_xml(&format!(
             "{} · {}",
             theme.name(),
