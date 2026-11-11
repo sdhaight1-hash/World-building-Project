@@ -441,8 +441,9 @@ pub fn generate(world: &World, recipe: &TerrainRecipe) -> Result<GeneratedTerrai
                 let coast = 1.0 - (-(from_ocean[i] as f32) / 3.2).exp();
                 (55.0 + (base - 55.0) * coast).clamp(10.0, 8000.0)
             } else {
-                let ocean_base =
-                    -4450.0 + forcing_here + kinematic_here
+                let ocean_base = -4450.0
+                    + forcing_here
+                    + kinematic_here
                     + (350.0 * structure) * recipe.relief_strength;
                 let shelf = 1.0 - (-(from_land[i] as f32) / 5.8).exp();
                 (-60.0 + (ocean_base + 60.0) * shelf).clamp(-10500.0, -20.0)
@@ -461,7 +462,9 @@ pub fn generate(world: &World, recipe: &TerrainRecipe) -> Result<GeneratedTerrai
         let up_mean = uplift.cells[start..start + width].iter().sum::<f32>() / width as f32;
         uplift.cells[start..start + width].fill(up_mean);
         let kin_mean = kinematic_forcing_m.cells[start..start + width]
-            .iter().sum::<f32>() / width as f32;
+            .iter()
+            .sum::<f32>()
+            / width as f32;
         kinematic_forcing_m.cells[start..start + width].fill(kin_mean);
     }
     Ok(GeneratedTerrain {
@@ -495,10 +498,19 @@ pub fn export_generation(
         &result.tectonic_forcing_m,
     )?;
     write_float_tiff(&dir.join("geology-land-mask.tif"), &result.land_mask)?;
-    write_float_tiff(&dir.join("kinematic-forcing_m.tif"), &result.kinematic_forcing_m)?;
+    write_float_tiff(
+        &dir.join("kinematic-forcing_m.tif"),
+        &result.kinematic_forcing_m,
+    )?;
     if let Some(fields) = &result.kinematics {
-        write_float_tiff(&dir.join("plate-convergence_cm_yr.tif"), &fields.convergence_cm_yr)?;
-        write_float_tiff(&dir.join("plate-divergence_cm_yr.tif"), &fields.divergence_cm_yr)?;
+        write_float_tiff(
+            &dir.join("plate-convergence_cm_yr.tif"),
+            &fields.convergence_cm_yr,
+        )?;
+        write_float_tiff(
+            &dir.join("plate-divergence_cm_yr.tif"),
+            &fields.divergence_cm_yr,
+        )?;
         write_float_tiff(&dir.join("plate-shear_cm_yr.tif"), &fields.shear_cm_yr)?;
     }
     let metadata = serde_json::json!({
@@ -670,13 +682,17 @@ mod tests {
         let mut w = fixture();
         w.plates = vec![
             PlateInfo {
-                plate_id: 0, plate: "A".into(), color_rgb: String::new(),
+                plate_id: 0,
+                plate: "A".into(),
+                color_rgb: String::new(),
                 euler_pole_lon_deg: Some(0.0),
                 euler_pole_lat_deg: Some(90.0),
                 signed_rate_deg_per_ma: Some(0.5),
             },
             PlateInfo {
-                plate_id: 1, plate: "B".into(), color_rgb: String::new(),
+                plate_id: 1,
+                plate: "B".into(),
+                color_rgb: String::new(),
                 euler_pole_lon_deg: Some(0.0),
                 euler_pole_lat_deg: Some(90.0),
                 signed_rate_deg_per_ma: Some(-0.5),
@@ -694,7 +710,10 @@ mod tests {
             *plate.signed_rate_deg_per_ma.as_mut().unwrap() *= -1.0;
         }
         let reversed = generate(&w, &TerrainRecipe::default()).unwrap();
-        assert_ne!(moving.kinematic_forcing_m.cells, reversed.kinematic_forcing_m.cells);
+        assert_ne!(
+            moving.kinematic_forcing_m.cells,
+            reversed.kinematic_forcing_m.cells
+        );
     }
 
     #[test]
