@@ -17,17 +17,31 @@ pub struct KinematicFields {
 #[derive(Clone, Copy)]
 struct V3(f64, f64, f64);
 impl V3 {
-    fn add(self, b: Self) -> Self { Self(self.0 + b.0, self.1 + b.1, self.2 + b.2) }
-    fn sub(self, b: Self) -> Self { Self(self.0 - b.0, self.1 - b.1, self.2 - b.2) }
-    fn scale(self, k: f64) -> Self { Self(self.0 * k, self.1 * k, self.2 * k) }
-    fn dot(self, b: Self) -> f64 { self.0 * b.0 + self.1 * b.1 + self.2 * b.2 }
-    fn cross(self, b: Self) -> Self {
-        Self(self.1 * b.2 - self.2 * b.1,
-             self.2 * b.0 - self.0 * b.2,
-             self.0 * b.1 - self.1 * b.0)
+    fn add(self, b: Self) -> Self {
+        Self(self.0 + b.0, self.1 + b.1, self.2 + b.2)
     }
-    fn length(self) -> f64 { self.dot(self).sqrt() }
-    fn normalized(self) -> Self { self.scale(1.0 / self.length()) }
+    fn sub(self, b: Self) -> Self {
+        Self(self.0 - b.0, self.1 - b.1, self.2 - b.2)
+    }
+    fn scale(self, k: f64) -> Self {
+        Self(self.0 * k, self.1 * k, self.2 * k)
+    }
+    fn dot(self, b: Self) -> f64 {
+        self.0 * b.0 + self.1 * b.1 + self.2 * b.2
+    }
+    fn cross(self, b: Self) -> Self {
+        Self(
+            self.1 * b.2 - self.2 * b.1,
+            self.2 * b.0 - self.0 * b.2,
+            self.0 * b.1 - self.1 * b.0,
+        )
+    }
+    fn length(self) -> f64 {
+        self.dot(self).sqrt()
+    }
+    fn normalized(self) -> Self {
+        self.scale(1.0 / self.length())
+    }
 }
 
 /// Grid cell-center position in the fictional atlas frame: longitude
@@ -51,8 +65,12 @@ fn velocity(omega: V3, location: V3, radius_km: f64) -> V3 {
 /// Each contact contributes to BOTH adjacent cells and is weighted by the
 /// physical length of the corresponding spherical grid edge.
 pub fn derive(world: &World, radius_km: f64) -> Result<Option<KinematicFields>, String> {
-    let Some(ids) = world.plate_ids.as_ref() else { return Ok(None) };
-    if world.plates.is_empty() { return Ok(None); }
+    let Some(ids) = world.plate_ids.as_ref() else {
+        return Ok(None);
+    };
+    if world.plates.is_empty() {
+        return Ok(None);
+    }
     if !radius_km.is_finite() || radius_km <= 0.0 {
         return Err("Kinematic planet radius must be finite and positive".into());
     }
@@ -63,25 +81,39 @@ pub fn derive(world: &World, radius_km: f64) -> Result<Option<KinematicFields>, 
     let mut poles: [Option<V3>; 256] = [None; 256];
     for p in &world.plates {
         let (Some(lon), Some(lat), Some(rate)) = (
-            p.euler_pole_lon_deg, p.euler_pole_lat_deg, p.signed_rate_deg_per_ma
+            p.euler_pole_lon_deg,
+            p.euler_pole_lat_deg,
+            p.signed_rate_deg_per_ma,
         ) else {
-            return Err(format!("Plate '{}' has no complete Euler pole/rate", p.plate));
+            return Err(format!(
+                "Plate '{}' has no complete Euler pole/rate",
+                p.plate
+            ));
         };
-        if !lon.is_finite() || !(-180.0..=180.0).contains(&lon)
-            || !lat.is_finite() || !(-90.0..=90.0).contains(&lat)
-            || !rate.is_finite() || rate.abs() > 20.0
+        if !lon.is_finite()
+            || !(-180.0..=180.0).contains(&lon)
+            || !lat.is_finite()
+            || !(-90.0..=90.0).contains(&lat)
+            || !rate.is_finite()
+            || rate.abs() > 20.0
         {
             return Err(format!("Plate '{}' has invalid Euler pole/rate", p.plate));
         }
         let (lo, la) = (lon.to_radians(), lat.to_radians());
         let axis = location_from_angles(lo, la);
-        if poles[p.plate_id as usize].replace(axis.scale(rate.to_radians())).is_some() {
-            return Err(format!("Repeated plate ID {} in Euler metadata", p.plate_id));
+        if poles[p.plate_id as usize]
+            .replace(axis.scale(rate.to_radians()))
+            .is_some()
+        {
+            return Err(format!(
+                "Repeated plate ID {} in Euler metadata",
+                p.plate_id
+            ));
         }
     }
     let mut plate_ids = Vec::with_capacity(w * h);
     for (i, value) in ids.cells.iter().enumerate() {
-        if !value.is_finite() || value.fract() != 0.0 || ! (0.0..=255.0).contains(value) {
+        if !value.is_finite() || value.fract() != 0.0 || !(0.0..=255.0).contains(value) {
             return Err(format!("Invalid plate category at cell {i}"));
         }
         let id = *value as usize;
@@ -97,7 +129,9 @@ pub fn derive(world: &World, radius_km: f64) -> Result<Option<KinematicFields>, 
     let mut shear = vec![0.0f64; n];
     let mut contact_length = vec![0.0f64; n];
     let mut add_contact = |a: usize, b: usize, edge_length: f64, pa: V3, pb: V3| {
-        if plate_ids[a] == plate_ids[b] { return; }
+        if plate_ids[a] == plate_ids[b] {
+            return;
+        }
         let mid = pa.add(pb).normalized();
         // Great-circle tangent pointing from plate A towards plate B.
         let offset = pb.sub(pa);
@@ -108,12 +142,21 @@ pub fn derive(world: &World, radius_km: f64) -> Result<Option<KinematicFields>, 
         let normal_speed = relative.dot(normal);
         let total_speed = relative.length();
         let transverse = (total_speed * total_speed - normal_speed * normal_speed)
-            .max(0.0).sqrt();
+            .max(0.0)
+            .sqrt();
         // Same operational threshold as the reference dataset: this
         // distinguishes transform-dominated contacts from opening/closure.
         let transform = normal_speed.abs() < (0.28 * total_speed).max(0.9);
-        let converge = if transform { 0.0 } else { (-normal_speed).max(0.0) };
-        let diverge = if transform { 0.0 } else { normal_speed.max(0.0) };
+        let converge = if transform {
+            0.0
+        } else {
+            (-normal_speed).max(0.0)
+        };
+        let diverge = if transform {
+            0.0
+        } else {
+            normal_speed.max(0.0)
+        };
         let slip = if transform { total_speed } else { transverse };
         for index in [a, b] {
             closure[index] += converge * edge_length;
@@ -142,9 +185,17 @@ pub fn derive(world: &World, radius_km: f64) -> Result<Option<KinematicFields>, 
     let build = |values: Vec<f64>| Grid {
         width: w,
         height: h,
-        cells: values.into_iter().zip(&contact_length).map(|(v, &length)| {
-            if length > 0.0 { (v / length) as f32 } else { 0.0 }
-        }).collect(),
+        cells: values
+            .into_iter()
+            .zip(&contact_length)
+            .map(|(v, &length)| {
+                if length > 0.0 {
+                    (v / length) as f32
+                } else {
+                    0.0
+                }
+            })
+            .collect(),
     };
     Ok(Some(KinematicFields {
         convergence_cm_yr: build(closure),
@@ -169,12 +220,16 @@ mod tests {
         world.height = 24;
         let mut plates = Grid::new(48, 24, 0.0);
         for y in 0..24 {
-            for x in 24..48 { plates.cells[y * 48 + x] = 1.0; }
+            for x in 24..48 {
+                plates.cells[y * 48 + x] = 1.0;
+            }
         }
         world.plate_ids = Some(plates);
         for (id, sign) in [(0, 1.0), (1, -1.0)] {
             world.plates.push(PlateInfo {
-                plate_id: id, plate: format!("p{id}"), color_rgb: String::new(),
+                plate_id: id,
+                plate: format!("p{id}"),
+                color_rgb: String::new(),
                 euler_pole_lon_deg: Some(pole_lon),
                 euler_pole_lat_deg: Some(pole_lat),
                 signed_rate_deg_per_ma: Some(sign * 0.4),
@@ -202,8 +257,9 @@ mod tests {
             *plate.signed_rate_deg_per_ma.as_mut().unwrap() *= -1.0;
         }
         let after = derive(&world, 6371.0).unwrap().unwrap();
-        assert!((before.divergence_cm_yr.at(23, 12)
-            - after.convergence_cm_yr.at(23, 12)).abs() < 0.001);
+        assert!(
+            (before.divergence_cm_yr.at(23, 12) - after.convergence_cm_yr.at(23, 12)).abs() < 0.001
+        );
     }
 
     #[test]
@@ -231,8 +287,7 @@ mod tests {
 
     #[test]
     fn actual_aegaea_plate_motion_is_finite_and_has_all_three_classes() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../data/aegaea/tectonics/v1");
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/aegaea/tectonics/v1");
         let mut world = World::load(root).unwrap();
         world.elevation = None;
         let f = derive(&world, 6371.0).unwrap().unwrap();
