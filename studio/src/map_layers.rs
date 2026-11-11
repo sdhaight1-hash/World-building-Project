@@ -167,11 +167,15 @@ impl ProjectLayers {
                 self.cratons.get_or_insert_with(|| world.cratons.clone());
             }
             LayerKind::Provinces => {
-                let catalog = self.provinces.get_or_insert_with(|| world.provinces.clone());
+                let catalog = self
+                    .provinces
+                    .get_or_insert_with(|| world.provinces.clone());
                 if catalog.is_empty() {
-                    catalog.extend(PROVINCE_CLASSES.iter().enumerate().map(|(id, &name)| ProvinceInfo {
-                        province_id: id as u8,
-                        name: name.into(),
+                    catalog.extend(PROVINCE_CLASSES.iter().enumerate().map(|(id, &name)| {
+                        ProvinceInfo {
+                            province_id: id as u8,
+                            name: name.into(),
+                        }
                     }));
                 }
                 world.provinces.clone_from(catalog);
@@ -186,7 +190,10 @@ impl ProjectLayers {
     pub fn apply(&self, world: &mut World) -> Result<(), String> {
         for (kind, authored) in &self.grids {
             if authored.size != [world.width, world.height] {
-                return Err(format!("{} grid size differs from project dataset", kind.name()));
+                return Err(format!(
+                    "{} grid size differs from project dataset",
+                    kind.name()
+                ));
             }
             if let Some(fill) = authored.base_fill {
                 if !kind.valid_value(fill) {
@@ -234,23 +241,31 @@ impl ProjectLayers {
         if !kind.valid_value(value) {
             return Err(format!("Invalid {} paint value: {value}", kind.name()));
         }
-        if kind == LayerKind::Plates
-            && !world.plates.iter().any(|p| p.plate_id as f32 == value)
-        {
+        if kind == LayerKind::Plates && !world.plates.iter().any(|p| p.plate_id as f32 == value) {
             return Err("Create a plate record before painting its ID".into());
         }
-        if kind == LayerKind::Cratons && value != 0.0
+        if kind == LayerKind::Cratons
+            && value != 0.0
             && !world.cratons.iter().any(|c| c.craton_id as f32 == value)
         {
             return Err("Create a craton record before painting its ID".into());
         }
         if kind == LayerKind::Provinces
-            && !world.provinces.iter().any(|p| p.province_id as f32 == value)
+            && !world
+                .provinces
+                .iter()
+                .any(|p| p.province_id as f32 == value)
         {
             return Err("Create a province record before painting its ID".into());
         }
-        let authored = self.grids.get_mut(&kind).ok_or("Initialize the layer before painting")?;
-        let grid = kind.field_mut(world).as_mut().ok_or("Layer source unavailable")?;
+        let authored = self
+            .grids
+            .get_mut(&kind)
+            .ok_or("Initialize the layer before painting")?;
+        let grid = kind
+            .field_mut(world)
+            .as_mut()
+            .ok_or("Layer source unavailable")?;
         let (u, v) = geo_to_uv(longitude, latitude);
         let cx = (u * grid.width as f64).floor() as isize;
         let cy = ((v * grid.height as f64).floor() as isize).min(grid.height as isize - 1);
@@ -274,11 +289,14 @@ impl ProjectLayers {
                 if before == value {
                     continue;
                 }
-                stroke.changes.insert(index, LayerChange {
-                    before,
-                    after: value,
-                    previous_override: authored.overrides.get(&index).copied(),
-                });
+                stroke.changes.insert(
+                    index,
+                    LayerChange {
+                        before,
+                        after: value,
+                        previous_override: authored.overrides.get(&index).copied(),
+                    },
+                );
                 grid.cells[index] = value;
                 authored.overrides.insert(index, value);
             }
@@ -291,12 +309,18 @@ impl ProjectLayers {
             return Err("Create the plate layer first".into());
         }
         let catalog = self.plates.get_or_insert_with(|| world.plates.clone());
-        let id = (1..=255u8).find(|id| !catalog.iter().any(|p| p.plate_id == *id))
+        let id = (1..=255u8)
+            .find(|id| !catalog.iter().any(|p| p.plate_id == *id))
             .ok_or("All 255 plate IDs are in use")?;
         catalog.push(PlateInfo {
             plate_id: id,
             plate: format!("Plate {id}"),
-            color_rgb: format!("{},{},{}", 70 + id as u16 * 23 % 150, 80 + id as u16 * 39 % 145, 90 + id as u16 * 31 % 145),
+            color_rgb: format!(
+                "{},{},{}",
+                70 + id as u16 * 23 % 150,
+                80 + id as u16 * 39 % 145,
+                90 + id as u16 * 31 % 145
+            ),
             euler_pole_lon_deg: None,
             euler_pole_lat_deg: None,
             signed_rate_deg_per_ma: None,
@@ -309,9 +333,15 @@ impl ProjectLayers {
         if !self.grids.contains_key(&LayerKind::Cratons) {
             return Err("Create the craton layer first".into());
         }
-        let parent = world.plates.first().ok_or("Create a plate before adding cratons")?.plate.clone();
+        let parent = world
+            .plates
+            .first()
+            .ok_or("Create a plate before adding cratons")?
+            .plate
+            .clone();
         let catalog = self.cratons.get_or_insert_with(|| world.cratons.clone());
-        let id = (1..=255u8).find(|id| !catalog.iter().any(|c| c.craton_id == *id))
+        let id = (1..=255u8)
+            .find(|id| !catalog.iter().any(|c| c.craton_id == *id))
             .ok_or("All 255 craton IDs are in use")?;
         catalog.push(CratonInfo {
             craton_id: id,
@@ -353,7 +383,8 @@ impl LayerStroke {
             return;
         }
         for (index, change) in dab.changes {
-            self.changes.entry(index)
+            self.changes
+                .entry(index)
                 .and_modify(|existing| existing.after = change.after)
                 .or_insert(change);
         }
@@ -369,8 +400,12 @@ impl LayerStroke {
 
     fn restore(&self, world: &mut World, layers: &mut ProjectLayers, redo: bool) {
         let Some(kind) = self.kind else { return };
-        let Some(authored) = layers.grids.get_mut(&kind) else { return };
-        let Some(grid) = kind.field_mut(world).as_mut() else { return };
+        let Some(authored) = layers.grids.get_mut(&kind) else {
+            return;
+        };
+        let Some(grid) = kind.field_mut(world).as_mut() else {
+            return;
+        };
         for (&index, change) in &self.changes {
             grid.cells[index] = if redo { change.after } else { change.before };
             if redo {
@@ -394,7 +429,9 @@ mod tests {
         let mut world = World::empty(PathBuf::from("independent"));
         let mut layers = ProjectLayers::default();
         for kind in LayerKind::ALL {
-            layers.create(&mut world, kind, kind.default_fill()).unwrap();
+            layers
+                .create(&mut world, kind, kind.default_fill())
+                .unwrap();
         }
         assert_eq!(world.plates.len(), 1);
         assert_eq!(world.provinces.len(), 11);
@@ -403,25 +440,45 @@ mod tests {
         assert_eq!(second, 2);
         let craton = layers.add_craton(&mut world).unwrap();
         assert_eq!(craton, 1);
-        let stroke = layers.paint(&mut world, LayerKind::Plates, 179.9, 0.0, 3, 2.0).unwrap();
+        let stroke = layers
+            .paint(&mut world, LayerKind::Plates, 179.9, 0.0, 3, 2.0)
+            .unwrap();
         assert!(!stroke.is_empty());
         let original = world.plate_ids.as_ref().unwrap().cells.clone();
         stroke.undo(&mut world, &mut layers);
-        assert!(world.plate_ids.as_ref().unwrap().cells.iter().all(|&p| p == 1.0));
+        assert!(world
+            .plate_ids
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .all(|&p| p == 1.0));
         stroke.redo(&mut world, &mut layers);
         assert_eq!(world.plate_ids.as_ref().unwrap().cells, original);
-        layers.paint(&mut world, LayerKind::Cratons, 179.9, 0.0, 2, 1.0).unwrap();
-        layers.paint(&mut world, LayerKind::Provinces, 30.0, -30.0, 2, 7.0).unwrap();
-        layers.paint(&mut world, LayerKind::Crust, 30.0, -30.0, 2, 42.0).unwrap();
-        layers.paint(&mut world, LayerKind::Lithosphere, 30.0, -30.0, 2, 180.0).unwrap();
-        layers.paint(&mut world, LayerKind::HeatFlow, 30.0, -30.0, 2, 90.0).unwrap();
+        layers
+            .paint(&mut world, LayerKind::Cratons, 179.9, 0.0, 2, 1.0)
+            .unwrap();
+        layers
+            .paint(&mut world, LayerKind::Provinces, 30.0, -30.0, 2, 7.0)
+            .unwrap();
+        layers
+            .paint(&mut world, LayerKind::Crust, 30.0, -30.0, 2, 42.0)
+            .unwrap();
+        layers
+            .paint(&mut world, LayerKind::Lithosphere, 30.0, -30.0, 2, 180.0)
+            .unwrap();
+        layers
+            .paint(&mut world, LayerKind::HeatFlow, 30.0, -30.0, 2, 90.0)
+            .unwrap();
         let json = serde_json::to_string(&layers).unwrap();
         let restored: ProjectLayers = serde_json::from_str(&json).unwrap();
         let mut reloaded = World::empty(PathBuf::from("independent"));
         restored.apply(&mut reloaded).unwrap();
         for kind in LayerKind::ALL {
-            assert_eq!(kind.field(&reloaded).as_ref().unwrap().cells,
-                       kind.field(&world).as_ref().unwrap().cells);
+            assert_eq!(
+                kind.field(&reloaded).as_ref().unwrap().cells,
+                kind.field(&world).as_ref().unwrap().cells
+            );
         }
         assert_eq!(reloaded.plates.len(), 2);
         assert_eq!(reloaded.cratons.len(), 1);
@@ -434,12 +491,19 @@ mod tests {
         let mut layers = ProjectLayers::default();
         layers.create(&mut world, LayerKind::Crust, 7.0).unwrap();
         assert_eq!(layers.grids[&LayerKind::Crust].base_fill, None);
-        layers.paint(&mut world, LayerKind::Crust, 0.0, 0.0, 1, 40.0).unwrap();
-        assert!(layers.paint(&mut world, LayerKind::Crust, 0.0, 0.0, 1, -4.0).is_err());
+        layers
+            .paint(&mut world, LayerKind::Crust, 0.0, 0.0, 1, 40.0)
+            .unwrap();
+        assert!(layers
+            .paint(&mut world, LayerKind::Crust, 0.0, 0.0, 1, -4.0)
+            .is_err());
         let mut source = World::empty(PathBuf::new());
         source.crust_km = Some(Grid::new(1024, 512, 35.0));
         layers.apply(&mut source).unwrap();
-        assert_eq!(source.crust_km.as_ref().unwrap().cells, world.crust_km.as_ref().unwrap().cells);
+        assert_eq!(
+            source.crust_km.as_ref().unwrap().cells,
+            world.crust_km.as_ref().unwrap().cells
+        );
         let mut no_source = World::empty(PathBuf::new());
         assert!(layers.apply(&mut no_source).is_err());
     }

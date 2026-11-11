@@ -19,8 +19,8 @@ use eframe::{
     egui::{Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Vec2},
 };
 use geology_diagnostics::Report as GeologyReport;
-use map_layers::{LayerKind, LayerStroke};
 use globe3d::{GlobeCallback, GlobeMesh};
+use map_layers::{LayerKind, LayerStroke};
 use rainshadow::WindFrom;
 use render::{atlas_geo_from_fraction, forward_globe, globe_geo_from_fraction, Theme};
 use std::{
