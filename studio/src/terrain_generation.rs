@@ -41,6 +41,8 @@ pub struct TerrainRecipe {
     pub seed: u64,
     pub relief_strength: f32,
     pub planet_radius_km: f64,
+    /// Effective surface gravity for converting hydrostatic pressure to atmospheric column mass.
+    pub surface_gravity_m_s2: f64,
 }
 impl Default for TerrainRecipe {
     fn default() -> Self {
@@ -48,6 +50,7 @@ impl Default for TerrainRecipe {
             seed: 841_223,
             relief_strength: 1.0,
             planet_radius_km: 6371.0,
+            surface_gravity_m_s2: 9.80665,
         }
     }
 }
@@ -60,6 +63,11 @@ impl TerrainRecipe {
             || !(100.0..=100_000.0).contains(&self.planet_radius_km)
         {
             return Err("Planet radius must be 100–100,000 km".into());
+        }
+        if !self.surface_gravity_m_s2.is_finite()
+            || !(0.1..=100.0).contains(&self.surface_gravity_m_s2)
+        {
+            return Err("Surface gravity must be finite and between 0.1 and 100 m/s²".into());
         }
         Ok(())
     }
