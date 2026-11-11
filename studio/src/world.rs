@@ -1,6 +1,6 @@
 //! Scientific source-data loading, source conventions, and editable world annotations.
 //! Data files are immutable; annotations use a separate JSON sidecar.
-use crate::datasets::DatasetRegistry;
+use crate::datasets::{DatasetRegistry, Provenance};
 use crate::map_layers::BoundarySegment;
 use crate::plate_kinematics::KinematicFields;
 use crate::rainshadow::WindFrom;
@@ -150,6 +150,7 @@ pub struct World {
     pub rain_shadow: Option<Grid>,
     /// Materialized monthly scientific fields; the selected time slice only.
     pub scientific_fields: BTreeMap<String, Grid>,
+    pub scientific_provenance: BTreeMap<String, Provenance>,
     pub active_month: u8,
     /// Derived Euler-relative boundary velocities, not stored source data.
     pub plate_motion: Option<KinematicFields>,
@@ -176,6 +177,7 @@ impl World {
             heatflow: None,
             rain_shadow: None,
             scientific_fields: BTreeMap::new(),
+            scientific_provenance: BTreeMap::new(),
             active_month: 1,
             plate_motion: None,
             plates: Vec::new(),
