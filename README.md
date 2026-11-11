@@ -18,6 +18,7 @@ The `studio/` directory contains an **initial desktop vertical slice**, not a co
 - A dark, map-first Rust/egui desktop interface backed by **wgpu**.
 - A 2D atlas and a 3D globe **rendered from the same geological raster values**.
 - Thematic display of terrain, plate IDs, cratons, crustal provinces and selected numeric geophysical fields.
+- **Dedicated Rain Shadow map**: DEM-derived windward/leeward exposure, selectable incoming wind, inspector, legend, TIFF + metadata export. This is not a precipitation simulation.
 - Geographic coordinate picking and a data inspector; plate and craton names come from CSV records.
 - User-authored geographic point annotations stored separately from the read-only source dataset.
 - An empty-project path to verify that the application is not coupled to Aegaea.
@@ -33,7 +34,7 @@ Install a stable Rust toolchain (rustup) and run from the repository root:
 cargo run --release -p aegaea-studio
 ```
 
-On first run the application loads the committed reference rasters in `data/aegaea/tectonics/v1`. It stores personal annotations at `projects/aegaea-workspace.json` (ignored by git). The immutable geological data remains untouched.
+On first run the application loads the committed reference rasters in `data/aegaea/tectonics/v1`, including the elevation TIFF directly from its split binary parts when necessary. It stores personal annotations at `projects/aegaea-workspace.json` (ignored by git). The immutable geological data remains untouched.
 
 To create a separate, empty world:
 

@@ -1,9 +1,10 @@
 //! Scientific source-data loading, source conventions, and editable world annotations.
 //! Data files are immutable; annotations use a separate JSON sidecar.
+use crate::rainshadow::WindFrom;
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File},
-    io::BufReader,
+    io::{BufReader, Cursor, Read, Seek},
     path::{Path, PathBuf},
 };
 use tiff::decoder::{Decoder, DecodingResult};
@@ -26,8 +27,15 @@ impl Grid {
 
     pub fn from_tiff(path: &Path) -> Result<Self, String> {
         let file = File::open(path).map_err(|e| format!("{}: {e}", path.display()))?;
-        let mut decoder =
-            Decoder::new(BufReader::new(file)).map_err(|e| format!("{}: {e}", path.display()))?;
+        Self::from_reader(BufReader::new(file), path)
+    }
+
+    pub fn from_tiff_bytes(bytes: Vec<u8>, path: &Path) -> Result<Self, String> {
+        Self::from_reader(Cursor::new(bytes), path)
+    }
+
+    fn from_reader<R: Read + Seek>(reader: R, path: &Path) -> Result<Self, String> {
+        let mut decoder = Decoder::new(reader).map_err(|e| format!("{}: {e}", path.display()))?;
         let (width, height) = decoder
             .dimensions()
             .map_err(|e| format!("{}: {e}", path.display()))?;
@@ -119,6 +127,7 @@ pub struct World {
     pub crust_km: Option<Grid>,
     pub lithosphere_km: Option<Grid>,
     pub heatflow: Option<Grid>,
+    pub rain_shadow: Option<Grid>,
     pub plates: Vec<PlateInfo>,
     pub cratons: Vec<CratonInfo>,
 }
@@ -136,6 +145,7 @@ impl World {
             crust_km: None,
             lithosphere_km: None,
             heatflow: None,
+            rain_shadow: None,
             plates: Vec::new(),
             cratons: Vec::new(),
         }
@@ -213,14 +223,31 @@ impl World {
     pub fn elevation_at(&self, lon: f64, lat: f64) -> Option<f32> {
         self.elevation.as_ref().map(|g| g.geo(lon, lat))
     }
+
+    pub fn rain_shadow_at(&self, lon: f64, lat: f64) -> Option<f32> {
+        self.rain_shadow.as_ref().map(|g| g.geo(lon, lat))
+    }
 }
 
 fn optional_grid(root: &Path, name: &str) -> Result<Option<Grid>, String> {
     let path = root.join(name);
     if path.exists() {
-        Grid::from_tiff(&path).map(Some)
-    } else {
+        return Grid::from_tiff(&path).map(Some);
+    }
+    // The reference elevation source is committed in byte-for-byte Git parts.
+    // Read it without modifying the immutable dataset or requiring Python.
+    let mut bytes = Vec::new();
+    for index in 0..10_000usize {
+        let part = root.join(format!(".binary-parts/{name}.part{index:03}"));
+        if !part.exists() {
+            break;
+        }
+        bytes.extend_from_slice(&fs::read(&part).map_err(|e| format!("{}: {e}", part.display()))?);
+    }
+    if bytes.is_empty() {
         Ok(None)
+    } else {
+        Grid::from_tiff_bytes(bytes, &path).map(Some)
     }
 }
 
@@ -239,6 +266,8 @@ pub struct Project {
     pub name: String,
     #[serde(default)]
     pub markers: Vec<Marker>,
+    #[serde(default)]
+    pub wind_from: WindFrom,
 }
 
 impl Project {
@@ -246,6 +275,7 @@ impl Project {
         Self {
             name: name.to_owned(),
             markers: Vec::new(),
+            wind_from: WindFrom::default(),
         }
     }
 
@@ -322,6 +352,16 @@ mod tests {
     }
 
     #[test]
+    fn aegreea_split_elevation_is_loadable_directly() {
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/aegaea/tectonics/v1");
+        let world = World::load(root).expect("committed Aegaea rasters should load");
+        assert_eq!((world.width, world.height), (1672, 941));
+        let elevation = world.elevation.expect("split reference DEM should load");
+        assert!(elevation.cells.iter().any(|&v| v > 0.0));
+        assert!(elevation.cells.iter().any(|&v| v < 0.0));
+    }
+
+    #[test]
     fn markers_roundtrip_without_sources() {
         let mut p = Project::new("Test World");
         p.add_marker(-122.0, 48.0);
@@ -329,5 +369,6 @@ mod tests {
         let q: Project = serde_json::from_str(&json).unwrap();
         assert_eq!(q.markers[0].longitude_deg, -122.0);
         assert_eq!(q.name, "Test World");
+        assert_eq!(q.wind_from, WindFrom::West);
     }
 }

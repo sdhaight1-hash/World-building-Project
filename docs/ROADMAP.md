@@ -9,6 +9,7 @@
 | P2 | Raster drawing, DEM transforms, bathymetry and subsurface sections | New physical relief, shelves, basins, hillshade and rock/age maps | Source-derived elevation is reproducible and override-safe |
 | P3 | Time-aware geological editor (plate rotations, topology change, ages) | Testable continental history, sutures, rifts and changing ocean floor | Geological invariants validated; scenario uncertainty exposed |
 | P4 | Atmospheric/ocean tool kit; time/month fields; climate fields | Seasonal wind, current, pressure, temperature, rainfall and climate maps | Unit consistency, area weighting, visual plausibility |
+| P0.1 | Dedicated rain-shadow exposure thematic map; selectable wind direction; TIFF/metadata export | Aegaea DEM-driven windward/leeward exposure map | Synthetic ridge reverses with wind; ocean nodata; cross-view inspector and reproducible export |
 | P5 | Hydrology/soils/biomes | Drainage and lakes; soils; natural ecosystems | Watershed continuity, seasonal comparison, explicit provenance |
 | P6 | Mineral/resource/hazard models; print and export suites | Geology/resource/hazard atlases; complete documented reference world | Full reproducible project, portable data, print-quality cartography |
 

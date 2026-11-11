@@ -1,5 +1,6 @@
 //! Aegaea Studio P0: a modern wgpu-backed desktop shell around physical-world maps.
 //! Purposefully scoped: shared atlas/globe source data, inspector, local point annotation.
+mod rainshadow;
 mod render;
 mod world;
 
@@ -7,6 +8,7 @@ use eframe::{
     egui,
     egui::{Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Vec2},
 };
+use rainshadow::WindFrom;
 use render::{atlas_geo_from_fraction, forward_globe, globe_geo_from_fraction, Theme};
 use std::{
     env,
@@ -45,7 +47,7 @@ struct Studio {
 impl Studio {
     fn new(
         cc: &eframe::CreationContext<'_>,
-        world: World,
+        mut world: World,
         project: Project,
         path: PathBuf,
         status: String,
@@ -60,6 +62,11 @@ impl Studio {
             style.spacing.item_spacing = Vec2::new(8.0, 8.0);
             style.spacing.button_padding = Vec2::new(12.0, 6.0);
         });
+        // Compute once from the restored/source DEM; never alter source geology.
+        world.rain_shadow = world
+            .elevation
+            .as_ref()
+            .map(|dem| rainshadow::derive(dem, project.wind_from));
         let mut app = Self {
             world,
             project,
@@ -186,6 +193,41 @@ impl Studio {
                     self.globe_dirty=true;
                 }
             }
+            if self.theme == Theme::RainShadow {
+                ui.separator();
+                ui.label(egui::RichText::new("OROGRAPHIC EXPOSURE").small().strong());
+                ui.small("Wind arrives from:");
+                let mut changed = false;
+                egui::ComboBox::from_id_salt("rainshadow-wind")
+                    .selected_text(self.project.wind_from.label())
+                    .show_ui(ui, |ui| {
+                        for wind in WindFrom::ALL {
+                            changed |= ui.selectable_value(&mut self.project.wind_from, wind, wind.label()).changed();
+                        }
+                    });
+                if changed {
+                    self.world.rain_shadow = self.world.elevation.as_ref()
+                        .map(|dem| rainshadow::derive(dem, self.project.wind_from));
+                    self.atlas_dirty = true;
+                    self.globe_dirty = true;
+                    self.changed = true;
+                    self.status = format!("Rain-shadow exposure recalculated; wind from {}",
+                        self.project.wind_from.label());
+                }
+                ui.small("Blue/teal: windward ascent");
+                ui.small("Gray: weak terrain effect");
+                ui.small("Orange/red: leeward shadow");
+                ui.small("Signed index (-1 to +1), not rainfall or a climate simulation.");
+                if ui.button("Export index TIFF + JSON").clicked() {
+                    if let Some(ref grid) = self.world.rain_shadow {
+                        let target = self.project_path.with_file_name("rain-shadow-index.tif");
+                        match rainshadow::export_tiff(grid, self.project.wind_from, &target) {
+                            Ok(()) => self.status = format!("Exported rain-shadow index: {}", target.display()),
+                            Err(error) => self.status = format!("Rain-shadow export failed: {error}"),
+                        }
+                    }
+                }
+            }
             ui.separator();
             ui.label(egui::RichText::new("VIEW CONTROLS").small().weak());
             if self.view==ViewMode::Atlas {
@@ -212,7 +254,7 @@ impl Studio {
             ui.small(format!("{} plates · {} cratons",self.world.plates.len(),self.world.cratons.len()));
             if self.world.elevation.is_none() && self.world.has_any_source() {
                 ui.colored_label(Color32::from_rgb(230,170,112),
-                    "Elevation absent. Run the dataset restore_assets.py script to restore the split TIFF.");
+                    "Elevation absent. Rain-shadow map requires a valid DEM.");
             }
             if !self.world.has_any_source() {
                 ui.small("Blank world. Import geospatial layers to develop this project.");
@@ -246,6 +288,20 @@ impl Studio {
                                 ui.label("Elevation");
                                 ui.monospace(format!("{h:.0} m"));
                                 ui.end_row();
+                            }
+                            if self.theme == Theme::RainShadow {
+                                if let Some(index) = self.world.rain_shadow_at(lon, lat) {
+                                    ui.label("Orographic exposure");
+                                    ui.monospace(if !index.is_finite() {
+                                        "ocean / NODATA".to_owned()
+                                    } else {
+                                        format!("{index:+.3}")
+                                    });
+                                    ui.end_row();
+                                    ui.label("Wind from");
+                                    ui.label(self.project.wind_from.label());
+                                    ui.end_row();
+                                }
                             }
                             if let Some(plate) = self.world.plate_at(lon, lat) {
                                 ui.label("Plate");
