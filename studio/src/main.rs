@@ -4,6 +4,7 @@ mod cartography;
 mod geology_diagnostics;
 mod globe3d;
 mod map_graph;
+mod map_layers;
 mod plate_kinematics;
 mod publication;
 mod rainshadow;
@@ -18,6 +19,7 @@ use eframe::{
     egui::{Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Vec2},
 };
 use geology_diagnostics::Report as GeologyReport;
+use map_layers::{LayerKind, LayerStroke};
 use globe3d::{GlobeCallback, GlobeMesh};
 use rainshadow::WindFrom;
 use render::{atlas_geo_from_fraction, forward_globe, globe_geo_from_fraction, Theme};
@@ -54,6 +56,7 @@ enum ViewMode {
 
 /// Choose the authoritative elevation source before deriving map fields.
 fn activate_terrain(world: &mut World, project: &Project) -> Result<TerrainMode, String> {
+    project.layers.apply(world)?;
     let has_edits = !project.terrain.overrides.is_empty() || project.terrain.base_fill_m.is_some();
     let mode = terrain_generation::resolve_mode(project.terrain_mode, world, has_edits);
     if mode == TerrainMode::Generated {
@@ -104,6 +107,12 @@ struct Studio {
     active_stroke: TerrainStroke,
     terrain_undo: Vec<TerrainStroke>,
     terrain_redo: Vec<TerrainStroke>,
+    layer_brush: bool,
+    layer_radius: u32,
+    layer_paint_value: f32,
+    active_layer_stroke: LayerStroke,
+    layer_undo: Vec<LayerStroke>,
+    layer_redo: Vec<LayerStroke>,
     changed: bool,
     status: String,
     new_project_open: bool,
@@ -193,6 +202,12 @@ impl Studio {
             active_stroke: TerrainStroke::default(),
             terrain_undo: Vec::new(),
             terrain_redo: Vec::new(),
+            layer_brush: false,
+            layer_radius: 5,
+            layer_paint_value: 1.0,
+            active_layer_stroke: LayerStroke::default(),
+            layer_undo: Vec::new(),
+            layer_redo: Vec::new(),
             changed: false,
             status,
             new_project_open: false,
@@ -418,6 +433,12 @@ impl Studio {
                 self.active_stroke = TerrainStroke::default();
                 self.terrain_undo.clear();
                 self.terrain_redo.clear();
+                self.layer_brush = false;
+                self.layer_radius = 5;
+                self.layer_paint_value = 1.0;
+                self.active_layer_stroke = LayerStroke::default();
+                self.layer_undo.clear();
+                self.layer_redo.clear();
                 self.rebuild_derived_surfaces();
                 // The new world.json already persists its empty editing baseline.
                 self.changed = false;
