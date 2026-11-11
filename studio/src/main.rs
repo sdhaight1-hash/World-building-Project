@@ -115,7 +115,7 @@ struct Studio {
     cartography: Cartography,
     project: Project,
     planet_draft: PlanetCalendar,
-    project_path: PathBuf;
+    project_path: PathBuf,
     imported_elevation: Option<world::Grid>,
     active_terrain_mode: TerrainMode,
     geology_report: Option<GeologyReport>,
