@@ -635,6 +635,183 @@ impl Studio {
         }
     }
 
+    fn refresh_dataset_map(&mut self) {
+        self.atlas_dirty = true;
+        self.globe_dirty = true;
+        self.changed = true;
+    }
+
+    fn finish_dataset_stroke(&mut self) {
+        if self.active_dataset_stroke.is_empty() {
+            return;
+        }
+        self.dataset_undo.push(std::mem::take(&mut self.active_dataset_stroke));
+        if self.dataset_undo.len() > 64 {
+            self.dataset_undo.remove(0);
+        }
+        self.dataset_redo.clear();
+        self.refresh_dataset_map();
+    }
+
+    fn undo_dataset(&mut self) {
+        self.finish_dataset_stroke();
+        if let Some(stroke) = self.dataset_undo.pop() {
+            stroke.undo(&mut self.world, &mut self.project.datasets);
+            self.dataset_redo.push(stroke);
+            self.refresh_dataset_map();
+            self.status = "Undid monthly map stroke".into();
+        }
+    }
+
+    fn redo_dataset(&mut self) {
+        self.finish_dataset_stroke();
+        if let Some(stroke) = self.dataset_redo.pop() {
+            stroke.redo(&mut self.world, &mut self.project.datasets);
+            self.dataset_undo.push(stroke);
+            self.refresh_dataset_map();
+            self.status = "Redid monthly map stroke".into();
+        }
+    }
+
+    fn select_month(&mut self, month: u8) {
+        self.finish_dataset_stroke();
+        match self.project.datasets.activate(&mut self.world, month) {
+            Ok(()) => {
+                self.project.month = month;
+                self.dataset_undo.clear();
+                self.dataset_redo.clear();
+                self.dataset_brush = false;
+                self.copy_from_month = month;
+                self.refresh_dataset_map();
+                self.status = format!(
+                    "Showing {} · missing monthly fields remain unfilled",
+                    month_name(month)
+                );
+            }
+            Err(error) => self.status = format!("Could not select month: {error}"),
+        }
+    }
+
+    fn monthly_workshop(&mut self, ui: &mut egui::Ui) {
+        let Some(kind) = self.theme.climate_field() else { return };
+        ui.separator();
+        ui.label(egui::RichText::new("MONTHLY SCIENTIFIC DATA").strong().small());
+        ui.small("Authored climate values only. No atmosphere, rainfall or energy-balance simulation.");
+        let mut selected = self.project.month;
+        egui::ComboBox::from_id_salt("active-month")
+            .selected_text(month_name(selected))
+            .show_ui(ui, |ui| {
+                for month in 1..=12u8 {
+                    ui.selectable_value(&mut selected, month, month_name(month));
+                }
+            });
+        if selected != self.project.month {
+            self.select_month(selected);
+        }
+        let exists = self.project.datasets.has_month(kind, self.project.month);
+        if !exists {
+            ui.small(format!(
+                "No {} dataset for {}. A missing month stays missing.",
+                kind.name(), month_name(self.project.month)
+            ));
+            ui.label(format!("Initial assumed value ({})", kind.unit().label()));
+            ui.add(egui::DragValue::new(&mut self.dataset_paint_value).speed(0.5));
+            let bounds = kind.bounds();
+            let valid = self.dataset_paint_value.is_finite()
+                && (bounds[0]..=bounds[1]).contains(&self.dataset_paint_value);
+            if !valid {
+                ui.colored_label(
+                    Color32::from_rgb(229, 147, 122), "Value outside the field's physical limits."
+                );
+            }
+            if ui.add_enabled(valid, egui::Button::new("Create this month's source")).clicked() {
+                match self.project.datasets.create_month(
+                    &mut self.world, kind, self.project.month, self.dataset_paint_value
+                ) {
+                    Ok(()) => {
+                        self.refresh_dataset_map();
+                        self.status = format!(
+                            "Created {} for {} (author-assumed values)",
+                            kind.name(), month_name(self.project.month)
+                        );
+                    }
+                    Err(error) => self.status = format!("Could not create monthly field: {error}"),
+                }
+            }
+            if let Some(field) = self.project.datasets.fields.get(kind.id()) {
+                let months: Vec<u8> = field.months.keys().copied().collect();
+                if !months.is_empty() {
+                    if !months.contains(&self.copy_from_month) {
+                        self.copy_from_month = months[0];
+                    }
+                    ui.separator();
+                    ui.small("Or explicitly duplicate an authored month:");
+                    egui::ComboBox::from_id_salt("month-to-duplicate")
+                        .selected_text(month_name(self.copy_from_month))
+                        .show_ui(ui, |ui| {
+                            for month in &months {
+                                ui.selectable_value(
+                                    &mut self.copy_from_month, *month, month_name(*month)
+                                );
+                            }
+                        });
+                    if ui.button("Copy values into this month").clicked() {
+                        match self.project.datasets.copy_month(
+                            &mut self.world, kind, self.copy_from_month, self.project.month
+                        ) {
+                            Ok(()) => {
+                                self.refresh_dataset_map();
+                                self.status = "Month copied explicitly; no simulation performed".into();
+                            }
+                            Err(error) => self.status = format!("Month copy failed: {error}"),
+                        }
+                    }
+                }
+            }
+            return;
+        }
+        let field = &self.project.datasets.fields[kind.id()];
+        let snapshot = &field.months[&self.project.month];
+        ui.small(format!(
+            "{} · {} · {} authored cells",
+            field.name, field.provenance.label(), snapshot.overrides.len()
+        ));
+        ui.small(format!(
+            "{} source; dependencies: {}",
+            field.unit.label(), field.dependencies.len()
+        ));
+        if ui.checkbox(&mut self.dataset_brush, "Paint monthly values").changed()
+            && self.dataset_brush
+        {
+            self.terrain_brush = false;
+            self.layer_brush = false;
+            self.boundary_draw = false;
+            self.boundary_start = None;
+            self.placing_marker = false;
+        }
+        if self.dataset_brush {
+            let bounds = kind.bounds();
+            ui.label(format!("Paint value ({})", kind.unit().label()));
+            ui.add(egui::DragValue::new(&mut self.dataset_paint_value).speed(0.5));
+            if !self.dataset_paint_value.is_finite()
+                || !(bounds[0]..=bounds[1]).contains(&self.dataset_paint_value)
+            {
+                ui.colored_label(Color32::from_rgb(229, 147, 122), "Invalid paint value.");
+            }
+            ui.label("Brush radius (cells)");
+            ui.add(egui::Slider::new(&mut self.dataset_radius, 1..=40));
+            ui.small("Drag on the atlas or globe. Missing months are never interpolated.");
+        }
+        ui.horizontal(|ui| {
+            if ui.add_enabled(!self.dataset_undo.is_empty(), egui::Button::new("Undo climate")).clicked() {
+                self.undo_dataset();
+            }
+            if ui.add_enabled(!self.dataset_redo.is_empty(), egui::Button::new("Redo climate")).clicked() {
+                self.redo_dataset();
+            }
+        });
+    }
+
     fn map_layer_workshop(&mut self, ui: &mut egui::Ui) {
         ui.separator();
         ui.label(egui::RichText::new("MAP LAYER WORKSHOP").small().strong());
