@@ -405,7 +405,7 @@ mod tests {
     }
 
     #[test]
-    fn independently_authored_world_can_render_all_eighteen_existing_maps() {
+    fn independently_authored_world_can_render_all_nineteen_existing_maps() {
         use crate::map_layers::{LayerKind, ProjectLayers};
         use crate::world::Grid;
 
@@ -542,6 +542,37 @@ mod tests {
             world.scientific_fields[ClimateField::Precipitation.annual_id()].at(0, 0),
             1500.0
         );
+    }
+
+    #[test]
+    fn insolation_map_exports_month_calendar_and_derived_provenance() {
+        let mut world = World::empty(PathBuf::from("solar-test"));
+        world.width = 48;
+        world.height = 24;
+        world.calendar.month_days[0] = 40.0;
+        crate::datasets::DatasetRegistry::default()
+            .activate(&mut world, 2)
+            .unwrap();
+        assert!(Theme::MonthlyInsolation.available(&world));
+        let art = Cartography::new(&world);
+        let image = atlas_image(&world, &art, Theme::MonthlyInsolation);
+        assert_eq!(image.size, [48, 24]);
+        assert_eq!(art.legend(&world, Theme::MonthlyInsolation).len(), 7);
+        let path = std::env::temp_dir().join(format!(
+            "aegaea-solar-{}.png", std::process::id()
+        ));
+        export_atlas_png(&world, &art, Theme::MonthlyInsolation, &path).unwrap();
+        let meta: serde_json::Value = serde_json::from_slice(
+            &std::fs::read(path.with_extension("json")).unwrap()
+        ).unwrap();
+        assert_eq!(meta["month"], 2);
+        assert_eq!(meta["units"], "W/m²");
+        assert_eq!(meta["dataset_id"], crate::planetary::INSOLATION_ID);
+        assert_eq!(meta["planetary_calendar"]["month_days"][0], 40.0);
+        assert_eq!(meta["provenance"]["kind"], "derived");
+        assert!(meta["derived_from"].as_str().unwrap().contains("circular-orbit"));
+        std::fs::remove_file(path.with_extension("json")).unwrap();
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]
