@@ -380,17 +380,29 @@ impl DatasetRegistry {
             return Err("Month must be 1–12".into());
         }
         self.validate([world.width, world.height])?;
-        let next: BTreeMap<String, Grid> = self
+        let mut next: BTreeMap<String, Grid> = self
             .fields
             .iter()
             .filter_map(|(id, dataset)| dataset.materialize(month).map(|g| (id.clone(), g)))
             .collect();
-        let provenance = self
+        let mut provenance: BTreeMap<String, Provenance> = self
             .fields
             .iter()
             .filter(|(id, _)| next.contains_key(*id))
             .map(|(id, data)| (id.clone(), data.provenance.clone()))
             .collect();
+        for kind in ClimateField::ALL {
+            if let Some(grid) = self.annual(kind) {
+                next.insert(kind.annual_id().into(), grid);
+                provenance.insert(
+                    kind.annual_id().into(),
+                    Provenance::Derived {
+                        operator: kind.annual_operator().into(),
+                        inputs: vec![kind.id().into()],
+                    },
+                );
+            }
+        }
         world.scientific_fields = next;
         world.scientific_provenance = provenance;
         world.active_month = month;
