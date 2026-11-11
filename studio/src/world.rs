@@ -320,6 +320,38 @@ impl Project {
         }
     }
 
+    /// Create a genuinely independent, immediately editable world folder.
+    /// Never reuse an existing directory: it could contain somebody's source data.
+    pub fn create_blank(root: PathBuf, name: &str) -> Result<(World, Self, PathBuf), String> {
+        let name = name.trim();
+        if name.is_empty() {
+            return Err("Enter a project name".into());
+        }
+        if root.as_os_str().is_empty() {
+            return Err("Choose a project folder".into());
+        }
+        if root.exists() {
+            return Err(format!(
+                "Project folder already exists: {}. Choose a new folder.",
+                root.display()
+            ));
+        }
+        let parent = root
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        fs::create_dir_all(parent).map_err(|e| format!("{}: {e}", parent.display()))?;
+        fs::create_dir(&root).map_err(|e| format!("{}: {e}", root.display()))?;
+
+        let mut world = World::empty(root.clone());
+        let mut project = Self::new(name);
+        project.terrain_mode = TerrainMode::Imported;
+        project.terrain.create_flat_world(&mut world, -2_000.0)?;
+        let project_path = root.join("world.json");
+        project.save(&project_path)?;
+        Ok((world, project, project_path))
+    }
+
     pub fn load(path: &Path, default_name: &str) -> Result<Self, String> {
         if !path.exists() {
             return Ok(Self::new(default_name));
@@ -392,6 +424,56 @@ mod tests {
         assert!(blank.provinces.is_empty());
         assert!(blank.slope_deg.is_none());
         assert!(!blank.has_any_source());
+    }
+
+    #[test]
+    fn new_blank_project_is_independent_editable_and_reopens() {
+        use std::time::{SystemTime, UNIX_EPOCH};
+
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root = std::env::temp_dir().join(format!(
+            "aegaea-blank-project-{}-{nonce}",
+            std::process::id()
+        ));
+        let (world, mut project, path) =
+            Project::create_blank(root.clone(), "  My World  ").unwrap();
+        assert_eq!(project.name, "My World");
+        assert_eq!(project.terrain_mode, TerrainMode::Imported);
+        assert_eq!((world.width, world.height), (1024, 512));
+        assert!(world.plates.is_empty());
+        assert!(world.cratons.is_empty());
+        assert!(world.provinces.is_empty());
+        assert!(world.plate_ids.is_none());
+        assert!(world.crust_km.is_none());
+        assert!(world.elevation.as_ref().unwrap().cells.iter().all(|&m| m == -2_000.0));
+        assert_eq!(path, root.join("world.json"));
+
+        project.add_marker(35.0, -12.0);
+        project.terrain.overrides.insert(9, 800.0);
+        project.save(&path).unwrap();
+
+        let mut reopened_world = World::load(root.clone()).unwrap();
+        let reopened_project = Project::load(&path, "Fallback").unwrap();
+        reopened_project.terrain.apply(&mut reopened_world).unwrap();
+        assert_eq!(reopened_project.name, "My World");
+        assert_eq!(reopened_project.markers.len(), 1);
+        assert_eq!(reopened_world.elevation.as_ref().unwrap().cells[9], 800.0);
+        assert_eq!(reopened_world.elevation.as_ref().unwrap().cells[10], -2_000.0);
+        assert!(reopened_world.plate_ids.is_none());
+
+        let error = Project::create_blank(root.clone(), "Overwrite").unwrap_err();
+        assert!(error.contains("already exists"));
+        assert_eq!(Project::load(&path, "Fallback").unwrap().name, "My World");
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn blank_project_rejects_missing_name_without_writing() {
+        let error = Project::create_blank(PathBuf::from("projects/unused-name"), "   ").unwrap_err();
+        assert!(error.contains("name"));
     }
 
     #[test]
