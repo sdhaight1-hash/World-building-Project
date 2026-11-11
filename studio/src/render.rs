@@ -3,6 +3,7 @@
 //! The globe is a projection of the same fields, not a separately painted texture.
 use crate::{
     cartography::Cartography,
+    datasets::{month_name, ClimateField},
     world::{uv_to_geo, World},
 };
 use eframe::egui;
@@ -24,10 +25,12 @@ pub enum Theme {
     Lithosphere,
     HeatFlow,
     RainShadow,
+    MonthlyTemperature,
+    MonthlyPrecipitation,
 }
 
 impl Theme {
-    pub const ALL: [Self; 14] = [
+    pub const ALL: [Self; 16] = [
         Self::Terrain,
         Self::Slope,
         Self::Plates,
@@ -42,6 +45,8 @@ impl Theme {
         Self::Lithosphere,
         Self::HeatFlow,
         Self::RainShadow,
+        Self::MonthlyTemperature,
+        Self::MonthlyPrecipitation,
     ];
 
     pub fn name(self) -> &'static str {
@@ -60,6 +65,8 @@ impl Theme {
             Self::Lithosphere => "Lithosphere depth",
             Self::HeatFlow => "Surface heat flow",
             Self::RainShadow => "Rain shadow",
+            Self::MonthlyTemperature => "Monthly air temperature",
+            Self::MonthlyPrecipitation => "Monthly precipitation",
         }
     }
 
@@ -79,6 +86,8 @@ impl Theme {
             Self::Lithosphere => "lithosphere-depth",
             Self::HeatFlow => "heat-flow",
             Self::RainShadow => "rain-shadow",
+            Self::MonthlyTemperature => "monthly-air-temperature",
+            Self::MonthlyPrecipitation => "monthly-precipitation",
         }
     }
 
@@ -97,6 +106,17 @@ impl Theme {
             Self::Lithosphere => w.lithosphere_km.is_some(),
             Self::HeatFlow => w.heatflow.is_some(),
             Self::RainShadow => w.rain_shadow.is_some(),
+            Self::MonthlyTemperature | Self::MonthlyPrecipitation => self
+                .climate_field()
+                .is_some_and(|field| w.scientific_fields.contains_key(field.id())),
+        }
+    }
+
+    pub fn climate_field(self) -> Option<ClimateField> {
+        match self {
+            Self::MonthlyTemperature => Some(ClimateField::Temperature),
+            Self::MonthlyPrecipitation => Some(ClimateField::Precipitation),
+            _ => None,
         }
     }
 
@@ -108,6 +128,8 @@ impl Theme {
             Self::Crust | Self::Lithosphere => "km",
             Self::HeatFlow => "mW/m²",
             Self::RainShadow => "signed dimensionless index",
+            Self::MonthlyTemperature => "°C",
+            Self::MonthlyPrecipitation => "mm/month",
             Self::PlateConvergence | Self::PlateDivergence | Self::PlateShear => "cm/year",
             _ => "named categories",
         }
@@ -194,6 +216,8 @@ pub fn export_atlas_png(
             })
         })
         .collect::<Vec<_>>();
+    let climate = theme.climate_field();
+    let provenance = climate.and_then(|field| world.scientific_provenance.get(field.id()));
     let meta = serde_json::json!({
         "map":theme.name(),"units":theme.units(),
         "width":world.width,"height":world.height,
@@ -203,9 +227,21 @@ pub fn export_atlas_png(
             "lat_at_y":"-90 + 180*(y+0.5)/height",
             "not_Earth_EPSG_4326":true,
         },
-        "derived_from":"native TIFF/CSV geology and classified GeoJSON boundaries",
+        "dataset_id":climate.map(|field| field.id()),
+        "month":climate.map(|_| world.active_month),
+        "month_name":climate.map(|_| month_name(world.active_month)),
+        "provenance":provenance,
+        "derived_from":if climate.is_some() {
+            "project-local monthly scientific dataset; see provenance"
+        } else {
+            "native map fields, source geology and/or authored geometry"
+        },
         "legend":legend,
-        "scientific_status":"synthetic fictional world; terrain shading and classification, not geological reconstruction",
+        "scientific_status":if climate.is_some() {
+            "source-defined values; no precipitation or temperature simulation is implied"
+        } else {
+            "fictional world scientific and authored fields; provenance must be checked per source"
+        },
     });
     std::fs::write(
         path.with_extension("json"),
@@ -319,7 +355,7 @@ mod tests {
     }
 
     #[test]
-    fn independently_authored_world_can_render_all_fourteen_existing_maps() {
+    fn independently_authored_world_can_render_all_sixteen_existing_maps() {
         use crate::map_layers::{LayerKind, ProjectLayers};
         use crate::world::Grid;
 
@@ -358,6 +394,13 @@ mod tests {
             world.elevation.as_ref().unwrap(),
             crate::rainshadow::WindFrom::West,
         ));
+        let mut monthly = crate::datasets::DatasetRegistry::default();
+        monthly
+            .create_month(&mut world, ClimateField::Temperature, 1, 18.0)
+            .unwrap();
+        monthly
+            .create_month(&mut world, ClimateField::Precipitation, 1, 100.0)
+            .unwrap();
         let art = Cartography::new(&world);
         for theme in Theme::ALL {
             assert!(theme.available(&world), "{} should be usable", theme.name());
@@ -368,6 +411,41 @@ mod tests {
                 theme.name()
             );
         }
+    }
+
+    #[test]
+    fn monthly_climate_atlas_and_provenance_export_are_source_aware() {
+        let mut world = World::empty(PathBuf::from("independent-climate"));
+        world.width = 48;
+        world.height = 24;
+        let mut datasets = crate::datasets::DatasetRegistry::default();
+        datasets
+            .create_month(&mut world, ClimateField::Temperature, 2, -5.0)
+            .unwrap();
+        datasets
+            .create_month(&mut world, ClimateField::Precipitation, 2, 180.0)
+            .unwrap();
+        let art = Cartography::new(&world);
+        for theme in [Theme::MonthlyTemperature, Theme::MonthlyPrecipitation] {
+            assert!(theme.available(&world));
+            assert_eq!(atlas_image(&world, &art, theme).size, [48, 24]);
+            assert!(art.legend(&world, theme).len() >= 6);
+            let path = std::env::temp_dir().join(format!(
+                "aegaea-monthly-{}-{}.png",
+                std::process::id(),
+                theme.slug()
+            ));
+            export_atlas_png(&world, &art, theme, &path).unwrap();
+            let metadata = std::fs::read_to_string(path.with_extension("json")).unwrap();
+            assert!(metadata.contains(r#""month": 2"#));
+            assert!(metadata.contains("author"));
+            assert!(metadata.contains(theme.climate_field().unwrap().id()));
+            std::fs::remove_file(path.with_extension("json")).unwrap();
+            std::fs::remove_file(path).unwrap();
+        }
+        datasets.activate(&mut world, 3).unwrap();
+        assert!(!Theme::MonthlyTemperature.available(&world));
+        assert!(!Theme::MonthlyPrecipitation.available(&world));
     }
 
     #[test]

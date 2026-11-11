@@ -1,6 +1,7 @@
 //! Aegaea Studio P0: a modern wgpu-backed desktop shell around physical-world maps.
 //! Purposefully scoped: shared atlas/globe source data, inspector, local point annotation.
 mod cartography;
+mod datasets;
 mod geology_diagnostics;
 mod globe3d;
 mod map_graph;
@@ -14,6 +15,7 @@ mod terrain_generation;
 mod world;
 
 use cartography::Cartography;
+use datasets::{month_name, DatasetStroke};
 use eframe::{
     egui,
     egui::{Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Vec2},
@@ -60,7 +62,19 @@ fn source_for_theme(theme: Theme) -> Option<LayerKind> {
         Theme::Crust => Some(LayerKind::Crust),
         Theme::Lithosphere => Some(LayerKind::Lithosphere),
         Theme::HeatFlow => Some(LayerKind::HeatFlow),
-        Theme::Terrain | Theme::Slope | Theme::RainShadow => None,
+        Theme::Terrain
+        | Theme::Slope
+        | Theme::RainShadow
+        | Theme::MonthlyTemperature
+        | Theme::MonthlyPrecipitation => None,
+    }
+}
+
+fn map_export_stem(theme: Theme, month: u8) -> String {
+    if theme.climate_field().is_some() {
+        format!("{}-month-{month:02}", theme.slug())
+    } else {
+        theme.slug().into()
     }
 }
 
@@ -73,6 +87,7 @@ enum ViewMode {
 /// Choose the authoritative elevation source before deriving map fields.
 fn activate_terrain(world: &mut World, project: &Project) -> Result<TerrainMode, String> {
     project.layers.apply(world)?;
+    project.datasets.activate(world, project.month)?;
     let has_edits = !project.terrain.overrides.is_empty() || project.terrain.base_fill_m.is_some();
     let mode = terrain_generation::resolve_mode(project.terrain_mode, world, has_edits);
     if mode == TerrainMode::Generated {
@@ -129,6 +144,13 @@ struct Studio {
     active_layer_stroke: LayerStroke,
     layer_undo: Vec<LayerStroke>,
     layer_redo: Vec<LayerStroke>,
+    dataset_brush: bool,
+    dataset_radius: u32,
+    dataset_paint_value: f32,
+    copy_from_month: u8,
+    active_dataset_stroke: DatasetStroke,
+    dataset_undo: Vec<DatasetStroke>,
+    dataset_redo: Vec<DatasetStroke>,
     boundary_draw: bool,
     boundary_class: u8,
     boundary_start: Option<(f64, f64)>,
@@ -227,6 +249,13 @@ impl Studio {
             active_layer_stroke: LayerStroke::default(),
             layer_undo: Vec::new(),
             layer_redo: Vec::new(),
+            dataset_brush: false,
+            dataset_radius: 5,
+            dataset_paint_value: 20.0,
+            copy_from_month: 1,
+            active_dataset_stroke: DatasetStroke::default(),
+            dataset_undo: Vec::new(),
+            dataset_redo: Vec::new(),
             boundary_draw: false,
             boundary_class: 2,
             boundary_start: None,
@@ -468,6 +497,13 @@ impl Studio {
                 self.active_layer_stroke = LayerStroke::default();
                 self.layer_undo.clear();
                 self.layer_redo.clear();
+                self.dataset_brush = false;
+                self.dataset_radius = 5;
+                self.dataset_paint_value = 20.0;
+                self.copy_from_month = 1;
+                self.active_dataset_stroke = DatasetStroke::default();
+                self.dataset_undo.clear();
+                self.dataset_redo.clear();
                 self.boundary_draw = false;
                 self.boundary_class = 2;
                 self.boundary_start = None;
@@ -607,6 +643,224 @@ impl Studio {
         }
     }
 
+    fn refresh_dataset_map(&mut self) {
+        self.atlas_dirty = true;
+        self.globe_dirty = true;
+        self.changed = true;
+    }
+
+    fn finish_dataset_stroke(&mut self) {
+        if self.active_dataset_stroke.is_empty() {
+            return;
+        }
+        self.dataset_undo
+            .push(std::mem::take(&mut self.active_dataset_stroke));
+        if self.dataset_undo.len() > 64 {
+            self.dataset_undo.remove(0);
+        }
+        self.dataset_redo.clear();
+        self.refresh_dataset_map();
+    }
+
+    fn undo_dataset(&mut self) {
+        self.finish_dataset_stroke();
+        if let Some(stroke) = self.dataset_undo.pop() {
+            stroke.undo(&mut self.world, &mut self.project.datasets);
+            self.dataset_redo.push(stroke);
+            self.refresh_dataset_map();
+            self.status = "Undid monthly map stroke".into();
+        }
+    }
+
+    fn redo_dataset(&mut self) {
+        self.finish_dataset_stroke();
+        if let Some(stroke) = self.dataset_redo.pop() {
+            stroke.redo(&mut self.world, &mut self.project.datasets);
+            self.dataset_undo.push(stroke);
+            self.refresh_dataset_map();
+            self.status = "Redid monthly map stroke".into();
+        }
+    }
+
+    fn select_month(&mut self, month: u8) {
+        self.finish_dataset_stroke();
+        match self.project.datasets.activate(&mut self.world, month) {
+            Ok(()) => {
+                self.project.month = month;
+                self.dataset_undo.clear();
+                self.dataset_redo.clear();
+                self.dataset_brush = false;
+                self.copy_from_month = month;
+                self.refresh_dataset_map();
+                self.status = format!(
+                    "Showing {} · missing monthly fields remain unfilled",
+                    month_name(month)
+                );
+            }
+            Err(error) => self.status = format!("Could not select month: {error}"),
+        }
+    }
+
+    fn monthly_workshop(&mut self, ui: &mut egui::Ui) {
+        let Some(kind) = self.theme.climate_field() else {
+            return;
+        };
+        ui.separator();
+        ui.label(
+            egui::RichText::new("MONTHLY SCIENTIFIC DATA")
+                .strong()
+                .small(),
+        );
+        ui.small(
+            "Authored climate values only. No atmosphere, rainfall or energy-balance simulation.",
+        );
+        let mut selected = self.project.month;
+        egui::ComboBox::from_id_salt("active-month")
+            .selected_text(month_name(selected))
+            .show_ui(ui, |ui| {
+                for month in 1..=12u8 {
+                    ui.selectable_value(&mut selected, month, month_name(month));
+                }
+            });
+        if selected != self.project.month {
+            self.select_month(selected);
+        }
+        let exists = self.project.datasets.has_month(kind, self.project.month);
+        if !exists {
+            ui.small(format!(
+                "No {} dataset for {}. A missing month stays missing.",
+                kind.name(),
+                month_name(self.project.month)
+            ));
+            ui.label(format!("Initial assumed value ({})", kind.unit().label()));
+            ui.add(egui::DragValue::new(&mut self.dataset_paint_value).speed(0.5));
+            let bounds = kind.bounds();
+            let valid = self.dataset_paint_value.is_finite()
+                && (bounds[0]..=bounds[1]).contains(&self.dataset_paint_value);
+            if !valid {
+                ui.colored_label(
+                    Color32::from_rgb(229, 147, 122),
+                    "Value outside the field's physical limits.",
+                );
+            }
+            if ui
+                .add_enabled(valid, egui::Button::new("Create this month's source"))
+                .clicked()
+            {
+                match self.project.datasets.create_month(
+                    &mut self.world,
+                    kind,
+                    self.project.month,
+                    self.dataset_paint_value,
+                ) {
+                    Ok(()) => {
+                        self.refresh_dataset_map();
+                        self.status = format!(
+                            "Created {} for {} (author-assumed values)",
+                            kind.name(),
+                            month_name(self.project.month)
+                        );
+                    }
+                    Err(error) => self.status = format!("Could not create monthly field: {error}"),
+                }
+            }
+            if let Some(field) = self.project.datasets.fields.get(kind.id()) {
+                let months: Vec<u8> = field.months.keys().copied().collect();
+                if !months.is_empty() {
+                    if !months.contains(&self.copy_from_month) {
+                        self.copy_from_month = months[0];
+                    }
+                    ui.separator();
+                    ui.small("Or explicitly duplicate an authored month:");
+                    egui::ComboBox::from_id_salt("month-to-duplicate")
+                        .selected_text(month_name(self.copy_from_month))
+                        .show_ui(ui, |ui| {
+                            for month in &months {
+                                ui.selectable_value(
+                                    &mut self.copy_from_month,
+                                    *month,
+                                    month_name(*month),
+                                );
+                            }
+                        });
+                    if ui.button("Copy values into this month").clicked() {
+                        match self.project.datasets.copy_month(
+                            &mut self.world,
+                            kind,
+                            self.copy_from_month,
+                            self.project.month,
+                        ) {
+                            Ok(()) => {
+                                self.refresh_dataset_map();
+                                self.status =
+                                    "Month copied explicitly; no simulation performed".into();
+                            }
+                            Err(error) => self.status = format!("Month copy failed: {error}"),
+                        }
+                    }
+                }
+            }
+            return;
+        }
+        let field = &self.project.datasets.fields[kind.id()];
+        let snapshot = &field.months[&self.project.month];
+        ui.small(format!(
+            "{} · {} · {} authored cells",
+            field.name,
+            field.provenance.label(),
+            snapshot.overrides.len()
+        ));
+        ui.small(format!(
+            "{} source; dependencies: {}",
+            field.unit.label(),
+            field.dependencies.len()
+        ));
+        if ui
+            .checkbox(&mut self.dataset_brush, "Paint monthly values")
+            .changed()
+            && self.dataset_brush
+        {
+            self.terrain_brush = false;
+            self.layer_brush = false;
+            self.boundary_draw = false;
+            self.boundary_start = None;
+            self.placing_marker = false;
+        }
+        if self.dataset_brush {
+            let bounds = kind.bounds();
+            ui.label(format!("Paint value ({})", kind.unit().label()));
+            ui.add(egui::DragValue::new(&mut self.dataset_paint_value).speed(0.5));
+            if !self.dataset_paint_value.is_finite()
+                || !(bounds[0]..=bounds[1]).contains(&self.dataset_paint_value)
+            {
+                ui.colored_label(Color32::from_rgb(229, 147, 122), "Invalid paint value.");
+            }
+            ui.label("Brush radius (cells)");
+            ui.add(egui::Slider::new(&mut self.dataset_radius, 1..=40));
+            ui.small("Drag on the atlas or globe. Missing months are never interpolated.");
+        }
+        ui.horizontal(|ui| {
+            if ui
+                .add_enabled(
+                    !self.dataset_undo.is_empty(),
+                    egui::Button::new("Undo climate"),
+                )
+                .clicked()
+            {
+                self.undo_dataset();
+            }
+            if ui
+                .add_enabled(
+                    !self.dataset_redo.is_empty(),
+                    egui::Button::new("Redo climate"),
+                )
+                .clicked()
+            {
+                self.redo_dataset();
+            }
+        });
+    }
+
     fn map_layer_workshop(&mut self, ui: &mut egui::Ui) {
         ui.separator();
         ui.label(egui::RichText::new("MAP LAYER WORKSHOP").small().strong());
@@ -675,6 +929,7 @@ impl Studio {
             && self.layer_brush
         {
             self.terrain_brush = false;
+            self.dataset_brush = false;
             self.boundary_draw = false;
             self.boundary_start = None;
             self.placing_marker = false;
@@ -773,6 +1028,7 @@ impl Studio {
                 self.boundary_start = None;
                 if self.boundary_draw {
                     self.layer_brush = false;
+                    self.dataset_brush = false;
                     self.terrain_brush = false;
                     self.placing_marker = false;
                 }
@@ -956,6 +1212,7 @@ impl Studio {
                     if self.placing_marker {
                         self.terrain_brush = false;
                         self.layer_brush = false;
+                        self.dataset_brush = false;
                         self.boundary_draw = false;
                         self.boundary_start = None;
                     }
@@ -982,9 +1239,10 @@ impl Studio {
                     self.redo_terrain();
                 }
                 if ui.button("Export atlas sheet SVG").clicked() {
-                    let target = self
-                        .project_path
-                        .with_file_name(format!("{}-atlas.svg", self.theme.slug()));
+                    let target = self.project_path.with_file_name(format!(
+                        "{}-atlas.svg",
+                        map_export_stem(self.theme, self.project.month)
+                    ));
                     match publication::export_sheet(
                         &self.world,
                         &self.cartography,
@@ -999,9 +1257,10 @@ impl Studio {
                     }
                 }
                 if ui.button("Export map PNG").clicked() {
-                    let target = self
-                        .project_path
-                        .with_file_name(format!("{}.png", self.theme.slug()));
+                    let target = self.project_path.with_file_name(format!(
+                        "{}.png",
+                        map_export_stem(self.theme, self.project.month)
+                    ));
                     match render::export_atlas_png(
                         &self.world,
                         &self.cartography,
@@ -1036,8 +1295,13 @@ impl Studio {
                 let text=if enabled { theme.name().to_string() } else { format!("{}  · needs source",theme.name()) };
                 if ui.add(egui::Button::selectable(self.theme==theme,text)).clicked() {
                     self.finish_layer_stroke();
+                    self.finish_dataset_stroke();
                     self.theme=theme;
                     self.layer_brush=false;
+                    self.dataset_brush=false;
+                    if let Some(field) = theme.climate_field() {
+                        self.dataset_paint_value = field.default_fill();
+                    }
                     self.boundary_draw=false;
                     self.boundary_start=None;
                     if let Some(kind)=source_for_theme(theme) {
@@ -1053,7 +1317,11 @@ impl Studio {
                 }
             }
             });
-            self.map_layer_workshop(ui);
+            if self.theme.climate_field().is_some() {
+                self.monthly_workshop(ui);
+            } else {
+                self.map_layer_workshop(ui);
+            }
             if !self.theme.available(&self.world) {
                 ui.colored_label(Color32::from_rgb(229, 188, 111),
                     "This map has no source data yet. Set up its input layer above.");
@@ -1150,6 +1418,7 @@ impl Studio {
             } else {
                 if ui.checkbox(&mut self.terrain_brush,"Terrain brush").clicked() && self.terrain_brush {
                     self.layer_brush=false;
+                    self.dataset_brush=false;
                     self.placing_marker=false;
                 }
                 if self.terrain_brush {
@@ -1263,6 +1532,28 @@ impl Studio {
                             ui.label("Latitude");
                             ui.monospace(format!("{lat:.3}°"));
                             ui.end_row();
+                            if let Some(kind) = self.theme.climate_field() {
+                                if let Some(field) = self.world.scientific_fields.get(kind.id()) {
+                                    ui.label(format!(
+                                        "{} · {}",
+                                        kind.name(),
+                                        month_name(self.project.month)
+                                    ));
+                                    ui.monospace(format!(
+                                        "{:.2} {}",
+                                        field.geo(lon, lat),
+                                        kind.unit().label()
+                                    ));
+                                    ui.end_row();
+                                    if let Some(source) =
+                                        self.world.scientific_provenance.get(kind.id())
+                                    {
+                                        ui.label("Provenance");
+                                        ui.label(source.label());
+                                        ui.end_row();
+                                    }
+                                }
+                            }
                             if self.theme == Theme::Slope {
                                 if let Some(ref field) = self.world.slope_deg {
                                     ui.label("Surface slope");
@@ -1417,13 +1708,18 @@ impl Studio {
             };
             ui.vertical_centered(|ui| {
                 ui.label(
-                    egui::RichText::new(format!("{}  ·  {}", self.project.name, self.theme.name()))
+                    egui::RichText::new(if self.theme.climate_field().is_some() {
+                        format!("{} · {} · {}", self.project.name, self.theme.name(),
+                            month_name(self.project.month))
+                    } else {
+                        format!("{} · {}", self.project.name, self.theme.name())
+                    })
                         .strong(),
                 );
                 if !self.theme.available(&self.world) {
                     ui.colored_label(
                         Color32::from_rgb(229, 188, 111),
-                        "Map data not initialized; use Map Layer Workshop on the left.",
+                        "Map data for this view is missing; use the source workshop on the left.",
                     );
                 }
                 let (rect, response) =
@@ -1505,6 +1801,7 @@ impl Studio {
                 }
                 if !self.terrain_brush
                     && !self.layer_brush
+                    && !self.dataset_brush
                     && self.view == ViewMode::Globe
                     && response.dragged()
                 {
@@ -1519,6 +1816,7 @@ impl Studio {
                     }
                 } else if !self.terrain_brush
                     && !self.layer_brush
+                    && !self.dataset_brush
                     && self.view == ViewMode::Atlas
                     && response.dragged()
                 {
@@ -1530,6 +1828,7 @@ impl Studio {
                 }
                 if !self.terrain_brush
                     && !self.layer_brush
+                    && !self.dataset_brush
                     && self.view == ViewMode::Atlas
                     && response.hovered()
                 {
@@ -1628,6 +1927,50 @@ impl Studio {
                 if self.layer_brush && (response.clicked() || response.drag_stopped()) {
                     self.finish_layer_stroke();
                 }
+                if self.dataset_brush && (response.clicked() || response.dragged()) {
+                    if let (Some(kind), Some(pos)) = (
+                        self.theme.climate_field(),
+                        response.interact_pointer_pos(),
+                    ) {
+                        let fx = ((pos.x - rect.left()) / rect.width()) as f64;
+                        let fy = ((pos.y - rect.top()) / rect.height()) as f64;
+                        let geo = match self.view {
+                            ViewMode::Atlas => Some(atlas_geo_from_fraction(
+                                uv.min.x as f64 + fx * uv.width() as f64,
+                                uv.min.y as f64 + fy * uv.height() as f64,
+                            )),
+                            ViewMode::Globe => globe_geo_from_fraction(
+                                fx, fy, self.globe_lon, self.globe_lat
+                            ),
+                        };
+                        if let Some((lon, lat)) = geo {
+                            match self.project.datasets.paint(
+                                &mut self.world, kind, self.project.month,
+                                lon, lat, self.dataset_radius, self.dataset_paint_value
+                            ) {
+                                Ok(dab) => {
+                                    if !dab.is_empty() {
+                                        self.active_dataset_stroke.merge(dab);
+                                        self.changed = true;
+                                        self.picked = Some((lon, lat));
+                                    }
+                                }
+                                Err(error) => self.status = format!("Climate paint failed: {error}"),
+                            }
+                        }
+                    }
+                }
+                if self.dataset_brush && (response.clicked() || response.drag_stopped()) {
+                    self.finish_dataset_stroke();
+                }
+                if self.dataset_brush && response.hovered() {
+                    if let Some(pos) = response.hover_pos() {
+                        painter.circle_stroke(
+                            pos, 10.0, Stroke::new(1.5_f32, Color32::from_rgb(102, 185, 231))
+                        );
+                    }
+                }
+
                 if self.layer_brush && response.hovered() {
                     if let Some(pos) = response.hover_pos() {
                         painter.circle_stroke(
@@ -1647,7 +1990,7 @@ impl Studio {
                         );
                     }
                 }
-                if !self.terrain_brush && !self.layer_brush && response.clicked() {
+                if !self.terrain_brush && !self.layer_brush && !self.dataset_brush && response.clicked() {
                     if let Some(pos) = response.interact_pointer_pos() {
                         let fraction_x = ((pos.x - rect.left()) / rect.width()) as f64;
                         let fraction_y = ((pos.y - rect.top()) / rect.height()) as f64;
@@ -1727,14 +2070,18 @@ impl eframe::App for Studio {
         let undo = ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Z));
         let redo = ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Y));
         if undo {
-            if self.layer_brush {
+            if self.dataset_brush {
+                self.undo_dataset();
+            } else if self.layer_brush {
                 self.undo_layer();
             } else {
                 self.undo_terrain();
             }
         }
         if redo {
-            if self.layer_brush {
+            if self.dataset_brush {
+                self.redo_dataset();
+            } else if self.layer_brush {
                 self.redo_layer();
             } else {
                 self.redo_terrain();
@@ -1972,12 +2319,15 @@ fn main() -> eframe::Result {
             if !theme.available(&world) {
                 continue;
             }
-            let target = output.join(format!("{}.png", theme.slug()));
+            let target = output.join(format!("{}.png", map_export_stem(theme, project.month)));
             if let Err(error) = render::export_atlas_png(&world, &art, theme, &target) {
                 eprintln!("Failed to export {}: {}", theme.name(), error);
                 return Ok(());
             }
-            let sheet = output.join(format!("{}-atlas.svg", theme.slug()));
+            let sheet = output.join(format!(
+                "{}-atlas.svg",
+                map_export_stem(theme, project.month)
+            ));
             if let Err(error) =
                 publication::export_sheet(&world, &art, theme, &project.name, &sheet)
             {
@@ -2153,6 +2503,67 @@ mod terrain_activation_tests {
             reload.plate_motion.is_none(),
             "unknown Euler motion is not fabricated"
         );
+    }
+
+    #[test]
+    fn authored_monthly_climate_reopens_without_reference_world_or_inferred_values() {
+        let mut world = World::empty(PathBuf::from("independent-climate"));
+        world.width = 48;
+        world.height = 24;
+        let mut project = Project::new("Climate test");
+        project.terrain_mode = TerrainMode::Imported;
+        project
+            .terrain
+            .create_flat_world(&mut world, -2_000.0)
+            .unwrap();
+        project
+            .datasets
+            .create_month(&mut world, datasets::ClimateField::Temperature, 1, 18.0)
+            .unwrap();
+        project
+            .datasets
+            .create_month(&mut world, datasets::ClimateField::Temperature, 7, 27.0)
+            .unwrap();
+        project
+            .datasets
+            .create_month(&mut world, datasets::ClimateField::Precipitation, 1, 100.0)
+            .unwrap();
+        project.month = 1;
+        let json = serde_json::to_string(&project).unwrap();
+        let project: Project = serde_json::from_str(&json).unwrap();
+
+        let mut first = World::empty(PathBuf::from("independent-climate"));
+        first.width = 48;
+        first.height = 24;
+        activate_terrain(&mut first, &project).unwrap();
+        assert_eq!(first.active_month, 1);
+        assert_eq!(
+            first.scientific_fields[datasets::ClimateField::Temperature.id()].at(0, 0),
+            18.0
+        );
+        assert_eq!(
+            first.scientific_fields[datasets::ClimateField::Precipitation.id()].at(0, 0),
+            100.0
+        );
+        assert!(first.plates.is_empty());
+
+        let mut july = project;
+        july.month = 7;
+        let mut second = World::empty(PathBuf::from("independent-climate"));
+        second.width = 48;
+        second.height = 24;
+        activate_terrain(&mut second, &july).unwrap();
+        assert_eq!(
+            second.scientific_fields[datasets::ClimateField::Temperature.id()].at(0, 0),
+            27.0
+        );
+        assert!(!second
+            .scientific_fields
+            .contains_key(datasets::ClimateField::Precipitation.id()));
+        assert!(second
+            .scientific_provenance
+            .values()
+            .all(|p| matches!(p, datasets::Provenance::Authored { .. })));
     }
 
     #[test]

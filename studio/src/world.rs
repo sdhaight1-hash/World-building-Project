@@ -1,5 +1,6 @@
 //! Scientific source-data loading, source conventions, and editable world annotations.
 //! Data files are immutable; annotations use a separate JSON sidecar.
+use crate::datasets::{DatasetRegistry, Provenance};
 use crate::map_layers::BoundarySegment;
 use crate::plate_kinematics::KinematicFields;
 use crate::rainshadow::WindFrom;
@@ -7,6 +8,7 @@ use crate::terrain_edit::TerrainEdits;
 use crate::terrain_generation::{TerrainMode, TerrainRecipe};
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::BTreeMap,
     fs::{self, File},
     io::{BufReader, Cursor, Read, Seek},
     path::{Path, PathBuf},
@@ -146,6 +148,10 @@ pub struct World {
     pub lithosphere_km: Option<Grid>,
     pub heatflow: Option<Grid>,
     pub rain_shadow: Option<Grid>,
+    /// Materialized monthly scientific fields; the selected time slice only.
+    pub scientific_fields: BTreeMap<String, Grid>,
+    pub scientific_provenance: BTreeMap<String, Provenance>,
+    pub active_month: u8,
     /// Derived Euler-relative boundary velocities, not stored source data.
     pub plate_motion: Option<KinematicFields>,
     pub plates: Vec<PlateInfo>,
@@ -170,6 +176,9 @@ impl World {
             lithosphere_km: None,
             heatflow: None,
             rain_shadow: None,
+            scientific_fields: BTreeMap::new(),
+            scientific_provenance: BTreeMap::new(),
+            active_month: 1,
             plate_motion: None,
             plates: Vec::new(),
             cratons: Vec::new(),
@@ -297,6 +306,10 @@ pub struct Marker {
     pub latitude_deg: f64,
 }
 
+fn january() -> u8 {
+    1
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
     pub name: String,
@@ -312,6 +325,10 @@ pub struct Project {
     pub terrain_recipe: TerrainRecipe,
     #[serde(default)]
     pub layers: crate::map_layers::ProjectLayers,
+    #[serde(default)]
+    pub datasets: DatasetRegistry,
+    #[serde(default = "january")]
+    pub month: u8,
 }
 
 impl Project {
@@ -324,6 +341,8 @@ impl Project {
             terrain_mode: TerrainMode::default(),
             terrain_recipe: TerrainRecipe::default(),
             layers: crate::map_layers::ProjectLayers::default(),
+            datasets: DatasetRegistry::default(),
+            month: 1,
         }
     }
 
