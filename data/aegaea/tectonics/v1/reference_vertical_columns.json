@@ -1,0 +1,2642 @@
+[
+  {
+    "kind": "plate_reference",
+    "plate": "NIVALE",
+    "craton": null,
+    "atlas_longitude_deg": -8.2895,
+    "atlas_latitude_deg": -82.2529,
+    "elevation_m": 641.2,
+    "moho_depth_km_below_surface": 35.0,
+    "lithosphere_asthenosphere_boundary_km": 105.0,
+    "heat_flow_mW_m2": 58.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 76.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 137.4,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 259.8,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 443.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 626.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 932.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1238.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1309.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1320.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1331.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1342.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1354.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1365.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1387.8,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "KORU",
+    "craton": "KAVRA",
+    "atlas_longitude_deg": 123.0502,
+    "atlas_latitude_deg": -53.1775,
+    "elevation_m": 362.1,
+    "moho_depth_km_below_surface": 39.0,
+    "lithosphere_asthenosphere_boundary_km": 206.1,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 46.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 77.3,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 139.7,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 233.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 326.7,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 482.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 638.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 794.4,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 950.2,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1106.1,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1262.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1308.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1319.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1342.3,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "LYRAN",
+    "craton": null,
+    "atlas_longitude_deg": 151.4713,
+    "atlas_latitude_deg": 4.017,
+    "elevation_m": -1479.1,
+    "moho_depth_km_below_surface": 7.0,
+    "lithosphere_asthenosphere_boundary_km": 104.2,
+    "heat_flow_mW_m2": 45.2,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 76.6,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 138.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 261.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 446.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 631.4,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 939.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1247.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1309.3,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1320.6,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1331.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1343.1,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1354.3,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1365.6,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1388.1,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "VEYRA",
+    "craton": null,
+    "atlas_longitude_deg": 76.3278,
+    "atlas_latitude_deg": 13.1987,
+    "elevation_m": 212.5,
+    "moho_depth_km_below_surface": 35.0,
+    "lithosphere_asthenosphere_boundary_km": 105.0,
+    "heat_flow_mW_m2": 58.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 76.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 137.4,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 259.8,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 443.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 626.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 932.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1238.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1309.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1320.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1331.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1342.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1354.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1365.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1387.8,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "SEREVAN",
+    "craton": null,
+    "atlas_longitude_deg": 99.7967,
+    "atlas_latitude_deg": 65.9936,
+    "elevation_m": 309.8,
+    "moho_depth_km_below_surface": 35.0,
+    "lithosphere_asthenosphere_boundary_km": 105.0,
+    "heat_flow_mW_m2": 58.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 76.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 137.4,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 259.8,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 443.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 626.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 932.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1238.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1309.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1320.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1331.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1342.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1354.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1365.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1387.8,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "BRINEVEIL",
+    "craton": null,
+    "atlas_longitude_deg": 22.0694,
+    "atlas_latitude_deg": 56.0468,
+    "elevation_m": 801.6,
+    "moho_depth_km_below_surface": 35.0,
+    "lithosphere_asthenosphere_boundary_km": 105.0,
+    "heat_flow_mW_m2": 58.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 76.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 137.4,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 259.8,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 443.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 626.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 932.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1238.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1309.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1320.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1331.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1342.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1354.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1365.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1387.8,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "ANKAR",
+    "craton": null,
+    "atlas_longitude_deg": 30.4665,
+    "atlas_latitude_deg": -57.0032,
+    "elevation_m": -4847.5,
+    "moho_depth_km_below_surface": 7.0,
+    "lithosphere_asthenosphere_boundary_km": 108.9,
+    "heat_flow_mW_m2": 45.1,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 74.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 133.1,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 251.1,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 428.2,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 605.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 900.4,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1195.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1307.3,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1318.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1329.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1341.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1352.3,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1363.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1386.0,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "MERROW",
+    "craton": "SYRIN",
+    "atlas_longitude_deg": -4.8445,
+    "atlas_latitude_deg": -13.39,
+    "elevation_m": 827.8,
+    "moho_depth_km_below_surface": 41.0,
+    "lithosphere_asthenosphere_boundary_km": 214.4,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 45.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 74.9,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 134.9,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 224.8,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 314.7,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 464.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 614.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 764.4,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 914.2,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1064.1,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1214.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1304.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1316.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1338.5,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "THALASS",
+    "craton": null,
+    "atlas_longitude_deg": -53.5048,
+    "atlas_latitude_deg": 39.7875,
+    "elevation_m": -3180.8,
+    "moho_depth_km_below_surface": 7.0,
+    "lithosphere_asthenosphere_boundary_km": 120.7,
+    "heat_flow_mW_m2": 45.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 68.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 121.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 227.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 387.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 547.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 813.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1079.7,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1301.9,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1313.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1324.4,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1335.7,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1346.9,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1358.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1380.7,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "CAERIN",
+    "craton": null,
+    "atlas_longitude_deg": -61.6866,
+    "atlas_latitude_deg": -52.7949,
+    "elevation_m": -4973.5,
+    "moho_depth_km_below_surface": 7.0,
+    "lithosphere_asthenosphere_boundary_km": 111.8,
+    "heat_flow_mW_m2": 45.1,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 72.4,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 129.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 244.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 417.1,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 589.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 876.7,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1164.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1305.9,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1317.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1328.4,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1339.7,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1350.9,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1362.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1384.7,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "RUSKEL",
+    "craton": null,
+    "atlas_longitude_deg": -67.9306,
+    "atlas_latitude_deg": -11.0946,
+    "elevation_m": -4819.6,
+    "moho_depth_km_below_surface": 7.0,
+    "lithosphere_asthenosphere_boundary_km": 105.7,
+    "heat_flow_mW_m2": 45.2,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 75.8,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 136.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 258.1,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 440.4,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 622.7,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 926.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1230.4,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1308.7,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1319.9,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1331.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1342.4,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1353.7,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1364.9,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1387.4,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "ORREN",
+    "craton": null,
+    "atlas_longitude_deg": -135.7536,
+    "atlas_latitude_deg": -51.0733,
+    "elevation_m": -5378.8,
+    "moho_depth_km_below_surface": 7.0,
+    "lithosphere_asthenosphere_boundary_km": 125.0,
+    "heat_flow_mW_m2": 45.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 66.4,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 117.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 220.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 374.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 529.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 786.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1043.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1300.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1311.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1322.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1333.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1345.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1356.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1378.8,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "HALDEN",
+    "craton": null,
+    "atlas_longitude_deg": -114.2225,
+    "atlas_latitude_deg": 9.5643,
+    "elevation_m": -1760.6,
+    "moho_depth_km_below_surface": 7.0,
+    "lithosphere_asthenosphere_boundary_km": 115.8,
+    "heat_flow_mW_m2": 45.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 70.5,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 126.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 236.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 403.4,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 569.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 847.2,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1124.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1304.1,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1315.4,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1326.6,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1337.9,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1349.1,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1360.4,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1382.9,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "VALLIN",
+    "craton": null,
+    "atlas_longitude_deg": -121.7584,
+    "atlas_latitude_deg": 67.5239,
+    "elevation_m": 147.2,
+    "moho_depth_km_below_surface": 35.0,
+    "lithosphere_asthenosphere_boundary_km": 105.0,
+    "heat_flow_mW_m2": 58.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 76.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 137.4,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 259.8,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 443.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 626.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 932.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1238.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1309.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1320.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1331.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1342.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1354.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1365.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1387.8,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "AUREOLE",
+    "craton": null,
+    "atlas_longitude_deg": -154.2703,
+    "atlas_latitude_deg": 31.5622,
+    "elevation_m": -1607.5,
+    "moho_depth_km_below_surface": 7.0,
+    "lithosphere_asthenosphere_boundary_km": 65.0,
+    "heat_flow_mW_m2": 55.9,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 113.9,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 212.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 410.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 707.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 1004.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 1304.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1315.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1327.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1338.3,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1349.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1360.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1372.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1383.3,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1405.8,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "DRAEM",
+    "craton": null,
+    "atlas_longitude_deg": -28.9593,
+    "atlas_latitude_deg": 76.8969,
+    "elevation_m": 65.6,
+    "moho_depth_km_below_surface": 35.0,
+    "lithosphere_asthenosphere_boundary_km": 105.0,
+    "heat_flow_mW_m2": 58.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 76.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 137.4,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 259.8,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 443.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 626.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 932.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1238.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1309.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1320.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1331.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1342.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1354.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1365.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1387.8,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "plate_reference",
+    "plate": "SUNDRAL",
+    "craton": null,
+    "atlas_longitude_deg": 78.6962,
+    "atlas_latitude_deg": -19.3199,
+    "elevation_m": 156.2,
+    "moho_depth_km_below_surface": 35.0,
+    "lithosphere_asthenosphere_boundary_km": 105.0,
+    "heat_flow_mW_m2": 58.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 76.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 137.4,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 259.8,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 443.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 626.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 932.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 1238.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 1309.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1320.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1331.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1342.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1354.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1365.2,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1387.8,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "craton_core",
+    "plate": "KORU",
+    "craton": "KAVRA",
+    "atlas_longitude_deg": 109.055,
+    "atlas_latitude_deg": -45.526,
+    "elevation_m": 584.8,
+    "moho_depth_km_below_surface": 41.0,
+    "lithosphere_asthenosphere_boundary_km": 206.1,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 46.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 77.3,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 139.7,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 233.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 326.7,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 482.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 638.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 794.4,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 950.2,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1106.1,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1262.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1308.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1319.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1342.3,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "craton_core",
+    "plate": "LYRAN",
+    "craton": "ORVEL",
+    "atlas_longitude_deg": 143.0742,
+    "atlas_latitude_deg": 8.6079,
+    "elevation_m": 536.9,
+    "moho_depth_km_below_surface": 41.0,
+    "lithosphere_asthenosphere_boundary_km": 210.7,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 45.5,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 76.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 137.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 228.4,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 319.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 472.4,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 624.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 777.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 929.7,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1082.2,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1234.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1306.4,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1317.7,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1340.2,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "craton_core",
+    "plate": "SEREVAN",
+    "craton": "MAREN",
+    "atlas_longitude_deg": 84.7249,
+    "atlas_latitude_deg": 38.2572,
+    "elevation_m": 885.3,
+    "moho_depth_km_below_surface": 41.0,
+    "lithosphere_asthenosphere_boundary_km": 194.6,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 48.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 81.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 147.1,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 246.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 345.2,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 510.4,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 675.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 840.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1005.7,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1170.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1302.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1313.7,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1325.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1347.5,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "craton_core",
+    "plate": "BRINEVEIL",
+    "craton": "ILTHEN",
+    "atlas_longitude_deg": 40.8014,
+    "atlas_latitude_deg": 42.848,
+    "elevation_m": 8.0,
+    "moho_depth_km_below_surface": 39.0,
+    "lithosphere_asthenosphere_boundary_km": 190.9,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 48.7,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 82.3,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 149.6,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 250.6,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 351.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 519.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 688.1,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 856.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1024.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1192.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1304.1,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1315.3,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1326.6,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1349.1,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "craton_core",
+    "plate": "SEREVAN",
+    "craton": "KEVAR",
+    "atlas_longitude_deg": 91.1842,
+    "atlas_latitude_deg": 53.7513,
+    "elevation_m": 635.1,
+    "moho_depth_km_below_surface": 41.0,
+    "lithosphere_asthenosphere_boundary_km": 201.1,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 46.9,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 78.9,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 142.8,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 238.6,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 334.4,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 494.1,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 653.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 813.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 973.2,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1132.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1292.7,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1310.7,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1322.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1344.5,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "craton_core",
+    "plate": "MERROW",
+    "craton": "SYRIN",
+    "atlas_longitude_deg": -11.9498,
+    "atlas_latitude_deg": -22.5717,
+    "elevation_m": 8.0,
+    "moho_depth_km_below_surface": 41.0,
+    "lithosphere_asthenosphere_boundary_km": 214.4,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 45.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 74.9,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 134.9,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 224.8,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 314.7,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 464.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 614.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 764.4,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 914.2,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1064.1,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1214.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1304.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1316.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1338.5,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "craton_core",
+    "plate": "MERROW",
+    "craton": "EIDEN",
+    "atlas_longitude_deg": -9.5813,
+    "atlas_latitude_deg": 3.8257,
+    "elevation_m": 233.2,
+    "moho_depth_km_below_surface": 41.0,
+    "lithosphere_asthenosphere_boundary_km": 197.5,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 47.5,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 80.1,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 145.1,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 242.7,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 340.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 502.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 665.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 828.2,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 990.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1153.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1301.1,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1312.4,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1323.6,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1346.1,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "craton_core",
+    "plate": "THALASS",
+    "craton": "NALOR",
+    "atlas_longitude_deg": -15.1794,
+    "atlas_latitude_deg": 27.1626,
+    "elevation_m": 1104.1,
+    "moho_depth_km_below_surface": 41.0,
+    "lithosphere_asthenosphere_boundary_km": 185.6,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 49.6,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 84.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 153.4,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 257.3,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 361.1,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 534.1,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 707.2,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 880.2,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1053.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1226.3,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1306.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1317.7,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1329.0,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1351.5,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "craton_core",
+    "plate": "ORREN",
+    "craton": "TAVEN",
+    "atlas_longitude_deg": -153.8397,
+    "atlas_latitude_deg": -52.0298,
+    "elevation_m": 557.1,
+    "moho_depth_km_below_surface": 41.0,
+    "lithosphere_asthenosphere_boundary_km": 205.4,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 46.3,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 77.5,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 140.1,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 233.9,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 327.7,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 484.1,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 640.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 796.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 953.2,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1109.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1266.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1308.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1320.1,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1342.6,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "craton_core",
+    "plate": "HALDEN",
+    "craton": "SELDAR",
+    "atlas_longitude_deg": -103.4569,
+    "atlas_latitude_deg": 8.4166,
+    "elevation_m": 239.9,
+    "moho_depth_km_below_surface": 41.0,
+    "lithosphere_asthenosphere_boundary_km": 193.6,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 48.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 81.4,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 147.8,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 247.4,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 346.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 512.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 678.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 844.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1010.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1176.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1302.9,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1314.1,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1325.4,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1347.9,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "craton_core",
+    "plate": "VALLIN",
+    "craton": "HERIN",
+    "atlas_longitude_deg": -118.0981,
+    "atlas_latitude_deg": 40.7439,
+    "elevation_m": 626.6,
+    "moho_depth_km_below_surface": 41.0,
+    "lithosphere_asthenosphere_boundary_km": 212.0,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 45.3,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 75.6,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 136.2,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 227.1,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 318.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 469.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 621.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 772.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 924.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1075.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1227.0,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1305.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1317.1,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1339.6,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "craton_core",
+    "plate": "VALLIN",
+    "craton": "VORUN",
+    "atlas_longitude_deg": -150.1794,
+    "atlas_latitude_deg": 56.238,
+    "elevation_m": 131.7,
+    "moho_depth_km_below_surface": 41.0,
+    "lithosphere_asthenosphere_boundary_km": 189.3,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 48.9,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 82.9,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 150.8,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 252.6,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 354.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 524.2,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 693.9,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 863.7,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 1033.4,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1203.1,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1304.8,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1316.1,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1327.3,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1349.8,
+        "material": "asthenosphere"
+      }
+    ]
+  },
+  {
+    "kind": "craton_core",
+    "plate": "THALASS",
+    "craton": "FARON",
+    "atlas_longitude_deg": -48.7679,
+    "atlas_latitude_deg": 56.6206,
+    "elevation_m": 90.3,
+    "moho_depth_km_below_surface": 41.0,
+    "lithosphere_asthenosphere_boundary_km": 202.1,
+    "heat_flow_mW_m2": 40.0,
+    "thermal_profile": [
+      {
+        "depth_km": 0,
+        "temperature_C_schematic": 15.0,
+        "material": "crust"
+      },
+      {
+        "depth_km": 5,
+        "temperature_C_schematic": 46.8,
+        "material": "crust"
+      },
+      {
+        "depth_km": 10,
+        "temperature_C_schematic": 78.6,
+        "material": "crust"
+      },
+      {
+        "depth_km": 20,
+        "temperature_C_schematic": 142.1,
+        "material": "crust"
+      },
+      {
+        "depth_km": 35,
+        "temperature_C_schematic": 237.5,
+        "material": "crust"
+      },
+      {
+        "depth_km": 50,
+        "temperature_C_schematic": 332.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 75,
+        "temperature_C_schematic": 491.8,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 100,
+        "temperature_C_schematic": 650.7,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 125,
+        "temperature_C_schematic": 809.6,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 150,
+        "temperature_C_schematic": 968.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 175,
+        "temperature_C_schematic": 1127.5,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 200,
+        "temperature_C_schematic": 1286.4,
+        "material": "lithospheric_mantle"
+      },
+      {
+        "depth_km": 225,
+        "temperature_C_schematic": 1310.3,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 250,
+        "temperature_C_schematic": 1321.5,
+        "material": "asthenosphere"
+      },
+      {
+        "depth_km": 300,
+        "temperature_C_schematic": 1344.0,
+        "material": "asthenosphere"
+      }
+    ]
+  }
+]

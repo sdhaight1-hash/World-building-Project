@@ -1,0 +1,12 @@
+province_id,province,area_million_km2,elevation_median_m,crust_thickness_median_km,LAB_depth_median_km,surface_heatflow_median_mW_m2,relative_deformation_index_median
+0,ocean_basin,268.0693,-3999.4,7.0,84.0,47.0,0.0
+1,ocean_spreading_axis,19.8303,-1387.3,7.0,33.4,125.0,0.313
+2,ocean_trench,15.8245,-3596.6,7.0,41.8,87.8,0.797
+3,noncratonic_continent,107.9331,410.3,35.0,105.0,58.0,0.0
+4,exposed_cratonic_shield,18.7713,497.9,41.0,205.4,40.0,0.0
+5,sedimentary_cratonic_platform,42.2782,464.1,39.0,202.1,40.0,0.0
+6,ancient_mobile_belt,13.2483,481.3,37.0,125.0,53.0,0.0
+7,collision_orogen,14.1841,3006.5,43.5,118.0,65.0,0.344
+8,volcanic_arc,1.8838,2177.1,36.0,92.0,83.0,0.745
+9,continental_rift,5.4202,1613.9,24.0,67.0,89.0,0.851
+10,transform_shear_zone,2.6213,1117.7,30.0,85.0,68.0,1.0

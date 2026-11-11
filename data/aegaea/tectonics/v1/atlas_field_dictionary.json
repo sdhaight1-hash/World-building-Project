@@ -1,0 +1,39 @@
+{
+  "data_file": "aegaea_geology_native_1672x941.npz",
+  "row_order": "top row of image is atlas south pole, bottom row is atlas north pole",
+  "plate_id": "0..16 in plates.csv",
+  "craton_id": "0 none, 1..13 as cratons.csv",
+  "land_mask": "1 land, 0 ocean, fixed original coastlines",
+  "shield_mask": "1 exposed ancient cratonic basement",
+  "paleomobile_mask": "1 inferred ancient basement-margin mobile zone, not active plate fault",
+  "boundary_class": {
+    "0": "subduction",
+    "1": "continental_collision",
+    "2": "divergent_spreading",
+    "3": "transform",
+    "255": "none"
+  },
+  "province_id": {
+    "0": "ocean_basin",
+    "1": "ocean_spreading_axis",
+    "2": "ocean_trench",
+    "3": "noncratonic_continent",
+    "4": "exposed_cratonic_shield",
+    "5": "sedimentary_cratonic_platform",
+    "6": "ancient_mobile_belt",
+    "7": "collision_orogen",
+    "8": "volcanic_arc",
+    "9": "continental_rift",
+    "10": "transform_shear_zone"
+  },
+  "elevation_m": "float32 source synthetic DEM; >0 land, <0 ocean",
+  "crust_thickness_km": "float32 scenario; depth to Moho",
+  "lithosphere_thickness_km": "float32 scenario; approximate lithosphere-asthenosphere boundary depth",
+  "heat_flow_mW_m2": "float32 scenario; schematic conductive surface flux",
+  "basement_age_ma_known": "uint16 0 unspecified, >0 age for explicitly seeded craton cores",
+  "ocean_age_proxy_ma": "float32 NaN on land; NOT a rigorously reconstructed spreading age",
+  "deformation_tendency_0to1": "float32 relative spatial index; NOT earthquake risk or event probability",
+  "distance_*_km_approx": "estimated, approximate geographic distances to synthetic plate boundary class",
+  "absolute_motion_frame": "Model Euler rotation frame, no fixed mantle frame",
+  "temperature_columns": "heuristic geothermal endmember, not a conductive PDE solution"
+}

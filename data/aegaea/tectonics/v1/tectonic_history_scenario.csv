@@ -1,0 +1,12 @@
+interval,units,stage,associated_domains,tectonic_processes,evidence_grade
+3450–3000,Ma,Ancient nuclei form,"Syrin, Orvel, Herin, Kavra","Felsic proto-crust formation, greenstone belts, mantle-root stabilization",hypothetical oldest assigned basement
+3000–2500,Ma,Late Archean crust growth,"Maren, Kevar, Eiden, Seldar, Ilthen, Nalor, Vorun",Growth and annealing of additional cratonic blocks; stabilization predates most younger sutures,age-constrained only by assigned basement ages
+2500–1800,Ma,Proto-continental amalgamation,all basement blocks,Mobile belts accrete onto older nuclei; deformation and high-grade metamorphism,"scenario, no paleopositions"
+1800–1000,Ma,Cratonic recycling and platform development,all continents,Metamorphism and sedimentary platform development on stable interiors,"scenario, no radiometric control"
+1000–650,Ma,Long-lived ancient suturing,multiple proto-continents,Inherited sutures and reworked continental margins; mobile belts,"scenario, not present plate contacts"
+650–300,Ma,Basinal sedimentation and mature continental roots,continental craton platforms,"Epeiric basins, passive-margin sediments and crustal shortening locally",scenario
+300–220,Ma,Pre-breakup continental assembly,proto-Aegaean continental blocks,Assembly and weakening along inherited suture systems,scenario
+220–145,Ma,Continental extension and breakup,rift-prone younger lithosphere,"Rift basins, flood basalt potential, new passive margins; resistant cratonic cores remain",inherited from earlier terrain scenario
+145–80,Ma,Oceanic-basin expansion,hypothetical spreading corridors,"New oceanic crust, cooling-related subsidence and marine transgression",inherited from earlier terrain scenario
+80–25,Ma,Subduction and collision onset,modern convergent neighborhoods,"Orogen growth, trench advance and arc volcanism",inherited from earlier terrain scenario
+25–0,Ma,Modern 17-plate kinematic pattern,all modern plate names,"Present Euler pole motion, inferred boundaries, ongoing shortening and extension",instantaneous present motion; NOT integrated through 25 Ma

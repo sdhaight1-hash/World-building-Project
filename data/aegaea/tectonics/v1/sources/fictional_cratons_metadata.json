@@ -1,0 +1,106 @@
+{
+  "craton_count": 13,
+  "craton_cores": [
+    {
+      "name": "KAVRA",
+      "age_ga": 3.2,
+      "plate": "KORU",
+      "pixels": 15742,
+      "surface": "platform"
+    },
+    {
+      "name": "ORVEL",
+      "age_ga": 3.34,
+      "plate": "LYRAN",
+      "pixels": 14719,
+      "surface": "shield"
+    },
+    {
+      "name": "MAREN",
+      "age_ga": 2.85,
+      "plate": "SEREVAN",
+      "pixels": 20038,
+      "surface": "platform"
+    },
+    {
+      "name": "ILTHEN",
+      "age_ga": 2.74,
+      "plate": "BRINEVEIL",
+      "pixels": 10830,
+      "surface": "platform"
+    },
+    {
+      "name": "KEVAR",
+      "age_ga": 3.05,
+      "plate": "SEREVAN",
+      "pixels": 13320,
+      "surface": "shield"
+    },
+    {
+      "name": "SYRIN",
+      "age_ga": 3.45,
+      "plate": "MERROW",
+      "pixels": 25432,
+      "surface": "shield"
+    },
+    {
+      "name": "EIDEN",
+      "age_ga": 2.94,
+      "plate": "MERROW",
+      "pixels": 11619,
+      "surface": "platform"
+    },
+    {
+      "name": "NALOR",
+      "age_ga": 2.58,
+      "plate": "THALASS",
+      "pixels": 4971,
+      "surface": "shield"
+    },
+    {
+      "name": "TAVEN",
+      "age_ga": 3.18,
+      "plate": "ORREN",
+      "pixels": 7756,
+      "surface": "platform"
+    },
+    {
+      "name": "SELDAR",
+      "age_ga": 2.82,
+      "plate": "HALDEN",
+      "pixels": 9861,
+      "surface": "shield"
+    },
+    {
+      "name": "HERIN",
+      "age_ga": 3.38,
+      "plate": "VALLIN",
+      "pixels": 13241,
+      "surface": "platform"
+    },
+    {
+      "name": "VORUN",
+      "age_ga": 2.69,
+      "plate": "VALLIN",
+      "pixels": 4372,
+      "surface": "platform"
+    },
+    {
+      "name": "FARON",
+      "age_ga": 3.08,
+      "plate": "THALASS",
+      "pixels": 9058,
+      "surface": "shield"
+    }
+  ],
+  "mask_value": "0=noncratonic;1..13 correspond to craton_cores order",
+  "cratons_are_tectonic_plates": false,
+  "tectonic_model": "17 invented present-day plates",
+  "created_from": "mirrored upside down land mask and procedural geologic domain seeds",
+  "limitations": [
+    "A hypothetical surface basement map, not a dynamic reconstruction of multi-Ga plate history",
+    "Domains artificially clipped to single present-day plates; historical rifting and rifted fragments not explicitly modeled",
+    "Shields, sedimentary platforms, and paleo-mobile zones are designed, not inferred from stratigraphic evidence",
+    "Existing terrain and elevation were not modified by this overlay"
+  ]
+}
