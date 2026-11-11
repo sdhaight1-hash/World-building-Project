@@ -200,6 +200,11 @@ impl DatasetRegistry {
             if !Self::valid_id(id) {
                 return Err(format!("Invalid dataset ID: {id}"));
             }
+            if ClimateField::ALL.iter().any(|kind| id == kind.annual_id()) {
+                return Err(format!(
+                    "Dataset ID '{id}' is reserved for computed annual climate maps"
+                ));
+            }
             if field.name.trim().is_empty() || field.size != size {
                 return Err(format!(
                     "Dataset '{id}' has missing name or incorrect grid size"
@@ -603,6 +608,67 @@ mod tests {
                 operator: "sum_of_12_monthly_totals".into(),
                 inputs: vec![ClimateField::Precipitation.id().into()],
             });
+    }
+
+
+    #[test]
+    fn annual_climate_is_rebuilt_from_sparse_months_after_json_roundtrip() {
+        let mut source = world();
+        let mut registry = DatasetRegistry::default();
+        for month in 1..=12u8 {
+            registry
+                .create_month(&mut source, ClimateField::Temperature, month, 16.0)
+                .unwrap();
+            registry
+                .create_month(&mut source, ClimateField::Precipitation, month, 100.0)
+                .unwrap();
+        }
+
+        registry.activate(&mut source, 4).unwrap();
+        registry
+            .paint(&mut source, ClimateField::Temperature, 4, 0.0, 0.0, 1, 28.0)
+            .unwrap();
+        registry
+            .paint(&mut source, ClimateField::Precipitation, 4, 0.0, 0.0, 1, 250.0)
+            .unwrap();
+        registry.activate(&mut source, 4).unwrap();
+
+        let temperature = source.scientific_fields[ClimateField::Temperature.annual_id()]
+            .cells
+            .clone();
+        let precipitation = source.scientific_fields[ClimateField::Precipitation.annual_id()]
+            .cells
+            .clone();
+        assert!(temperature.iter().any(|value| (*value - 17.0).abs() < 0.001));
+        assert!(precipitation.iter().any(|value| (*value - 1350.0).abs() < 0.001));
+
+        let json = serde_json::to_string(&registry).unwrap();
+        assert!(!json.contains(ClimateField::Temperature.annual_id()));
+        assert!(!json.contains(ClimateField::Precipitation.annual_id()));
+        let restored: DatasetRegistry = serde_json::from_str(&json).unwrap();
+        let mut reopened = world();
+        restored.activate(&mut reopened, 10).unwrap();
+        assert_eq!(
+            reopened.scientific_fields[ClimateField::Temperature.annual_id()].cells,
+            temperature
+        );
+        assert_eq!(
+            reopened.scientific_fields[ClimateField::Precipitation.annual_id()].cells,
+            precipitation
+        );
+    }
+
+    #[test]
+    fn annual_derived_ids_cannot_be_overwritten_by_authored_sources() {
+        let mut w = world();
+        let mut registry = DatasetRegistry::default();
+        registry
+            .create_month(&mut w, ClimateField::Temperature, 1, 15.0)
+            .unwrap();
+        let synthetic = registry.fields[ClimateField::Temperature.id()].clone();
+        registry.fields.insert(ClimateField::Temperature.annual_id().into(), synthetic);
+        let error = registry.validate([w.width, w.height]).unwrap_err();
+        assert!(error.contains("reserved"), "{error}");
     }
 
     #[test]
