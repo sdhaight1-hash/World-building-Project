@@ -656,7 +656,7 @@ mod tests {
     fn coupled_transport_preview_exports_all_three_maps_and_dual_mass_budget() {
         use crate::{
             datasets::{DatasetRegistry, MonthlyField},
-            moisture_transport::{self, WATER_COLUMN_ID, PRESSURE_PREVIEW_ID, HUMIDITY_PREVIEW_ID},
+            moisture_transport::{self, HUMIDITY_PREVIEW_ID, PRESSURE_PREVIEW_ID, WATER_COLUMN_ID},
         };
         let mut world = World::empty(PathBuf::from("transport-export"));
         world.width = 48;
@@ -671,8 +671,12 @@ mod tests {
             sources.create_month(&mut world, kind, 4, value).unwrap();
         }
         // The source grids are immutable under numerical transport.
-        let source_p = world.scientific_fields[MonthlyField::Pressure.id()].cells.clone();
-        let source_q = world.scientific_fields[MonthlyField::SpecificHumidity.id()].cells.clone();
+        let source_p = world.scientific_fields[MonthlyField::Pressure.id()]
+            .cells
+            .clone();
+        let source_q = world.scientific_fields[MonthlyField::SpecificHumidity.id()]
+            .cells
+            .clone();
         for theme in [
             Theme::TransportedVaporColumn,
             Theme::TransportedPressure,
@@ -686,7 +690,11 @@ mod tests {
         for (theme, id, unit) in [
             (Theme::TransportedVaporColumn, WATER_COLUMN_ID, "kg/m²"),
             (Theme::TransportedPressure, PRESSURE_PREVIEW_ID, "hPa"),
-            (Theme::TransportedSpecificHumidity, HUMIDITY_PREVIEW_ID, "g/kg"),
+            (
+                Theme::TransportedSpecificHumidity,
+                HUMIDITY_PREVIEW_ID,
+                "g/kg",
+            ),
         ] {
             assert!(theme.available(&world));
             assert_eq!(theme.scientific_id(), Some(id));
@@ -694,33 +702,57 @@ mod tests {
             assert_eq!(art.legend(&world, theme).len(), 7);
             assert_eq!(atlas_image(&world, &art, theme).size, [48, 24]);
             let path = std::env::temp_dir().join(format!(
-                "aegaea-coupled-{}-{}.png", std::process::id(), theme.slug()
+                "aegaea-coupled-{}-{}.png",
+                std::process::id(),
+                theme.slug()
             ));
             export_atlas_png(&world, &art, theme, &path).unwrap();
-            let meta: serde_json::Value = serde_json::from_slice(
-                &std::fs::read(path.with_extension("json")).unwrap()
-            ).unwrap();
+            let meta: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(path.with_extension("json")).unwrap())
+                    .unwrap();
             assert_eq!(meta["month"], 4);
             assert_eq!(meta["dataset_id"], id);
             assert_eq!(meta["units"], unit);
             assert_eq!(meta["provenance"]["kind"], "derived");
             assert_eq!(meta["moisture_transport_budget"]["month"], 4);
-            assert_eq!(meta["moisture_transport_budget"]["surface_gravity_m_s2"], 9.80665);
+            assert_eq!(
+                meta["moisture_transport_budget"]["surface_gravity_m_s2"],
+                9.80665
+            );
             assert!(meta["moisture_transport_budget"]["air_kg_before"].is_number());
-            assert!(meta["moisture_transport_budget"]["air_relative_mass_error"].as_f64().unwrap() < 1.0e-7);
-            assert!(meta["moisture_transport_budget"]["relative_mass_error"].as_f64().unwrap() < 1.0e-7);
+            assert!(
+                meta["moisture_transport_budget"]["air_relative_mass_error"]
+                    .as_f64()
+                    .unwrap()
+                    < 1.0e-7
+            );
+            assert!(
+                meta["moisture_transport_budget"]["relative_mass_error"]
+                    .as_f64()
+                    .unwrap()
+                    < 1.0e-7
+            );
             std::fs::remove_file(path.with_extension("json")).unwrap();
             std::fs::remove_file(path).unwrap();
         }
-        assert_eq!(world.scientific_fields[MonthlyField::Pressure.id()].cells, source_p);
-        assert_eq!(world.scientific_fields[MonthlyField::SpecificHumidity.id()].cells, source_q);
+        assert_eq!(
+            world.scientific_fields[MonthlyField::Pressure.id()].cells,
+            source_p
+        );
+        assert_eq!(
+            world.scientific_fields[MonthlyField::SpecificHumidity.id()].cells,
+            source_q
+        );
         sources.activate(&mut world, 5).unwrap();
         for theme in [
             Theme::TransportedVaporColumn,
             Theme::TransportedPressure,
             Theme::TransportedSpecificHumidity,
         ] {
-            assert!(!theme.available(&world), "Old time slice must not be reused");
+            assert!(
+                !theme.available(&world),
+                "Old time slice must not be reused"
+            );
         }
         assert!(world.moisture_transport_budget.is_none());
     }
