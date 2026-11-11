@@ -366,7 +366,9 @@ mod tests {
     fn refuses_missing_fields_or_nonfinite_parameters_without_mutating_world() {
         let mut w = fixture(12, 6, 10.0, 0.0);
         w.scientific_fields.remove(MonthlyField::Pressure.id());
-        assert!(preview(&w, 6371.0, 9.80665, 30.0).unwrap_err().contains("pressure"));
+        assert!(preview(&w, 6371.0, 9.80665, 30.0)
+            .unwrap_err()
+            .contains("pressure"));
         assert!(preview(&w, 6371.0, 9.80665, f64::NAN).is_err());
         assert!(preview(&w, 6371.0, 0.0, 30.0).is_err());
         w.scientific_fields.insert(
@@ -500,7 +502,11 @@ mod tests {
     #[test]
     fn pressure_responds_to_advection_and_air_mass_is_conserved() {
         let mut w = fixture(32, 16, 40.0, 0.0);
-        let source = &mut w.scientific_fields.get_mut(MonthlyField::Pressure.id()).unwrap().cells;
+        let source = &mut w
+            .scientific_fields
+            .get_mut(MonthlyField::Pressure.id())
+            .unwrap()
+            .cells;
         source[8 * 32] = 1150.0;
         let input = source.clone();
         let result = preview(&w, 6371.0, 9.80665, 1200.0).unwrap();
@@ -510,22 +516,40 @@ mod tests {
         assert!(result.pressure_hpa.cells[8 * 32 + 1] == 1013.25);
         assert!(result.budget.air_relative_mass_error < 1.0e-7);
         assert!(result.budget.relative_mass_error < 1.0e-7);
-        assert_eq!(w.scientific_fields[MonthlyField::Pressure.id()].cells, input);
+        assert_eq!(
+            w.scientific_fields[MonthlyField::Pressure.id()].cells,
+            input
+        );
     }
 
     #[test]
     fn divergent_prescribed_flow_changes_pressure_but_not_uniform_mixing_ratio() {
         let mut w = fixture(32, 16, 0.0, 0.0);
-        w.scientific_fields.get_mut(MonthlyField::SpecificHumidity.id())
-            .unwrap().cells.fill(12.0);
+        w.scientific_fields
+            .get_mut(MonthlyField::SpecificHumidity.id())
+            .unwrap()
+            .cells
+            .fill(12.0);
         // Divergence from prescribed eastward velocity near x=5.
-        let wind = &mut w.scientific_fields.get_mut(MonthlyField::WindEast.id()).unwrap().cells;
+        let wind = &mut w
+            .scientific_fields
+            .get_mut(MonthlyField::WindEast.id())
+            .unwrap()
+            .cells;
         for y in 0..16 {
             wind[y * 32 + 5] = 50.0;
         }
         let result = preview(&w, 6371.0, 9.80665, 1800.0).unwrap();
-        assert!(result.pressure_hpa.cells.iter().any(|p| (*p - 1013.25).abs() > 0.01));
-        assert!(result.specific_humidity_g_kg.cells.iter().all(|q| (*q - 12.0).abs() < 0.0001));
+        assert!(result
+            .pressure_hpa
+            .cells
+            .iter()
+            .any(|p| (*p - 1013.25).abs() > 0.01));
+        assert!(result
+            .specific_humidity_g_kg
+            .cells
+            .iter()
+            .all(|q| (*q - 12.0).abs() < 0.0001));
         assert!(result.budget.air_relative_mass_error < 1.0e-7);
         assert!(result.budget.relative_mass_error < 1.0e-7);
         assert!(result.budget.minimum_pressure_hpa > 0.0);
@@ -534,13 +558,26 @@ mod tests {
     #[test]
     fn tracer_stays_bounded_even_when_moist_air_columns_diverge() {
         let mut w = fixture(48, 24, -60.0, 40.0);
-        w.scientific_fields.get_mut(MonthlyField::SpecificHumidity.id()).unwrap()
-            .cells.iter_mut().enumerate().for_each(|(i, q)| {
+        w.scientific_fields
+            .get_mut(MonthlyField::SpecificHumidity.id())
+            .unwrap()
+            .cells
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, q)| {
                 *q = if i % 3 == 0 { 60.0 } else { 0.0 };
             });
         let result = preview(&w, 6371.0, 9.80665, 1800.0).unwrap();
-        assert!(result.specific_humidity_g_kg.cells.iter().all(|&q| q >= 0.0 && q <= 60.001));
-        assert!(result.pressure_hpa.cells.iter().all(|&p| p > 0.0 && p.is_finite()));
+        assert!(result
+            .specific_humidity_g_kg
+            .cells
+            .iter()
+            .all(|&q| q >= 0.0 && q <= 60.001));
+        assert!(result
+            .pressure_hpa
+            .cells
+            .iter()
+            .all(|&p| p > 0.0 && p.is_finite()));
         assert!(result.budget.air_relative_mass_error < 1.0e-7);
         assert!(result.budget.relative_mass_error < 1.0e-7);
     }
@@ -548,12 +585,18 @@ mod tests {
     #[test]
     fn gravity_changes_column_mass_but_not_initial_pressure() {
         let mut w = fixture(8, 4, 0.0, 0.0);
-        w.scientific_fields.get_mut(MonthlyField::SpecificHumidity.id())
-            .unwrap().cells.fill(20.0);
+        w.scientific_fields
+            .get_mut(MonthlyField::SpecificHumidity.id())
+            .unwrap()
+            .cells
+            .fill(20.0);
         let earth = preview(&w, 6371.0, 9.80665, 60.0).unwrap();
         let low_g = preview(&w, 6371.0, 3.71, 60.0).unwrap();
-        assert!((low_g.column_kg_m2.at(0, 0) / earth.column_kg_m2.at(0, 0)
-            - (9.80665 / 3.71) as f32).abs() < 1.0e-5);
+        assert!(
+            (low_g.column_kg_m2.at(0, 0) / earth.column_kg_m2.at(0, 0) - (9.80665 / 3.71) as f32)
+                .abs()
+                < 1.0e-5
+        );
         assert_eq!(earth.pressure_hpa.at(0, 0), 1013.25);
         assert_eq!(low_g.pressure_hpa.at(0, 0), 1013.25);
         assert_eq!(low_g.budget.surface_gravity_m_s2, 3.71);
