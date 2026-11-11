@@ -6,8 +6,8 @@ mod geology_diagnostics;
 mod globe3d;
 mod map_graph;
 mod map_layers;
-mod plate_kinematics;
 mod planetary;
+mod plate_kinematics;
 mod publication;
 mod rainshadow;
 mod render;
@@ -518,7 +518,11 @@ impl Studio {
                 self.boundary_draw = false;
                 self.boundary_class = 2;
                 self.boundary_start = None;
-                if let Err(error) = self.project.datasets.activate(&mut self.world, self.project.month) {
+                if let Err(error) = self
+                    .project
+                    .datasets
+                    .activate(&mut self.world, self.project.month)
+                {
                     self.status = format!("Planetary data initialization failed: {error}");
                 }
                 self.rebuild_derived_surfaces();
@@ -765,7 +769,11 @@ impl Studio {
 
     fn insolation_workshop(&mut self, ui: &mut egui::Ui) {
         ui.separator();
-        ui.label(egui::RichText::new("SEASONAL SOLAR GEOMETRY").strong().small());
+        ui.label(
+            egui::RichText::new("SEASONAL SOLAR GEOMETRY")
+                .strong()
+                .small(),
+        );
         ui.small("Monthly mean of daily mean top-of-atmosphere sunlight. Assumed circular orbit; no atmospheric heating, clouds or climate.");
         let mut selected = self.project.month;
         egui::ComboBox::from_id_salt("insolation-month")
@@ -796,34 +804,49 @@ impl Studio {
         ui.label("Stellar flux at orbital distance (W/m²)");
         ui.add(egui::DragValue::new(&mut self.planet_draft.stellar_flux_w_m2).speed(1.0));
         ui.small("Month lengths, in local solar days:");
-        egui::Grid::new("planet-month-lengths").num_columns(2).show(ui, |ui| {
-            for i in 0..12 {
-                ui.label(month_name(i as u8 + 1));
-                ui.add(egui::DragValue::new(&mut self.planet_draft.month_days[i])
-                    .speed(0.5).range(0.01..=10_000.0));
-                ui.end_row();
-            }
-        });
+        egui::Grid::new("planet-month-lengths")
+            .num_columns(2)
+            .show(ui, |ui| {
+                for i in 0..12 {
+                    ui.label(month_name(i as u8 + 1));
+                    ui.add(
+                        egui::DragValue::new(&mut self.planet_draft.month_days[i])
+                            .speed(0.5)
+                            .range(0.01..=10_000.0),
+                    );
+                    ui.end_row();
+                }
+            });
         ui.small(format!(
             "Orbital year: {:.2} solar days · {:.2} hours",
-            self.planet_draft.year_days(), self.planet_draft.year_hours()
+            self.planet_draft.year_days(),
+            self.planet_draft.year_hours()
         ));
         match self.planet_draft.validate() {
             Ok(()) => {
-                if ui.add_enabled(
-                    self.project.calendar != self.planet_draft,
-                    egui::Button::new("Apply calendar & solar settings")
-                ).clicked() {
+                if ui
+                    .add_enabled(
+                        self.project.calendar != self.planet_draft,
+                        egui::Button::new("Apply calendar & solar settings"),
+                    )
+                    .clicked()
+                {
                     self.finish_dataset_stroke();
                     let original = self.world.calendar.clone();
                     self.world.calendar = self.planet_draft.clone();
-                    match self.project.datasets.activate(&mut self.world, self.project.month) {
+                    match self
+                        .project
+                        .datasets
+                        .activate(&mut self.world, self.project.month)
+                    {
                         Ok(()) => {
                             self.project.calendar = self.planet_draft.clone();
                             self.atlas_dirty = true;
                             self.globe_dirty = true;
                             self.changed = true;
-                            self.status = "Planet calendar applied; solar and annual maps recalculated".into();
+                            self.status =
+                                "Planet calendar applied; solar and annual maps recalculated"
+                                    .into();
                         }
                         Err(error) => {
                             self.world.calendar = original;
@@ -2734,10 +2757,17 @@ mod terrain_activation_tests {
         assert!(world.plates.is_empty());
         assert_eq!(world.active_month, 7);
         assert_eq!(world.calendar, reopened.calendar);
-        assert!(world.scientific_fields.contains_key(planetary::INSOLATION_ID));
-        let july = world.scientific_fields[planetary::INSOLATION_ID].cells.clone();
+        assert!(world
+            .scientific_fields
+            .contains_key(planetary::INSOLATION_ID));
+        let july = world.scientific_fields[planetary::INSOLATION_ID]
+            .cells
+            .clone();
         reopened.datasets.activate(&mut world, 1).unwrap();
-        assert_ne!(world.scientific_fields[planetary::INSOLATION_ID].cells, july);
+        assert_ne!(
+            world.scientific_fields[planetary::INSOLATION_ID].cells,
+            july
+        );
         assert!(world.scientific_provenance[planetary::INSOLATION_ID].label() == "Derived");
 
         let legacy = serde_json::json!({"name":"Older saved world","month":2});

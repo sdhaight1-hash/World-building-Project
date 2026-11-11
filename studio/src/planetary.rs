@@ -43,19 +43,18 @@ impl PlanetCalendar {
     }
 
     pub fn validate(&self) -> Result<(), String> {
-        if !self.solar_day_hours.is_finite()
-            || !(0.1..=10_000.0).contains(&self.solar_day_hours)
-        {
+        if !self.solar_day_hours.is_finite() || !(0.1..=10_000.0).contains(&self.solar_day_hours) {
             return Err("Mean solar day must be 0.1–10,000 hours".into());
         }
-        if self.month_days.iter().any(|&days| !days.is_finite() || !(0.01..=10_000.0).contains(&days))
+        if self
+            .month_days
+            .iter()
+            .any(|&days| !days.is_finite() || !(0.01..=10_000.0).contains(&days))
             || self.year_days() > 100_000.0
         {
             return Err("Each of the 12 months needs a finite positive duration; year <= 100,000 solar days".into());
         }
-        if !self.axial_tilt_deg.is_finite()
-            || !(0.0..=90.0).contains(&self.axial_tilt_deg)
-        {
+        if !self.axial_tilt_deg.is_finite() || !(0.0..=90.0).contains(&self.axial_tilt_deg) {
             return Err("Axial tilt must be between 0 and 90 degrees".into());
         }
         if !self.start_solar_longitude_deg.is_finite()
@@ -80,8 +79,8 @@ impl PlanetCalendar {
     }
 
     pub fn declination_rad(&self, year_day: f64) -> f64 {
-        let solar_longitude = self.start_solar_longitude_deg.to_radians()
-            + TAU * year_day / self.year_days();
+        let solar_longitude =
+            self.start_solar_longitude_deg.to_radians() + TAU * year_day / self.year_days();
         (self.axial_tilt_deg.to_radians().sin() * solar_longitude.sin()).asin()
     }
 
@@ -103,7 +102,12 @@ impl PlanetCalendar {
     /// Calendar-month mean of daily-mean TOA irradiance in W/m², evaluated
     /// with sixteen midpoint quadrature samples for the assumed circular orbit.
     /// Depends only on latitude. No terrain, atmospheric, cloud or ocean model.
-    pub fn monthly_insolation(&self, width: usize, height: usize, month: u8) -> Result<Grid, String> {
+    pub fn monthly_insolation(
+        &self,
+        width: usize,
+        height: usize,
+        month: u8,
+    ) -> Result<Grid, String> {
         self.validate()?;
         if width == 0 || height == 0 {
             return Err("Solar map needs nonzero raster dimensions".into());
@@ -116,9 +120,11 @@ impl PlanetCalendar {
         let mut map = Grid::new(width, height, 0.0);
         for y in 0..height {
             let latitude = -FRAC_PI_2 + PI * (y as f64 + 0.5) / height as f64;
-            let watts = declinations.iter()
+            let watts = declinations
+                .iter()
                 .map(|&declination| self.daily_mean_toa_w_m2(latitude, declination))
-                .sum::<f64>() / STEPS as f64;
+                .sum::<f64>()
+                / STEPS as f64;
             for value in &mut map.cells[y * width..(y + 1) * width] {
                 *value = watts as f32;
             }
@@ -182,12 +188,20 @@ mod tests {
 
     #[test]
     fn zero_tilt_yields_same_insolation_every_month_and_polar_night() {
-        let mut calendar = PlanetCalendar { axial_tilt_deg: 0.0, ..PlanetCalendar::default() };
+        let mut calendar = PlanetCalendar {
+            axial_tilt_deg: 0.0,
+            ..PlanetCalendar::default()
+        };
         let january = calendar.monthly_insolation(4, 100, 1).unwrap();
         let july = calendar.monthly_insolation(4, 100, 7).unwrap();
         assert_eq!(january.cells, july.cells);
         assert!(january.at(0, 0) < january.at(0, 50));
         calendar.stellar_flux_w_m2 = 0.0;
-        assert!(calendar.monthly_insolation(4, 100, 3).unwrap().cells.iter().all(|&v| v == 0.0));
+        assert!(calendar
+            .monthly_insolation(4, 100, 3)
+            .unwrap()
+            .cells
+            .iter()
+            .all(|&v| v == 0.0));
     }
 }

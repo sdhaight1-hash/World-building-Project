@@ -759,18 +759,30 @@ mod tests {
         registry.activate(&mut w, 7).unwrap();
         let weighted = w.scientific_fields[ClimateField::Temperature.annual_id()].at(0, 0);
         assert!((weighted - (30.0 * 60.0 + 10.0 * 330.0) / 390.0).abs() < 0.001);
-        assert_eq!(w.scientific_fields[ClimateField::Precipitation.annual_id()].at(0, 0), 1200.0);
+        assert_eq!(
+            w.scientific_fields[ClimateField::Precipitation.annual_id()].at(0, 0),
+            1200.0
+        );
         assert_eq!(
             w.scientific_provenance[ClimateField::Temperature.annual_id()],
             Provenance::Derived {
                 operator: "calendar_day_weighted_mean_of_12_monthly_means".into(),
-                inputs: vec![ClimateField::Temperature.id().into(), "planet.calendar".into()],
+                inputs: vec![
+                    ClimateField::Temperature.id().into(),
+                    "planet.calendar".into()
+                ],
             }
         );
 
         let mut impostor = registry.clone();
-        impostor.fields.insert(INSOLATION_ID.into(), registry.fields[ClimateField::Temperature.id()].clone());
-        assert!(impostor.activate(&mut w, 7).unwrap_err().contains("reserved"));
+        impostor.fields.insert(
+            INSOLATION_ID.into(),
+            registry.fields[ClimateField::Temperature.id()].clone(),
+        );
+        assert!(impostor
+            .activate(&mut w, 7)
+            .unwrap_err()
+            .contains("reserved"));
     }
 
     #[test]
