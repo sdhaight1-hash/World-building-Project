@@ -407,6 +407,35 @@ mod tests {
     }
 
     #[test]
+    fn monthly_climate_atlas_and_provenance_export_are_source_aware() {
+        let mut world = World::empty(PathBuf::from("independent-climate"));
+        world.width = 48;
+        world.height = 24;
+        let mut datasets = crate::datasets::DatasetRegistry::default();
+        datasets.create_month(&mut world, ClimateField::Temperature, 2, -5.0).unwrap();
+        datasets.create_month(&mut world, ClimateField::Precipitation, 2, 180.0).unwrap();
+        let art = Cartography::new(&world);
+        for theme in [Theme::MonthlyTemperature, Theme::MonthlyPrecipitation] {
+            assert!(theme.available(&world));
+            assert_eq!(atlas_image(&world, &art, theme).size, [48, 24]);
+            assert!(art.legend(&world, theme).len() >= 6);
+            let path = std::env::temp_dir().join(format!(
+                "aegaea-monthly-{}-{}.png", std::process::id(), theme.slug()
+            ));
+            export_atlas_png(&world, &art, theme, &path).unwrap();
+            let metadata = std::fs::read_to_string(path.with_extension("json")).unwrap();
+            assert!(metadata.contains("\\"month\\": 2"));
+            assert!(metadata.contains("author"));
+            assert!(metadata.contains(theme.climate_field().unwrap().id()));
+            std::fs::remove_file(path.with_extension("json")).unwrap();
+            std::fs::remove_file(path).unwrap();
+        }
+        datasets.activate(&mut world, 3).unwrap();
+        assert!(!Theme::MonthlyTemperature.available(&world));
+        assert!(!Theme::MonthlyPrecipitation.available(&world));
+    }
+
+    #[test]
     fn blank_world_does_not_need_aegaea_assets() {
         let world = World::empty(PathBuf::from("not-aegaea"));
         let art = Cartography::new(&world);
