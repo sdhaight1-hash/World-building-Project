@@ -35,10 +35,11 @@ pub enum Theme {
     MonthlyWindEast,
     MonthlyWindNorth,
     SurfaceHeatCapacity,
+    TransportedVaporColumn,
 }
 
 impl Theme {
-    pub const ALL: [Self; 24] = [
+    pub const ALL: [Self; 25] = [
         Self::Terrain,
         Self::Slope,
         Self::Plates,
@@ -63,6 +64,7 @@ impl Theme {
         Self::MonthlyWindEast,
         Self::MonthlyWindNorth,
         Self::SurfaceHeatCapacity,
+        Self::TransportedVaporColumn,
     ];
 
     pub fn name(self) -> &'static str {
@@ -91,6 +93,7 @@ impl Theme {
             Self::MonthlyWindEast => "Monthly wind · eastward component",
             Self::MonthlyWindNorth => "Monthly wind · northward component",
             Self::SurfaceHeatCapacity => "Surface areal heat capacity",
+            Self::TransportedVaporColumn => "Transported vapor-column proxy",
         }
     }
 
@@ -120,6 +123,7 @@ impl Theme {
             Self::MonthlyWindEast => "monthly-wind-east",
             Self::MonthlyWindNorth => "monthly-wind-north",
             Self::SurfaceHeatCapacity => "surface-heat-capacity",
+            Self::TransportedVaporColumn => "transported-vapor-column",
         }
     }
 
@@ -147,7 +151,8 @@ impl Theme {
             | Self::MonthlyPressure
             | Self::MonthlySpecificHumidity
             | Self::MonthlyWindEast
-            | Self::MonthlyWindNorth => self
+            | Self::MonthlyWindNorth
+            | Self::TransportedVaporColumn => self
                 .scientific_id()
                 .is_some_and(|id| w.scientific_fields.contains_key(id)),
         }
@@ -176,6 +181,8 @@ impl Theme {
     pub fn scientific_id(self) -> Option<&'static str> {
         if self == Self::MonthlyInsolation {
             Some(crate::planetary::INSOLATION_ID)
+        } else if self == Self::TransportedVaporColumn {
+            Some(crate::moisture_transport::WATER_COLUMN_ID)
         } else {
             self.monthly_source()
                 .map(|kind| kind.id())
@@ -184,7 +191,8 @@ impl Theme {
     }
 
     pub fn is_monthly(self) -> bool {
-        self.monthly_source().is_some() || self == Self::MonthlyInsolation
+        self.monthly_source().is_some()
+            || matches!(self, Self::MonthlyInsolation | Self::TransportedVaporColumn)
     }
 
     pub fn units(self) -> &'static str {
@@ -204,6 +212,7 @@ impl Theme {
             Self::MonthlySpecificHumidity => "g/kg",
             Self::MonthlyWindEast | Self::MonthlyWindNorth => "m/s",
             Self::SurfaceHeatCapacity => "MJ/(m²·K)",
+            Self::TransportedVaporColumn => "kg/m²",
             Self::PlateConvergence | Self::PlateDivergence | Self::PlateShear => "cm/year",
             _ => "named categories",
         }
@@ -310,12 +319,15 @@ pub fn export_atlas_png(
         "month":theme.is_monthly().then_some(world.active_month),
         "month_name":theme.is_monthly().then(|| month_name(world.active_month)),
         "planetary_calendar":(theme == Theme::MonthlyInsolation || theme == Theme::AnnualTemperature).then_some(&world.calendar),
+        "moisture_transport_budget":(theme == Theme::TransportedVaporColumn).then_some(&world.moisture_transport_budget),
         "provenance":if theme == Theme::SurfaceHeatCapacity {
             serde_json::json!({"kind":"authored","note":"Project-local hand-authored stationary heat capacity; not derived from land/ocean mask"})
         } else {
             serde_json::json!(provenance)
         },
-        "derived_from":if theme == Theme::SurfaceHeatCapacity {
+        "derived_from":if theme == Theme::TransportedVaporColumn {
+            "authored monthly surface pressure, specific humidity, signed wind components and planet radius; vertically uniform humidity assumed"
+        } else if theme == Theme::SurfaceHeatCapacity {
             "project-local explicitly authored surface areal heat capacity; land/ocean status is not inferred"
         } else if theme == Theme::MonthlyInsolation {
             "planetary calendar and circular-orbit solar geometry; no atmosphere or climate solver"
@@ -327,7 +339,9 @@ pub fn export_atlas_png(
             "native map fields, source geology and/or authored geometry"
         },
         "legend":legend,
-        "scientific_status":if theme == Theme::SurfaceHeatCapacity {
+        "scientific_status":if theme == Theme::TransportedVaporColumn {
+            "read-only conservative column-vapor transport proxy; no pressure evolution, air mass continuity, condensation, rainfall, evaporation, ocean, or climate simulation"
+        } else if theme == Theme::SurfaceHeatCapacity {
             "author-specified areal heat capacity input, not computed ocean or soil thermal physics"
         } else if theme == Theme::MonthlyInsolation {
             "daily-mean top-of-atmosphere irradiance integrated over configured month; circular orbit, no weather or climate model"
@@ -451,7 +465,7 @@ mod tests {
     }
 
     #[test]
-    fn independently_authored_world_can_render_all_twenty_four_maps() {
+    fn independently_authored_world_renders_all_maps_except_opt_in_transport() {
         use crate::map_layers::{LayerKind, ProjectLayers};
         use crate::world::Grid;
 
@@ -499,7 +513,14 @@ mod tests {
             }
         }
         let art = Cartography::new(&world);
+        assert!(
+            !Theme::TransportedVaporColumn.available(&world),
+            "An opt-in numerical preview cannot exist before it is computed"
+        );
         for theme in Theme::ALL {
+            if theme == Theme::TransportedVaporColumn {
+                continue;
+            }
             assert!(theme.available(&world), "{} should be usable", theme.name());
             assert_eq!(atlas_image(&world, &art, theme).size, [64, 32]);
             assert!(
@@ -603,6 +624,77 @@ mod tests {
                 "Missing months must not be inferred"
             );
         }
+    }
+
+    #[test]
+    fn moisture_preview_map_exports_budget_and_vanishes_on_month_change() {
+        use crate::{
+            datasets::{DatasetRegistry, MonthlyField, Provenance},
+            moisture_transport::{self, WATER_COLUMN_ID},
+        };
+        let mut world = World::empty(PathBuf::from("transport-export"));
+        world.width = 48;
+        world.height = 24;
+        let mut sources = DatasetRegistry::default();
+        for (kind, value) in [
+            (MonthlyField::Pressure, 1013.25),
+            (MonthlyField::SpecificHumidity, 12.0),
+            (MonthlyField::WindEast, 20.0),
+            (MonthlyField::WindNorth, 0.0),
+        ] {
+            sources.create_month(&mut world, kind, 4, value).unwrap();
+        }
+        let input = world.scientific_fields[MonthlyField::SpecificHumidity.id()]
+            .cells
+            .clone();
+        assert!(!Theme::TransportedVaporColumn.available(&world));
+        let result = moisture_transport::preview(&world, 6371.0, 120.0).unwrap();
+        world
+            .scientific_fields
+            .insert(WATER_COLUMN_ID.into(), result.column_kg_m2);
+        world.scientific_provenance.insert(
+            WATER_COLUMN_ID.into(),
+            Provenance::Derived {
+                operator: moisture_transport::OPERATOR.into(),
+                inputs: vec![
+                    MonthlyField::Pressure.id().into(),
+                    MonthlyField::SpecificHumidity.id().into(),
+                    MonthlyField::WindEast.id().into(),
+                    MonthlyField::WindNorth.id().into(),
+                ],
+            },
+        );
+        world.moisture_transport_budget = Some(result.budget);
+        let art = Cartography::new(&world);
+        assert!(Theme::TransportedVaporColumn.available(&world));
+        assert_eq!(art.legend(&world, Theme::TransportedVaporColumn).len(), 7);
+        assert_eq!(
+            atlas_image(&world, &art, Theme::TransportedVaporColumn).size,
+            [48, 24]
+        );
+        let path =
+            std::env::temp_dir().join(format!("aegaea-transport-{}.png", std::process::id()));
+        export_atlas_png(&world, &art, Theme::TransportedVaporColumn, &path).unwrap();
+        let meta: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(path.with_extension("json")).unwrap()).unwrap();
+        assert_eq!(meta["month"], 4);
+        assert_eq!(meta["units"], "kg/m²");
+        assert_eq!(meta["dataset_id"], WATER_COLUMN_ID);
+        assert_eq!(meta["provenance"]["kind"], "derived");
+        assert_eq!(meta["moisture_transport_budget"]["month"], 4);
+        assert_eq!(
+            meta["moisture_transport_budget"]["substeps"].is_number(),
+            true
+        );
+        std::fs::remove_file(path.with_extension("json")).unwrap();
+        std::fs::remove_file(path).unwrap();
+        assert_eq!(
+            world.scientific_fields[MonthlyField::SpecificHumidity.id()].cells,
+            input
+        );
+        sources.activate(&mut world, 5).unwrap();
+        assert!(!Theme::TransportedVaporColumn.available(&world));
+        assert!(world.moisture_transport_budget.is_none());
     }
 
     #[test]

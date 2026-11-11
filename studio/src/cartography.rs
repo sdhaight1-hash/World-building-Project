@@ -206,6 +206,18 @@ const THERMAL_CAPACITY_RAMP: [(f32, [u8; 3]); 7] = [
     (1000.0, [61, 64, 140]),
 ];
 
+/// Assumed vertically uniform specific humidity; the output is column-vapor
+/// mass proxy, not measured precipitable water or predicted rainfall.
+const VAPOR_COLUMN_RAMP: [(f32, [u8; 3]); 7] = [
+    (0.0, [190, 149, 99]),
+    (10.0, [217, 192, 128]),
+    (25.0, [180, 197, 152]),
+    (50.0, [110, 183, 165]),
+    (100.0, [69, 153, 185]),
+    (200.0, [57, 97, 169]),
+    (400.0, [72, 52, 130]),
+];
+
 fn climate_ramp(theme: Theme) -> &'static [(f32, [u8; 3])] {
     match theme {
         Theme::MonthlyTemperature | Theme::AnnualTemperature => &TEMPERATURE_RAMP,
@@ -215,6 +227,7 @@ fn climate_ramp(theme: Theme) -> &'static [(f32, [u8; 3])] {
         Theme::MonthlyPressure => &PRESSURE_RAMP,
         Theme::MonthlySpecificHumidity => &HUMIDITY_RAMP,
         Theme::MonthlyWindEast | Theme::MonthlyWindNorth => &WIND_COMPONENT_RAMP,
+        Theme::TransportedVaporColumn => &VAPOR_COLUMN_RAMP,
         _ => &[],
     }
 }
@@ -592,7 +605,8 @@ impl Cartography {
             | Theme::MonthlyPressure
             | Theme::MonthlySpecificHumidity
             | Theme::MonthlyWindEast
-            | Theme::MonthlyWindNorth => {
+            | Theme::MonthlyWindNorth
+            | Theme::TransportedVaporColumn => {
                 if let Some(id) = theme.scientific_id() {
                     if let Some(grid) = w.scientific_fields.get(id) {
                         blend(gradient(grid.at(x, y), climate_ramp(theme)), base, 0.07)
@@ -766,7 +780,8 @@ impl Cartography {
             | Theme::MonthlyPressure
             | Theme::MonthlySpecificHumidity
             | Theme::MonthlyWindEast
-            | Theme::MonthlyWindNorth => climate_ramp(theme)
+            | Theme::MonthlyWindNorth
+            | Theme::TransportedVaporColumn => climate_ramp(theme)
                 .iter()
                 .map(|&(value, rgb)| (format!("{value:.0} {}", theme.units()), rgb))
                 .collect(),
