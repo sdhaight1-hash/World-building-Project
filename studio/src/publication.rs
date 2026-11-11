@@ -6,6 +6,7 @@
 //! inspectable without requiring a headless GPU or bundling font files.
 use crate::{
     cartography::Cartography,
+    datasets::month_name,
     render::{self, Theme},
     world::World,
 };
@@ -81,7 +82,11 @@ pub fn export_sheet(
     let key_x = 1820.0;
 
     let heading = escape_xml(world_name);
-    let title = escape_xml(theme.name());
+    let title = if theme.climate_field().is_some() {
+        escape_xml(&format!("{} · {}", theme.name(), month_name(world.active_month)))
+    } else {
+        escape_xml(theme.name())
+    };
     let units = escape_xml(theme.units());
     let legend = cartography.legend(world, theme);
     let mut svg = format!(
