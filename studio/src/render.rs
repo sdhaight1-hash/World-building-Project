@@ -319,6 +319,58 @@ mod tests {
     }
 
     #[test]
+    fn independently_authored_world_can_render_all_fourteen_existing_maps() {
+        use crate::map_layers::{LayerKind, ProjectLayers};
+        use crate::world::Grid;
+
+        let mut world = World::empty(PathBuf::from("independent"));
+        world.width = 64;
+        world.height = 32;
+        world.elevation = Some(Grid::new(64, 32, -2_000.0));
+        let mut layers = ProjectLayers::default();
+        for kind in LayerKind::ALL {
+            layers
+                .create(&mut world, kind, kind.default_fill())
+                .unwrap();
+        }
+        layers.add_plate(&mut world).unwrap();
+        layers.add_craton(&mut world).unwrap();
+        layers
+            .paint(&mut world, LayerKind::Plates, 0.0, 0.0, 9, 2.0)
+            .unwrap();
+        layers
+            .paint(&mut world, LayerKind::Cratons, 0.0, 0.0, 5, 1.0)
+            .unwrap();
+        layers
+            .paint(&mut world, LayerKind::Provinces, 20.0, 0.0, 8, 3.0)
+            .unwrap();
+        for (i, plate) in layers.plates.as_mut().unwrap().iter_mut().enumerate() {
+            plate.euler_pole_lon_deg = Some(i as f64 * 45.0);
+            plate.euler_pole_lat_deg = Some(15.0);
+            plate.signed_rate_deg_per_ma = Some(if i == 0 { 0.0 } else { 2.0 });
+        }
+        world.plates.clone_from(layers.plates.as_ref().unwrap());
+        world.plate_motion = crate::plate_kinematics::derive(&world, 6371.0).unwrap();
+        world.slope_deg = Some(
+            crate::map_graph::slope_degrees(world.elevation.as_ref().unwrap(), 6371.0).unwrap(),
+        );
+        world.rain_shadow = Some(crate::rainshadow::derive(
+            world.elevation.as_ref().unwrap(),
+            crate::rainshadow::WindFrom::West,
+        ));
+        let art = Cartography::new(&world);
+        for theme in Theme::ALL {
+            assert!(theme.available(&world), "{} should be usable", theme.name());
+            assert_eq!(atlas_image(&world, &art, theme).size, [64, 32]);
+            assert!(
+                !art.legend(&world, theme).is_empty(),
+                "{} should include a legend",
+                theme.name()
+            );
+        }
+    }
+
+    #[test]
     fn blank_world_does_not_need_aegaea_assets() {
         let world = World::empty(PathBuf::from("not-aegaea"));
         let art = Cartography::new(&world);

@@ -1,5 +1,6 @@
 //! Scientific source-data loading, source conventions, and editable world annotations.
 //! Data files are immutable; annotations use a separate JSON sidecar.
+use crate::map_layers::BoundarySegment;
 use crate::plate_kinematics::KinematicFields;
 use crate::rainshadow::WindFrom;
 use crate::terrain_edit::TerrainEdits;
@@ -102,7 +103,7 @@ pub fn uv_to_geo(u: f64, v: f64) -> (f64, f64) {
     (180.0 - 360.0 * u, -90.0 + 180.0 * v)
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlateInfo {
     pub plate_id: u8,
     pub plate: String,
@@ -115,14 +116,14 @@ pub struct PlateInfo {
     pub signed_rate_deg_per_ma: Option<f64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProvinceInfo {
     pub province_id: u8,
     #[serde(rename = "province")]
     pub name: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CratonInfo {
     pub craton_id: u8,
     pub name: String,
@@ -150,6 +151,8 @@ pub struct World {
     pub plates: Vec<PlateInfo>,
     pub cratons: Vec<CratonInfo>,
     pub provinces: Vec<ProvinceInfo>,
+    /// User-drawn project-local tectonic contact classifications.
+    pub boundary_segments: Vec<BoundarySegment>,
 }
 
 impl World {
@@ -171,6 +174,7 @@ impl World {
             plates: Vec::new(),
             cratons: Vec::new(),
             provinces: Vec::new(),
+            boundary_segments: Vec::new(),
         }
     }
 
@@ -306,6 +310,8 @@ pub struct Project {
     pub terrain_mode: TerrainMode,
     #[serde(default)]
     pub terrain_recipe: TerrainRecipe,
+    #[serde(default)]
+    pub layers: crate::map_layers::ProjectLayers,
 }
 
 impl Project {
@@ -317,6 +323,7 @@ impl Project {
             terrain: TerrainEdits::default(),
             terrain_mode: TerrainMode::default(),
             terrain_recipe: TerrainRecipe::default(),
+            layers: crate::map_layers::ProjectLayers::default(),
         }
     }
 

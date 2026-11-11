@@ -243,6 +243,19 @@ impl Cartography {
             }
         }
         art.load_boundary_segments(w);
+        for segment in &w.boundary_segments {
+            if segment.validate().is_err() {
+                continue;
+            }
+            let xy = |point: [f64; 2]| {
+                (
+                    (180.0 - point[0]) / 360.0 * width as f64,
+                    (point[1] + 90.0) / 180.0 * height as f64,
+                )
+            };
+            art.line(xy(segment.start), xy(segment.end), segment.class);
+            art.classified_segments += 1;
+        }
         art
     }
 
@@ -555,6 +568,9 @@ impl Cartography {
                     )
                 })
                 .collect(),
+            Theme::Boundaries if self.classified_segments == 0 => {
+                vec![("Unclassified plate contact".into(), [18, 28, 38])]
+            }
             Theme::Boundaries => vec![
                 ("Subduction".into(), contact_color(0)),
                 ("Continental collision".into(), contact_color(1)),
@@ -661,6 +677,44 @@ mod tests {
         assert_eq!(cart.legend(&world, Theme::Provinces).len(), 11);
         assert!(cart.contact_class.iter().any(|&x| x == 0));
         assert!(cart.contact_class.iter().any(|&x| x == 2));
+    }
+
+    #[test]
+    fn manual_classification_is_visible_but_not_inferred_from_plate_edges() {
+        let mut world = World::empty(PathBuf::from("blank-project"));
+        world.width = 64;
+        world.height = 32;
+        let mut ids = Grid::new(64, 32, 1.0);
+        for y in 0..32 {
+            for x in 0..32 {
+                ids.cells[y * 64 + x] = 2.0;
+            }
+        }
+        world.plate_ids = Some(ids);
+        let unclassified = Cartography::new(&world);
+        assert_eq!(unclassified.classified_segments, 0);
+        assert_eq!(
+            unclassified.legend(&world, Theme::Boundaries)[0].label,
+            "Unclassified plate contact"
+        );
+
+        world
+            .boundary_segments
+            .push(crate::map_layers::BoundarySegment {
+                start: [0.0, 0.0],
+                end: [25.0, 0.0],
+                class: 3,
+            });
+        let authored = Cartography::new(&world);
+        assert_eq!(authored.classified_segments, 1);
+        assert_eq!(
+            authored.sample(&world, Theme::Boundaries, 32, 16),
+            contact_color(3)
+        );
+        assert!(authored
+            .legend(&world, Theme::Boundaries)
+            .iter()
+            .any(|l| l.label == "Transform"));
     }
 
     #[test]

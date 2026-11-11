@@ -4,6 +4,7 @@ mod cartography;
 mod geology_diagnostics;
 mod globe3d;
 mod map_graph;
+mod map_layers;
 mod plate_kinematics;
 mod publication;
 mod rainshadow;
@@ -19,6 +20,7 @@ use eframe::{
 };
 use geology_diagnostics::Report as GeologyReport;
 use globe3d::{GlobeCallback, GlobeMesh};
+use map_layers::{BoundarySegment, LayerKind, LayerStroke};
 use rainshadow::WindFrom;
 use render::{atlas_geo_from_fraction, forward_globe, globe_geo_from_fraction, Theme};
 use std::{
@@ -46,6 +48,22 @@ fn atlas_crop_uv(data_aspect: f32, viewport_aspect: f32, zoom: f32, center: Pos2
     )
 }
 
+fn source_for_theme(theme: Theme) -> Option<LayerKind> {
+    match theme {
+        Theme::Plates
+        | Theme::Boundaries
+        | Theme::PlateConvergence
+        | Theme::PlateDivergence
+        | Theme::PlateShear => Some(LayerKind::Plates),
+        Theme::Cratons | Theme::BasementAge => Some(LayerKind::Cratons),
+        Theme::Provinces => Some(LayerKind::Provinces),
+        Theme::Crust => Some(LayerKind::Crust),
+        Theme::Lithosphere => Some(LayerKind::Lithosphere),
+        Theme::HeatFlow => Some(LayerKind::HeatFlow),
+        Theme::Terrain | Theme::Slope | Theme::RainShadow => None,
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum ViewMode {
     Atlas,
@@ -54,6 +72,7 @@ enum ViewMode {
 
 /// Choose the authoritative elevation source before deriving map fields.
 fn activate_terrain(world: &mut World, project: &Project) -> Result<TerrainMode, String> {
+    project.layers.apply(world)?;
     let has_edits = !project.terrain.overrides.is_empty() || project.terrain.base_fill_m.is_some();
     let mode = terrain_generation::resolve_mode(project.terrain_mode, world, has_edits);
     if mode == TerrainMode::Generated {
@@ -104,6 +123,15 @@ struct Studio {
     active_stroke: TerrainStroke,
     terrain_undo: Vec<TerrainStroke>,
     terrain_redo: Vec<TerrainStroke>,
+    layer_brush: bool,
+    layer_radius: u32,
+    layer_paint_value: f32,
+    active_layer_stroke: LayerStroke,
+    layer_undo: Vec<LayerStroke>,
+    layer_redo: Vec<LayerStroke>,
+    boundary_draw: bool,
+    boundary_class: u8,
+    boundary_start: Option<(f64, f64)>,
     changed: bool,
     status: String,
     new_project_open: bool,
@@ -193,6 +221,15 @@ impl Studio {
             active_stroke: TerrainStroke::default(),
             terrain_undo: Vec::new(),
             terrain_redo: Vec::new(),
+            layer_brush: false,
+            layer_radius: 5,
+            layer_paint_value: 1.0,
+            active_layer_stroke: LayerStroke::default(),
+            layer_undo: Vec::new(),
+            layer_redo: Vec::new(),
+            boundary_draw: false,
+            boundary_class: 2,
+            boundary_start: None,
             changed: false,
             status,
             new_project_open: false,
@@ -252,7 +289,8 @@ impl Studio {
     }
 
     fn select_terrain_mode(&mut self, new_mode: TerrainMode) {
-        if !self.project.terrain.overrides.is_empty() || self.project.terrain.base_fill_m.is_some()
+        if !self.project.terrain.overrides.is_empty()
+            || (self.project.terrain.base_fill_m.is_some() && self.imported_elevation.is_some())
         {
             self.status="Cannot change terrain basis with saved height edits. Preserve this project or clear edits before switching.".into();
             return;
@@ -291,6 +329,12 @@ impl Studio {
         };
         self.world.elevation = Some(next);
         self.world.plate_motion = plate_motion;
+        if effective == TerrainMode::Generated && self.imported_elevation.is_none() {
+            // The pristine -2,000m blank-world initializer is superseded, not
+            // layered over the new generator's DEM on the next project reopen.
+            self.project.terrain.base_fill_m = None;
+            self.project.terrain.grid_size = None;
+        }
         self.project.terrain_mode = effective;
         self.active_terrain_mode = effective;
         self.terrain_undo.clear();
@@ -418,6 +462,15 @@ impl Studio {
                 self.active_stroke = TerrainStroke::default();
                 self.terrain_undo.clear();
                 self.terrain_redo.clear();
+                self.layer_brush = false;
+                self.layer_radius = 5;
+                self.layer_paint_value = 1.0;
+                self.active_layer_stroke = LayerStroke::default();
+                self.layer_undo.clear();
+                self.layer_redo.clear();
+                self.boundary_draw = false;
+                self.boundary_class = 2;
+                self.boundary_start = None;
                 self.rebuild_derived_surfaces();
                 // The new world.json already persists its empty editing baseline.
                 self.changed = false;
@@ -492,6 +545,371 @@ impl Studio {
         }
     }
 
+    fn refresh_layer_maps(&mut self) {
+        match plate_kinematics::derive(&self.world, self.project.terrain_recipe.planet_radius_km) {
+            Ok(motion) => self.world.plate_motion = motion,
+            Err(error) => {
+                self.world.plate_motion = None;
+                self.status = format!("Euler motion not available: {error}");
+            }
+        }
+        self.cartography = Cartography::new(&self.world);
+        self.geology_report = None;
+        self.atlas_dirty = true;
+        self.globe_dirty = true;
+        self.changed = true;
+    }
+
+    fn initialize_map_layer(&mut self, kind: LayerKind, fill: f32) {
+        match self.project.layers.create(&mut self.world, kind, fill) {
+            Ok(()) => {
+                self.layer_paint_value = fill;
+                self.refresh_layer_maps();
+                self.status = format!(
+                    "Initialized {} as an AUTHOR-ASSUMED layer; paint values and Save to persist",
+                    kind.name()
+                );
+            }
+            Err(error) => self.status = format!("Could not initialize layer: {error}"),
+        }
+    }
+
+    fn finish_layer_stroke(&mut self) {
+        if self.active_layer_stroke.is_empty() {
+            return;
+        }
+        self.layer_undo
+            .push(std::mem::take(&mut self.active_layer_stroke));
+        if self.layer_undo.len() > 64 {
+            self.layer_undo.remove(0);
+        }
+        self.layer_redo.clear();
+        self.refresh_layer_maps();
+    }
+
+    fn undo_layer(&mut self) {
+        self.finish_layer_stroke();
+        if let Some(stroke) = self.layer_undo.pop() {
+            stroke.undo(&mut self.world, &mut self.project.layers);
+            self.layer_redo.push(stroke);
+            self.refresh_layer_maps();
+            self.status = "Undid map-layer paint stroke".into();
+        }
+    }
+
+    fn redo_layer(&mut self) {
+        self.finish_layer_stroke();
+        if let Some(stroke) = self.layer_redo.pop() {
+            stroke.redo(&mut self.world, &mut self.project.layers);
+            self.layer_undo.push(stroke);
+            self.refresh_layer_maps();
+            self.status = "Redid map-layer paint stroke".into();
+        }
+    }
+
+    fn map_layer_workshop(&mut self, ui: &mut egui::Ui) {
+        ui.separator();
+        ui.label(egui::RichText::new("MAP LAYER WORKSHOP").small().strong());
+        let Some(kind) = source_for_theme(self.theme) else {
+            ui.small(match self.theme {
+                Theme::Terrain => "Elevation is authored with the Terrain brush below.",
+                Theme::Slope => "Derived from your elevation map; no separate source to paint.",
+                Theme::RainShadow => "Derived from elevation and the chosen wind direction.",
+                _ => "",
+            });
+            return;
+        };
+        if !self.project.layers.grids.contains_key(&kind) {
+            ui.small(format!("Source: {} · {}", kind.name(), kind.units()));
+            if kind.field(&self.world).is_some() {
+                if ui
+                    .button("Edit existing source non-destructively")
+                    .clicked()
+                {
+                    self.initialize_map_layer(kind, kind.default_fill());
+                }
+            } else {
+                ui.small("No source raster. Initialize an explicitly assumed uniform field, then paint it.");
+                let mut fill = self.layer_paint_value;
+                if !kind.valid_value(fill) {
+                    fill = kind.default_fill();
+                }
+                if kind.is_categorical() {
+                    fill = kind.default_fill();
+                } else {
+                    ui.horizontal(|ui| {
+                        ui.label(format!("Initial {}", kind.units()));
+                        ui.add(egui::DragValue::new(&mut fill).speed(1.0));
+                    });
+                }
+                self.layer_paint_value = fill;
+                if ui
+                    .add_enabled(
+                        kind.valid_value(fill),
+                        egui::Button::new("Create source layer"),
+                    )
+                    .clicked()
+                {
+                    self.initialize_map_layer(kind, fill);
+                }
+            }
+            if self.theme == Theme::PlateConvergence
+                || self.theme == Theme::PlateDivergence
+                || self.theme == Theme::PlateShear
+            {
+                ui.small("Motion also requires each plate's Euler pole and rotation rate.");
+            }
+            return;
+        }
+
+        let edited = self.project.layers.grids.get(&kind).unwrap();
+        ui.small(format!(
+            "{} · {} authored cells",
+            kind.name(),
+            edited.overrides.len()
+        ));
+        ui.small("Project-local source overlay · not simulated; original TIFFs stay unchanged.");
+        if ui
+            .checkbox(&mut self.layer_brush, "Paint source layer")
+            .changed()
+            && self.layer_brush
+        {
+            self.terrain_brush = false;
+            self.boundary_draw = false;
+            self.boundary_start = None;
+            self.placing_marker = false;
+        }
+        if self.layer_brush {
+            match kind {
+                LayerKind::Plates => {
+                    egui::ComboBox::from_id_salt("plate-paint-id")
+                        .selected_text(format!("Plate ID {}", self.layer_paint_value as u8))
+                        .show_ui(ui, |ui| {
+                            for p in &self.world.plates {
+                                ui.selectable_value(
+                                    &mut self.layer_paint_value,
+                                    p.plate_id as f32,
+                                    format!("{} · {}", p.plate_id, p.plate),
+                                );
+                            }
+                        });
+                }
+                LayerKind::Cratons => {
+                    egui::ComboBox::from_id_salt("craton-paint-id")
+                        .selected_text(format!("Craton ID {}", self.layer_paint_value as u8))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(&mut self.layer_paint_value, 0.0, "0 · No craton");
+                            for c in &self.world.cratons {
+                                ui.selectable_value(
+                                    &mut self.layer_paint_value,
+                                    c.craton_id as f32,
+                                    format!("{} · {}", c.craton_id, c.name),
+                                );
+                            }
+                        });
+                }
+                LayerKind::Provinces => {
+                    egui::ComboBox::from_id_salt("province-paint-id")
+                        .selected_text(format!("Class {}", self.layer_paint_value as u8))
+                        .show_ui(ui, |ui| {
+                            for p in &self.world.provinces {
+                                ui.selectable_value(
+                                    &mut self.layer_paint_value,
+                                    p.province_id as f32,
+                                    format!("{} · {}", p.province_id, p.name.replace('_', " ")),
+                                );
+                            }
+                        });
+                }
+                _ => {
+                    ui.label(format!("Paint value ({})", kind.units()));
+                    ui.add(egui::DragValue::new(&mut self.layer_paint_value).speed(0.5));
+                    if !kind.valid_value(self.layer_paint_value) {
+                        ui.colored_label(
+                            Color32::from_rgb(240, 145, 130),
+                            "Value outside allowed range.",
+                        );
+                    }
+                }
+            }
+            ui.label("Brush radius (cells)");
+            ui.add(egui::Slider::new(&mut self.layer_radius, 1..=40));
+            ui.small("Drag in the atlas or globe; release to commit one undoable paint stroke.");
+        }
+        ui.horizontal(|ui| {
+            if ui
+                .add_enabled(!self.layer_undo.is_empty(), egui::Button::new("Undo paint"))
+                .clicked()
+            {
+                self.undo_layer();
+            }
+            if ui
+                .add_enabled(!self.layer_redo.is_empty(), egui::Button::new("Redo paint"))
+                .clicked()
+            {
+                self.redo_layer();
+            }
+        });
+        if self.theme == Theme::Boundaries {
+            ui.separator();
+            ui.label(egui::RichText::new("CLASSIFIED CONTACTS").small().strong());
+            ui.small(
+                "Manual line classifications are authored hypotheses, not inferred plate physics.",
+            );
+            egui::ComboBox::from_id_salt("boundary-class")
+                .selected_text(BoundarySegment::CLASSES[self.boundary_class as usize])
+                .show_ui(ui, |ui| {
+                    for (i, label) in BoundarySegment::CLASSES.iter().enumerate() {
+                        ui.selectable_value(&mut self.boundary_class, i as u8, *label);
+                    }
+                });
+            if ui
+                .checkbox(
+                    &mut self.boundary_draw,
+                    "Draw classified contact (two clicks)",
+                )
+                .changed()
+            {
+                self.boundary_start = None;
+                if self.boundary_draw {
+                    self.layer_brush = false;
+                    self.terrain_brush = false;
+                    self.placing_marker = false;
+                }
+            }
+            if let Some((lon, lat)) = self.boundary_start {
+                ui.small(format!(
+                    "First point: {lat:.1}°, {lon:.1}° · click the endpoint."
+                ));
+            }
+            ui.small(format!(
+                "{} authored classified segments",
+                self.project.layers.boundary_segments.len()
+            ));
+            if ui
+                .add_enabled(
+                    !self.project.layers.boundary_segments.is_empty(),
+                    egui::Button::new("Remove last contact"),
+                )
+                .clicked()
+            {
+                self.project.layers.boundary_segments.pop();
+                self.world
+                    .boundary_segments
+                    .clone_from(&self.project.layers.boundary_segments);
+                self.refresh_layer_maps();
+            }
+        }
+        if kind == LayerKind::Plates {
+            if ui.button("Add plate").clicked() {
+                match self.project.layers.add_plate(&mut self.world) {
+                    Ok(id) => {
+                        self.layer_paint_value = id as f32;
+                        self.refresh_layer_maps();
+                    }
+                    Err(error) => self.status = error,
+                }
+            }
+            let mut metadata_changed = false;
+            if let Some(plates) = self.project.layers.plates.as_mut() {
+                for plate in plates.iter_mut() {
+                    ui.collapsing(
+                        format!("Plate {} · {}", plate.plate_id, plate.plate),
+                        |ui| {
+                            metadata_changed |= ui.text_edit_singleline(&mut plate.plate).changed();
+                            ui.small("RGB (red,green,blue)");
+                            metadata_changed |=
+                                ui.text_edit_singleline(&mut plate.color_rgb).changed();
+                            let mut has_motion = plate.signed_rate_deg_per_ma.is_some();
+                            if ui
+                                .checkbox(&mut has_motion, "Define Euler rotation")
+                                .changed()
+                            {
+                                metadata_changed = true;
+                                if has_motion {
+                                    plate.euler_pole_lon_deg = Some(0.0);
+                                    plate.euler_pole_lat_deg = Some(0.0);
+                                    plate.signed_rate_deg_per_ma = Some(0.0);
+                                } else {
+                                    plate.euler_pole_lon_deg = None;
+                                    plate.euler_pole_lat_deg = None;
+                                    plate.signed_rate_deg_per_ma = None;
+                                }
+                            }
+                            if let (Some(lon), Some(lat), Some(rate)) = (
+                                plate.euler_pole_lon_deg.as_mut(),
+                                plate.euler_pole_lat_deg.as_mut(),
+                                plate.signed_rate_deg_per_ma.as_mut(),
+                            ) {
+                                ui.label("Pole longitude (degrees)");
+                                metadata_changed |=
+                                    ui.add(egui::Slider::new(lon, -180.0..=180.0)).changed();
+                                ui.label("Pole latitude (degrees)");
+                                metadata_changed |=
+                                    ui.add(egui::Slider::new(lat, -90.0..=90.0)).changed();
+                                ui.label("Signed rate (degrees / Ma)");
+                                metadata_changed |=
+                                    ui.add(egui::Slider::new(rate, -20.0..=20.0)).changed();
+                            }
+                        },
+                    );
+                }
+                if metadata_changed {
+                    self.world.plates.clone_from(plates);
+                }
+            }
+            if metadata_changed {
+                self.refresh_layer_maps();
+            }
+        }
+        if kind == LayerKind::Cratons {
+            if ui.button("Add craton").clicked() {
+                match self.project.layers.add_craton(&mut self.world) {
+                    Ok(id) => {
+                        self.layer_paint_value = id as f32;
+                        self.refresh_layer_maps();
+                    }
+                    Err(error) => self.status = error,
+                }
+            }
+            let mut metadata_changed = false;
+            if let Some(cratons) = self.project.layers.cratons.as_mut() {
+                for craton in cratons.iter_mut() {
+                    ui.collapsing(
+                        format!("Craton {} · {}", craton.craton_id, craton.name),
+                        |ui| {
+                            metadata_changed |= ui.text_edit_singleline(&mut craton.name).changed();
+                            ui.label("Parent plate");
+                            egui::ComboBox::from_id_salt(("craton-parent", craton.craton_id))
+                                .selected_text(&craton.plate)
+                                .show_ui(ui, |ui| {
+                                    for plate in &self.world.plates {
+                                        metadata_changed |= ui
+                                            .selectable_value(
+                                                &mut craton.plate,
+                                                plate.plate.clone(),
+                                                &plate.plate,
+                                            )
+                                            .changed();
+                                    }
+                                });
+                            ui.label("Basement age (Ga) · author assumption");
+                            metadata_changed |= ui
+                                .add(egui::Slider::new(&mut craton.basement_age_ga, 0.0..=4.6))
+                                .changed();
+                        },
+                    );
+                }
+                if metadata_changed {
+                    self.world.cratons.clone_from(cratons);
+                }
+            }
+            if metadata_changed {
+                self.refresh_layer_maps();
+            }
+        }
+    }
+
     fn topbar(&mut self, ctx: &egui::Context) {
         egui::TopBottomPanel::top("top").show(ctx, |ui| {
             ui.horizontal(|ui| {
@@ -537,6 +955,9 @@ impl Studio {
                     self.placing_marker = !self.placing_marker;
                     if self.placing_marker {
                         self.terrain_brush = false;
+                        self.layer_brush = false;
+                        self.boundary_draw = false;
+                        self.boundary_start = None;
                     }
                 }
                 if ui.button("Save").clicked() {
@@ -604,21 +1025,39 @@ impl Studio {
     }
 
     fn layers_panel(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::left("layers").default_width(225.0).min_width(185.0).show(ctx, |ui| {
+        egui::SidePanel::left("layers").default_width(250.0).min_width(205.0).show(ctx, |ui| {
+            egui::ScrollArea::vertical().id_salt("layer-workspace-scroll").show(ui, |ui| {
             ui.heading("Map library");
             ui.label(egui::RichText::new("THEMATIC VIEW").small().weak());
             ui.add_space(8.0);
             egui::ScrollArea::vertical().max_height(280.0).show(ui, |ui| {
             for theme in Theme::ALL {
                 let enabled=theme.available(&self.world);
-                let text=if enabled { theme.name().to_string() } else { format!("{}  · unavailable",theme.name()) };
-                if ui.add_enabled(enabled,egui::Button::selectable(self.theme==theme,text)).clicked() {
+                let text=if enabled { theme.name().to_string() } else { format!("{}  · needs source",theme.name()) };
+                if ui.add(egui::Button::selectable(self.theme==theme,text)).clicked() {
+                    self.finish_layer_stroke();
                     self.theme=theme;
+                    self.layer_brush=false;
+                    self.boundary_draw=false;
+                    self.boundary_start=None;
+                    if let Some(kind)=source_for_theme(theme) {
+                        self.layer_paint_value = match kind {
+                            LayerKind::Plates => self.world.plates.first().map(|p| p.plate_id as f32).unwrap_or(1.0),
+                            LayerKind::Cratons => 0.0,
+                            LayerKind::Provinces => 0.0,
+                            _ => kind.default_fill(),
+                        };
+                    }
                     self.atlas_dirty=true;
                     self.globe_dirty=true;
                 }
             }
             });
+            self.map_layer_workshop(ui);
+            if !self.theme.available(&self.world) {
+                ui.colored_label(Color32::from_rgb(229, 188, 111),
+                    "This map has no source data yet. Set up its input layer above.");
+            }
             ui.separator();
             ui.collapsing(format!("Map legend · {}",self.theme.units()), |ui| {
                 egui::ScrollArea::vertical().max_height(200.0).show(ui,|ui| {
@@ -669,7 +1108,7 @@ impl Studio {
             ui.collapsing("TERRAIN SOURCE / GENERATOR",|ui| {
                 ui.label(format!("Active: {}",self.active_terrain_mode.label()));
                 let can_change_basis=self.project.terrain.overrides.is_empty()
-                    && self.project.terrain.base_fill_m.is_none();
+                    && (self.project.terrain.base_fill_m.is_none() || self.imported_elevation.is_none());
                 ui.small("Generated height uses crustal provinces, plates, crust and cratons; not the legacy elevation TIFF.");
                 if ui.add_enabled(can_change_basis && terrain_generation::available(&self.world),
                     egui::Button::new("Generate from geology")).clicked() {
@@ -691,7 +1130,7 @@ impl Studio {
                 }
                 ui.small("After changing parameters, press Generate from geology. Project recipe is saved.");
                 if !can_change_basis {
-                    ui.small("Existing authored terrain locks the source and recipe.");
+                    ui.small("Existing painted terrain edits lock the source and recipe.");
                 }
             });
             ui.separator();
@@ -710,6 +1149,7 @@ impl Studio {
                 }
             } else {
                 if ui.checkbox(&mut self.terrain_brush,"Terrain brush").clicked() && self.terrain_brush {
+                    self.layer_brush=false;
                     self.placing_marker=false;
                 }
                 if self.terrain_brush {
@@ -800,6 +1240,7 @@ impl Studio {
             ui.separator();
             ui.label(egui::RichText::new("DATA ETHICS").small().weak());
             ui.small("Geological values are fictional scenario data, not measured Earth observations.");
+            });
         });
     }
 
@@ -979,6 +1420,12 @@ impl Studio {
                     egui::RichText::new(format!("{}  ·  {}", self.project.name, self.theme.name()))
                         .strong(),
                 );
+                if !self.theme.available(&self.world) {
+                    ui.colored_label(
+                        Color32::from_rgb(229, 188, 111),
+                        "Map data not initialized; use Map Layer Workshop on the left.",
+                    );
+                }
                 let (rect, response) =
                     ui.allocate_exact_size(egui::vec2(width, height), Sense::click_and_drag());
                 let painter = ui.painter_at(rect);
@@ -1056,7 +1503,11 @@ impl Studio {
                         );
                     }
                 }
-                if !self.terrain_brush && self.view == ViewMode::Globe && response.dragged() {
+                if !self.terrain_brush
+                    && !self.layer_brush
+                    && self.view == ViewMode::Globe
+                    && response.dragged()
+                {
                     let delta = ui.input(|input| input.pointer.delta());
                     if delta != Vec2::ZERO {
                         self.globe_lon = (self.globe_lon - (delta.x as f64) * 0.45 + 180.0)
@@ -1066,7 +1517,10 @@ impl Studio {
                             (self.globe_lat + (delta.y as f64) * 0.45).clamp(-85.0, 85.0);
                         self.globe_dirty = true;
                     }
-                } else if !self.terrain_brush && self.view == ViewMode::Atlas && response.dragged()
+                } else if !self.terrain_brush
+                    && !self.layer_brush
+                    && self.view == ViewMode::Atlas
+                    && response.dragged()
                 {
                     let delta = ui.input(|input| input.pointer.delta());
                     if delta != Vec2::ZERO {
@@ -1074,7 +1528,11 @@ impl Studio {
                         self.pan_v -= delta.y / rect.height() * uv.height();
                     }
                 }
-                if !self.terrain_brush && self.view == ViewMode::Atlas && response.hovered() {
+                if !self.terrain_brush
+                    && !self.layer_brush
+                    && self.view == ViewMode::Atlas
+                    && response.hovered()
+                {
                     let wheel = ui.input(|input| input.raw_scroll_delta.y);
                     if wheel.abs() > 0.0 {
                         self.zoom = (self.zoom * (wheel * 0.0015).exp()).clamp(1.0, 8.0);
@@ -1127,6 +1585,59 @@ impl Studio {
                 if self.terrain_brush && (response.clicked() || response.drag_stopped()) {
                     self.finish_terrain_stroke();
                 }
+                if self.layer_brush && (response.clicked() || response.dragged()) {
+                    if let (Some(kind), Some(pos)) = (
+                        source_for_theme(self.theme),
+                        response.interact_pointer_pos(),
+                    ) {
+                        let fraction_x = ((pos.x - rect.left()) / rect.width()) as f64;
+                        let fraction_y = ((pos.y - rect.top()) / rect.height()) as f64;
+                        let geo = match self.view {
+                            ViewMode::Atlas => Some(atlas_geo_from_fraction(
+                                uv.min.x as f64 + fraction_x * uv.width() as f64,
+                                uv.min.y as f64 + fraction_y * uv.height() as f64,
+                            )),
+                            ViewMode::Globe => globe_geo_from_fraction(
+                                fraction_x,
+                                fraction_y,
+                                self.globe_lon,
+                                self.globe_lat,
+                            ),
+                        };
+                        if let Some((lon, lat)) = geo {
+                            match self.project.layers.paint(
+                                &mut self.world,
+                                kind,
+                                lon,
+                                lat,
+                                self.layer_radius,
+                                self.layer_paint_value,
+                            ) {
+                                Ok(dab) => {
+                                    if !dab.is_empty() {
+                                        self.active_layer_stroke.merge(dab);
+                                        self.changed = true;
+                                        self.picked = Some((lon, lat));
+                                    }
+                                }
+                                Err(error) => self.status = format!("Map paint failed: {error}"),
+                            }
+                        }
+                    }
+                }
+                if self.layer_brush && (response.clicked() || response.drag_stopped()) {
+                    self.finish_layer_stroke();
+                }
+                if self.layer_brush && response.hovered() {
+                    if let Some(pos) = response.hover_pos() {
+                        painter.circle_stroke(
+                            pos,
+                            10.0,
+                            Stroke::new(1.5_f32, Color32::from_rgb(126, 206, 180)),
+                        );
+                    }
+                }
+
                 if self.terrain_brush && response.hovered() {
                     if let Some(pos) = response.hover_pos() {
                         painter.circle_stroke(
@@ -1136,7 +1647,7 @@ impl Studio {
                         );
                     }
                 }
-                if !self.terrain_brush && response.clicked() {
+                if !self.terrain_brush && !self.layer_brush && response.clicked() {
                     if let Some(pos) = response.interact_pointer_pos() {
                         let fraction_x = ((pos.x - rect.left()) / rect.width()) as f64;
                         let fraction_y = ((pos.y - rect.top()) / rect.height()) as f64;
@@ -1154,7 +1665,27 @@ impl Studio {
                         };
                         if let Some((lon, lat)) = geo {
                             self.picked = Some((lon, lat));
-                            if self.placing_marker {
+                            if self.boundary_draw {
+                                if let Some((start_lon, start_lat)) = self.boundary_start.take() {
+                                    let segment = BoundarySegment {
+                                        start: [start_lon, start_lat],
+                                        end: [lon, lat],
+                                        class: self.boundary_class,
+                                    };
+                                    match segment.validate() {
+                                        Ok(()) => {
+                                            self.project.layers.boundary_segments.push(segment.clone());
+                                            self.world.boundary_segments.push(segment);
+                                            self.refresh_layer_maps();
+                                            self.status = "Saved manually classified contact segment".into();
+                                        }
+                                        Err(error) => self.status = format!("Invalid contact: {error}"),
+                                    }
+                                } else {
+                                    self.boundary_start = Some((lon, lat));
+                                    self.status = "First contact endpoint selected; click the second endpoint".into();
+                                }
+                            } else if self.placing_marker {
                                 let idx = self.project.add_marker(lon, lat);
                                 self.selected_marker = Some(idx);
                                 self.changed = true;
@@ -1196,10 +1727,18 @@ impl eframe::App for Studio {
         let undo = ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Z));
         let redo = ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Y));
         if undo {
-            self.undo_terrain();
+            if self.layer_brush {
+                self.undo_layer();
+            } else {
+                self.undo_terrain();
+            }
         }
         if redo {
-            self.redo_terrain();
+            if self.layer_brush {
+                self.redo_layer();
+            } else {
+                self.redo_terrain();
+            }
         }
         self.topbar(ctx);
         self.layers_panel(ctx);
@@ -1306,6 +1845,10 @@ fn main() -> eframe::Result {
             .get(index + 1)
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("maps/diagnostics/geology-consistency.json"));
+        if let Err(error) = project.layers.apply(&mut world) {
+            eprintln!("Could not load authored project layers: {error}");
+            std::process::exit(2);
+        }
         let report = geology_diagnostics::examine(&world);
         if let Err(error) = report.write(&target) {
             eprintln!("Could not export geology diagnostics: {error}");
@@ -1326,6 +1869,10 @@ fn main() -> eframe::Result {
             .get(index + 1)
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from("maps/generated-terrain"));
+        if let Err(error) = project.layers.apply(&mut world) {
+            eprintln!("Could not load authored project layers: {error}");
+            std::process::exit(2);
+        }
         let result = match terrain_generation::generate(&world, &project.terrain_recipe) {
             Ok(generated) => generated,
             Err(error) => {
@@ -1536,6 +2083,78 @@ mod terrain_activation_tests {
             .iter()
             .all(|v| *v == 8100.0));
     }
+    #[test]
+    fn independent_world_reloads_authored_source_layers_before_derivations() {
+        let mut author_world = World::empty(PathBuf::from("custom"));
+        author_world.width = 48;
+        author_world.height = 24;
+        let mut project = Project::new("Independent");
+        project
+            .terrain
+            .create_flat_world(&mut author_world, -2000.0)
+            .unwrap();
+        project.terrain_mode = TerrainMode::Imported;
+        for kind in [
+            LayerKind::Plates,
+            LayerKind::Cratons,
+            LayerKind::Provinces,
+            LayerKind::Crust,
+            LayerKind::Lithosphere,
+            LayerKind::HeatFlow,
+        ] {
+            project
+                .layers
+                .create(&mut author_world, kind, kind.default_fill())
+                .unwrap();
+        }
+        project.layers.add_craton(&mut author_world).unwrap();
+        project
+            .layers
+            .paint(&mut author_world, LayerKind::Cratons, 30.0, 20.0, 2, 1.0)
+            .unwrap();
+        project
+            .layers
+            .paint(&mut author_world, LayerKind::HeatFlow, 30.0, 20.0, 2, 100.0)
+            .unwrap();
+        let saved = serde_json::to_string(&project).unwrap();
+        let restored: Project = serde_json::from_str(&saved).unwrap();
+        let mut reload = World::empty(PathBuf::from("custom"));
+        reload.width = 48;
+        reload.height = 24;
+        assert_eq!(
+            activate_terrain(&mut reload, &restored).unwrap(),
+            TerrainMode::Imported
+        );
+        assert!(reload
+            .elevation
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .all(|&v| v == -2000.0));
+        assert_eq!(reload.plates.len(), 1);
+        assert_eq!(reload.cratons.len(), 1);
+        assert_eq!(reload.provinces.len(), 11);
+        assert!(reload
+            .heatflow
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .any(|&v| v == 100.0));
+        assert!(reload
+            .craton_ids
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .any(|&v| v == 1.0));
+        assert!(
+            reload.plate_motion.is_none(),
+            "unknown Euler motion is not fabricated"
+        );
+    }
+
     #[test]
     fn explicitly_imported_source_is_preserved() {
         let mut w = fixture();

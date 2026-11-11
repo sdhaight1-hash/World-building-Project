@@ -68,7 +68,15 @@ pub fn derive(world: &World, radius_km: f64) -> Result<Option<KinematicFields>, 
     let Some(ids) = world.plate_ids.as_ref() else {
         return Ok(None);
     };
-    if world.plates.is_empty() {
+    if world.plates.is_empty()
+        || world.plates.iter().all(|p| {
+            p.euler_pole_lon_deg.is_none()
+                && p.euler_pole_lat_deg.is_none()
+                && p.signed_rate_deg_per_ma.is_none()
+        })
+    {
+        // Authoring plate geometry is valid before any Euler velocities have
+        // been supplied. No zero-velocity simulation is silently fabricated.
         return Ok(None);
     }
     if !radius_km.is_finite() || radius_km <= 0.0 {
@@ -276,6 +284,22 @@ mod tests {
         let mut world = fixture(0.0, 90.0);
         world.plates.clear();
         assert!(derive(&world, 6371.0).unwrap().is_none());
+    }
+
+    #[test]
+    fn wholly_undefined_rotations_are_not_a_motion_model() {
+        let mut world = fixture(0.0, 90.0);
+        for p in &mut world.plates {
+            p.euler_pole_lon_deg = None;
+            p.euler_pole_lat_deg = None;
+            p.signed_rate_deg_per_ma = None;
+        }
+        assert!(derive(&world, 6371.0).unwrap().is_none());
+        // Adding one rotation makes the catalog incomplete, not a valid model.
+        world.plates[0].euler_pole_lon_deg = Some(0.0);
+        world.plates[0].euler_pole_lat_deg = Some(90.0);
+        world.plates[0].signed_rate_deg_per_ma = Some(1.0);
+        assert!(derive(&world, 6371.0).is_err());
     }
 
     #[test]
