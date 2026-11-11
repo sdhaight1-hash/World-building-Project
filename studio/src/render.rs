@@ -257,6 +257,7 @@ pub fn export_atlas_png(
             })
         })
         .collect::<Vec<_>>();
+    let climate = theme.climate_field();
     let scientific_id = theme.scientific_id();
     let provenance = scientific_id.and_then(|id| world.scientific_provenance.get(id));
     let meta = serde_json::json!({
