@@ -1037,7 +1037,11 @@ impl Studio {
 
     fn transport_workshop(&mut self, ui: &mut egui::Ui) {
         ui.separator();
-        ui.label(egui::RichText::new("CONSERVATIVE MOISTURE TEST").strong().small());
+        ui.label(
+            egui::RichText::new("CONSERVATIVE MOISTURE TEST")
+                .strong()
+                .small(),
+        );
         ui.small("Read-only horizontal transport of a vapor-column proxy, not weather or precipitation prediction. Surface humidity is assumed vertically uniform; pressure and prescribed winds stay fixed.");
         let mut selected = self.project.month;
         egui::ComboBox::from_id_salt("transport-month")
@@ -1052,16 +1056,26 @@ impl Studio {
         }
         let missing = moisture_transport::missing_sources(&self.world);
         if !missing.is_empty() {
-            ui.colored_label(Color32::from_rgb(229, 188, 111),
-                format!("{} monthly input(s) missing; no preview is generated.", missing.len()));
+            ui.colored_label(
+                Color32::from_rgb(229, 188, 111),
+                format!(
+                    "{} monthly input(s) missing; no preview is generated.",
+                    missing.len()
+                ),
+            );
             for (kind, theme) in [
                 (MonthlyField::Pressure, Theme::MonthlyPressure),
-                (MonthlyField::SpecificHumidity, Theme::MonthlySpecificHumidity),
+                (
+                    MonthlyField::SpecificHumidity,
+                    Theme::MonthlySpecificHumidity,
+                ),
                 (MonthlyField::WindEast, Theme::MonthlyWindEast),
                 (MonthlyField::WindNorth, Theme::MonthlyWindNorth),
             ] {
                 if missing.contains(&kind.id())
-                    && ui.button(format!("Create {} source", kind.name())).clicked()
+                    && ui
+                        .button(format!("Create {} source", kind.name()))
+                        .clicked()
                 {
                     self.theme = theme;
                     self.dataset_paint_value = kind.default_fill();
@@ -1073,8 +1087,11 @@ impl Studio {
         }
 
         ui.label("Preview duration (seconds)");
-        ui.add(egui::DragValue::new(&mut self.transport_seconds)
-            .range(0.01..=86_400.0).speed(5.0));
+        ui.add(
+            egui::DragValue::new(&mut self.transport_seconds)
+                .range(0.01..=86_400.0)
+                .speed(5.0),
+        );
         ui.small("Each timestep uses a spherical finite-volume flux budget. High winds/long intervals may require a shorter duration.");
         if ui.button("Compute read-only transport preview").clicked() {
             self.finish_dataset_stroke();
@@ -1085,7 +1102,8 @@ impl Studio {
             ) {
                 Ok(preview) => {
                     self.world.scientific_fields.insert(
-                        moisture_transport::WATER_COLUMN_ID.into(), preview.column_kg_m2
+                        moisture_transport::WATER_COLUMN_ID.into(),
+                        preview.column_kg_m2,
                     );
                     self.world.scientific_provenance.insert(
                         moisture_transport::WATER_COLUMN_ID.into(),
@@ -1098,12 +1116,11 @@ impl Studio {
                                 MonthlyField::WindNorth.id().into(),
                                 "planet.radius".into(),
                             ],
-                        }
+                        },
                     );
                     self.status = format!(
                         "Conservative moisture preview: {} steps · residual {:.2e}",
-                        preview.budget.substeps,
-                        preview.budget.relative_mass_error
+                        preview.budget.substeps, preview.budget.relative_mass_error
                     );
                     self.world.moisture_transport_budget = Some(preview.budget);
                     self.atlas_dirty = true;
@@ -1115,22 +1132,36 @@ impl Studio {
         if let Some(report) = &self.world.moisture_transport_budget {
             ui.separator();
             ui.label(egui::RichText::new("WATER BUDGET").strong().small());
-            ui.small(format!("Transport: {:.2} seconds · {} stable substeps",
-                report.elapsed_seconds, report.substeps));
-            ui.small(format!("Maximum outward Courant: {:.4}", report.max_outflow_courant));
-            ui.small(format!("Before: {:.6e} kg · After: {:.6e} kg",
-                report.water_kg_before, report.water_kg_after));
-            ui.small(format!("Relative mass residual: {:.3e}", report.relative_mass_error));
-            ui.small(format!("Column proxy: {:.2}–{:.2} kg/m²",
-                report.minimum_column_kg_m2, report.maximum_column_kg_m2));
+            ui.small(format!(
+                "Transport: {:.2} seconds · {} stable substeps",
+                report.elapsed_seconds, report.substeps
+            ));
+            ui.small(format!(
+                "Maximum outward Courant: {:.4}",
+                report.max_outflow_courant
+            ));
+            ui.small(format!(
+                "Before: {:.6e} kg · After: {:.6e} kg",
+                report.water_kg_before, report.water_kg_after
+            ));
+            ui.small(format!(
+                "Relative mass residual: {:.3e}",
+                report.relative_mass_error
+            ));
+            ui.small(format!(
+                "Column proxy: {:.2}–{:.2} kg/m²",
+                report.minimum_column_kg_m2, report.maximum_column_kg_m2
+            ));
             if ui.button("Export water-budget JSON").clicked() {
                 let path = self.project_path.with_file_name(format!(
-                    "{}-budget.json", map_export_stem(self.theme, self.project.month)
+                    "{}-budget.json",
+                    map_export_stem(self.theme, self.project.month)
                 ));
                 self.status = match serde_json::to_vec_pretty(report)
                     .map_err(|error| error.to_string())
-                    .and_then(|bytes| std::fs::write(&path, bytes).map_err(|error| error.to_string()))
-                {
+                    .and_then(|bytes| {
+                        std::fs::write(&path, bytes).map_err(|error| error.to_string())
+                    }) {
                     Ok(()) => format!("Exported numerical water budget: {}", path.display()),
                     Err(error) => format!("Could not export transport budget: {error}"),
                 };
