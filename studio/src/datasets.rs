@@ -4,6 +4,7 @@
 //! are sparse authored overrides, not per-month full-resolution JSON arrays.
 //! Metadata records provenance and explicit dependency IDs, never guesses a
 //! physical simulation from a uniform author-created starting value.
+use crate::atmosphere_dynamics::{WIND_EAST_PREVIEW_ID, WIND_NORTH_PREVIEW_ID};
 use crate::moisture_transport::{HUMIDITY_PREVIEW_ID, PRESSURE_PREVIEW_ID, WATER_COLUMN_ID};
 use crate::planetary::INSOLATION_ID;
 use crate::world::{geo_to_uv, Grid, World};
@@ -270,6 +271,8 @@ impl DatasetRegistry {
                 || id == WATER_COLUMN_ID
                 || id == PRESSURE_PREVIEW_ID
                 || id == HUMIDITY_PREVIEW_ID
+                || id == WIND_EAST_PREVIEW_ID
+                || id == WIND_NORTH_PREVIEW_ID
                 || ClimateField::ALL.iter().any(|kind| id == kind.annual_id())
             {
                 return Err(format!(
