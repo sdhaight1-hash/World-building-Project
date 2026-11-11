@@ -48,3 +48,9 @@ Next: offer those recipes as **quick tools in the editor**, then a dockable adva
 ## Geology consistency (implemented first input validation)
 
 A non-destructive `geology_diagnostics.rs` pass checks that each categorical plate/craton/province raster value matches an actual source metadata row and that non-background craton pixels belong to the parent plate named by the corresponding craton record. It also flags missing parent plate names. Reports contain **cell counts**, explicitly not area-weighted geological statistics. Run with `--diagnose-world maps/diagnostics/geology-consistency.json` or press **Validate source layers** in the desktop sidebar. Nothing is silently corrected or conflated with physical simulation.
+
+## Renderer visual defect gate (priority)
+
+Actual user recording: 2026-11-10 22:11. Observed harsh polar pinwheel, very dark 3D globe, noisy fake isolines, broad flat-looking relief, and letterboxed 2D editor. We fix three direct rendering errors before expanding science tools: outward triangle winding + backface culling (no fake fragment-only hemisphere), consistent polar collapse, and single-source cartographic contrast. Separate the **data fidelity gate** from rendering correctness: Aegaea's synthetic mountain morphology requires a reproducible tectonic-to-topography refinement process. Do not claim a palette or GPU patch solves unrealistic terrain shapes.
+
+Next after renderer visual acceptance: (a) area- and geology-aware DEM diagnostics and global-to-regional quality tiers, (b) opt-in multi-scale terrain synthesis constrained by source crust/plate/province fields; preserve reference elevations, (c) proper vector isolines, fault labels and calibrated projections, (d) retest both atlas and globe in a desktop capture.

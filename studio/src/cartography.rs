@@ -445,21 +445,14 @@ impl Cartography {
             }
         };
         if self.coast[index] && theme != Theme::RainShadow {
-            fill = blend(fill, [19, 32, 43], 0.67);
+            // Avoid the heavy pixel-wide black shoreline on the native DEM.
+            fill = blend(fill, [27, 62, 75], 0.29);
         }
         match theme {
-            Theme::Terrain => {
-                if let Some(ref grid) = w.elevation {
-                    let e = grid.at(x, y);
-                    let e_next = grid.at((x + 1) % self.width, y);
-                    if e > 100.0
-                        && e_next > 100.0
-                        && (e / 1000.0).floor() != (e_next / 1000.0).floor()
-                    {
-                        fill = blend(fill, [59, 68, 70], 0.23);
-                    }
-                }
-            }
+            // Suppress the prior one-sided 1,000-m cell threshold 'contours'.
+            // They formed an aliased stipple, not actual contour isolines.
+            // Proper marching-squares vector contour rendering is a later phase.
+            Theme::Terrain => {}
             Theme::Plates | Theme::Boundaries => {
                 if self.plate_edge[index] {
                     fill = blend(fill, [18, 28, 38], 0.64);
