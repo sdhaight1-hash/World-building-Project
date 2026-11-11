@@ -14,10 +14,11 @@ pub enum Theme {
     Crust,
     Lithosphere,
     HeatFlow,
+    RainShadow,
 }
 
 impl Theme {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Terrain,
         Self::Plates,
         Self::Cratons,
@@ -25,6 +26,7 @@ impl Theme {
         Self::Crust,
         Self::Lithosphere,
         Self::HeatFlow,
+        Self::RainShadow,
     ];
 
     pub fn name(self) -> &'static str {
@@ -36,6 +38,7 @@ impl Theme {
             Self::Crust => "Crust thickness",
             Self::Lithosphere => "Lithosphere depth",
             Self::HeatFlow => "Surface heat flow",
+            Self::RainShadow => "Rain shadow",
         }
     }
 
@@ -48,6 +51,7 @@ impl Theme {
             Self::Crust => w.crust_km.is_some(),
             Self::Lithosphere => w.lithosphere_km.is_some(),
             Self::HeatFlow => w.heatflow.is_some(),
+            Self::RainShadow => w.rain_shadow.is_some(),
         }
     }
 
@@ -56,6 +60,7 @@ impl Theme {
             Self::Terrain => "m",
             Self::Crust | Self::Lithosphere => "km",
             Self::HeatFlow => "mW/m²",
+            Self::RainShadow => "signed index",
             _ => "category",
         }
     }
@@ -187,6 +192,20 @@ pub fn sample_rgb(world: &World, theme: Theme, x: usize, y: usize) -> [u8; 3] {
             .as_ref()
             .map(|g| mix(base, ramp(g.at(x, y), 20.0, 150.0), 0.85))
             .unwrap_or(base),
+        Theme::RainShadow => {
+            let Some(map) = &world.rain_shadow else { return base; };
+            let value = map.at(x, y);
+            if value.is_nan() {
+                return [19, 57, 86]; // ocean / missing DEM
+            }
+            let neutral = [177, 184, 173];
+            let tint = if value < 0.0 {
+                mix(neutral, [54, 151, 184], -value)
+            } else {
+                mix(neutral, [214, 91, 52], value)
+            };
+            mix(base, tint, 0.94)
+        }
     }
 }
 
