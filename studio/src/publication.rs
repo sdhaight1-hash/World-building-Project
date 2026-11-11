@@ -229,6 +229,27 @@ mod tests {
     }
 
     #[test]
+    fn monthly_publication_identifies_month_and_actual_source() {
+        let mut world = World::empty(PathBuf::from("climate"));
+        world.width = 48;
+        world.height = 24;
+        let mut registry = crate::datasets::DatasetRegistry::default();
+        registry.create_month(
+            &mut world, crate::datasets::ClimateField::Temperature, 2, 16.0
+        ).unwrap();
+        let art = Cartography::new(&world);
+        let path = std::env::temp_dir().join(format!(
+            "aegaea-climate-sheet-{}.svg", std::process::id()
+        ));
+        export_sheet(&world, &art, Theme::MonthlyTemperature, "Example world", &path).unwrap();
+        let source = std::fs::read_to_string(&path).unwrap();
+        assert!(source.contains("Monthly air temperature · February"));
+        assert!(source.contains("Author-specified"));
+        assert!(source.contains("climate.air_temperature"));
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn real_world_plate_legend_is_from_dataset() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/aegaea/tectonics/v1");
         let world = World::load(root).unwrap();
