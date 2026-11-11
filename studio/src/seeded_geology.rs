@@ -193,7 +193,8 @@ pub fn generate(world: &World, seed: u64, radius_km: f64) -> Result<SeededGeolog
     let land_fraction = land_count as f64 / (w * h) as f64;
     if !(0.10..=0.75).contains(&land_fraction) {
         return Err(format!(
-            "Seed produced an extreme land fraction ({:.1}%); change seed", land_fraction * 100.0
+            "Seed produced an extreme land fraction ({:.1}%); change seed",
+            land_fraction * 100.0
         ));
     }
 
