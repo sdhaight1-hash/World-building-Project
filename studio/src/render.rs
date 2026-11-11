@@ -554,6 +554,75 @@ mod tests {
     }
 
     #[test]
+    fn atmospheric_maps_export_correct_month_units_and_authored_source() {
+        use crate::datasets::MonthlyField;
+        let mut world = World::empty(PathBuf::from("atmosphere"));
+        world.width = 48;
+        world.height = 24;
+        let mut registry = crate::datasets::DatasetRegistry::default();
+        for field in [
+            MonthlyField::Pressure, MonthlyField::SpecificHumidity,
+            MonthlyField::WindEast, MonthlyField::WindNorth,
+        ] {
+            registry.create_month(&mut world, field, 3, field.default_fill()).unwrap();
+        }
+        registry.paint(&mut world, MonthlyField::WindEast, 3, 0.0, 0.0, 2, -22.0).unwrap();
+        let art = Cartography::new(&world);
+        for theme in [
+            Theme::MonthlyPressure, Theme::MonthlySpecificHumidity,
+            Theme::MonthlyWindEast, Theme::MonthlyWindNorth,
+        ] {
+            assert!(theme.available(&world));
+            assert_eq!(atlas_image(&world, &art, theme).size, [48, 24]);
+            assert_eq!(art.legend(&world, theme).len(), 7);
+            let path = std::env::temp_dir().join(format!(
+                "aegaea-atmosphere-{}-{}.png", std::process::id(), theme.slug()
+            ));
+            export_atlas_png(&world, &art, theme, &path).unwrap();
+            let meta: serde_json::Value =
+                serde_json::from_slice(&std::fs::read(path.with_extension("json")).unwrap()).unwrap();
+            assert_eq!(meta["month"], 3);
+            assert_eq!(meta["dataset_id"], theme.scientific_id().unwrap());
+            assert_eq!(meta["units"], theme.units());
+            assert_eq!(meta["provenance"]["kind"], "authored");
+            std::fs::remove_file(path.with_extension("json")).unwrap();
+            std::fs::remove_file(path).unwrap();
+        }
+        registry.activate(&mut world, 4).unwrap();
+        for theme in [
+            Theme::MonthlyPressure, Theme::MonthlySpecificHumidity,
+            Theme::MonthlyWindEast, Theme::MonthlyWindNorth,
+        ] {
+            assert!(!theme.available(&world), "Missing months must not be inferred");
+        }
+    }
+
+    #[test]
+    fn surface_heat_capacity_exports_explicit_static_provenance() {
+        use crate::map_layers::{LayerKind, ProjectLayers};
+        let mut world = World::empty(PathBuf::from("thermal"));
+        world.width = 32;
+        world.height = 16;
+        assert!(!Theme::SurfaceHeatCapacity.available(&world));
+        let mut layers = ProjectLayers::default();
+        layers.create(&mut world, LayerKind::SurfaceHeatCapacity, 2.0).unwrap();
+        layers.paint(&mut world, LayerKind::SurfaceHeatCapacity, 0.0, 0.0, 2, 200.0).unwrap();
+        assert!(Theme::SurfaceHeatCapacity.available(&world));
+        let art = Cartography::new(&world);
+        assert_eq!(art.legend(&world, Theme::SurfaceHeatCapacity).len(), 7);
+        let path = std::env::temp_dir().join(format!("aegaea-thermal-{}.png", std::process::id()));
+        export_atlas_png(&world, &art, Theme::SurfaceHeatCapacity, &path).unwrap();
+        let meta: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(path.with_extension("json")).unwrap()).unwrap();
+        assert_eq!(meta["month"], serde_json::Value::Null);
+        assert_eq!(meta["dataset_id"], "surface.areal_heat_capacity");
+        assert_eq!(meta["units"], "MJ/(m²·K)");
+        assert_eq!(meta["provenance"]["kind"], "authored");
+        std::fs::remove_file(path.with_extension("json")).unwrap();
+        std::fs::remove_file(path).unwrap();
+    }
+
+    #[test]
     fn annual_climate_exports_true_derived_provenance_and_correct_units() {
         let mut world = World::empty(PathBuf::from("annual"));
         world.width = 48;
