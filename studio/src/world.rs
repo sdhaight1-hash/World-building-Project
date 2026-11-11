@@ -154,6 +154,8 @@ pub struct World {
     /// Materialized monthly scientific fields; the selected time slice only.
     pub scientific_fields: BTreeMap<String, Grid>,
     pub scientific_provenance: BTreeMap<String, Provenance>,
+    /// Ephemeral preview diagnostics; never serialized in world.json.
+    pub moisture_transport_budget: Option<crate::moisture_transport::Budget>,
     pub active_month: u8,
     pub calendar: PlanetCalendar,
     /// Derived Euler-relative boundary velocities, not stored source data.
@@ -183,6 +185,7 @@ impl World {
             rain_shadow: None,
             scientific_fields: BTreeMap::new(),
             scientific_provenance: BTreeMap::new(),
+            moisture_transport_budget: None,
             active_month: 1,
             calendar: PlanetCalendar::default(),
             plate_motion: None,
