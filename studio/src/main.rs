@@ -653,7 +653,8 @@ impl Studio {
         if self.active_dataset_stroke.is_empty() {
             return;
         }
-        self.dataset_undo.push(std::mem::take(&mut self.active_dataset_stroke));
+        self.dataset_undo
+            .push(std::mem::take(&mut self.active_dataset_stroke));
         if self.dataset_undo.len() > 64 {
             self.dataset_undo.remove(0);
         }
@@ -701,10 +702,18 @@ impl Studio {
     }
 
     fn monthly_workshop(&mut self, ui: &mut egui::Ui) {
-        let Some(kind) = self.theme.climate_field() else { return };
+        let Some(kind) = self.theme.climate_field() else {
+            return;
+        };
         ui.separator();
-        ui.label(egui::RichText::new("MONTHLY SCIENTIFIC DATA").strong().small());
-        ui.small("Authored climate values only. No atmosphere, rainfall or energy-balance simulation.");
+        ui.label(
+            egui::RichText::new("MONTHLY SCIENTIFIC DATA")
+                .strong()
+                .small(),
+        );
+        ui.small(
+            "Authored climate values only. No atmosphere, rainfall or energy-balance simulation.",
+        );
         let mut selected = self.project.month;
         egui::ComboBox::from_id_salt("active-month")
             .selected_text(month_name(selected))
@@ -720,7 +729,8 @@ impl Studio {
         if !exists {
             ui.small(format!(
                 "No {} dataset for {}. A missing month stays missing.",
-                kind.name(), month_name(self.project.month)
+                kind.name(),
+                month_name(self.project.month)
             ));
             ui.label(format!("Initial assumed value ({})", kind.unit().label()));
             ui.add(egui::DragValue::new(&mut self.dataset_paint_value).speed(0.5));
@@ -729,18 +739,26 @@ impl Studio {
                 && (bounds[0]..=bounds[1]).contains(&self.dataset_paint_value);
             if !valid {
                 ui.colored_label(
-                    Color32::from_rgb(229, 147, 122), "Value outside the field's physical limits."
+                    Color32::from_rgb(229, 147, 122),
+                    "Value outside the field's physical limits.",
                 );
             }
-            if ui.add_enabled(valid, egui::Button::new("Create this month's source")).clicked() {
+            if ui
+                .add_enabled(valid, egui::Button::new("Create this month's source"))
+                .clicked()
+            {
                 match self.project.datasets.create_month(
-                    &mut self.world, kind, self.project.month, self.dataset_paint_value
+                    &mut self.world,
+                    kind,
+                    self.project.month,
+                    self.dataset_paint_value,
                 ) {
                     Ok(()) => {
                         self.refresh_dataset_map();
                         self.status = format!(
                             "Created {} for {} (author-assumed values)",
-                            kind.name(), month_name(self.project.month)
+                            kind.name(),
+                            month_name(self.project.month)
                         );
                     }
                     Err(error) => self.status = format!("Could not create monthly field: {error}"),
@@ -759,17 +777,23 @@ impl Studio {
                         .show_ui(ui, |ui| {
                             for month in &months {
                                 ui.selectable_value(
-                                    &mut self.copy_from_month, *month, month_name(*month)
+                                    &mut self.copy_from_month,
+                                    *month,
+                                    month_name(*month),
                                 );
                             }
                         });
                     if ui.button("Copy values into this month").clicked() {
                         match self.project.datasets.copy_month(
-                            &mut self.world, kind, self.copy_from_month, self.project.month
+                            &mut self.world,
+                            kind,
+                            self.copy_from_month,
+                            self.project.month,
                         ) {
                             Ok(()) => {
                                 self.refresh_dataset_map();
-                                self.status = "Month copied explicitly; no simulation performed".into();
+                                self.status =
+                                    "Month copied explicitly; no simulation performed".into();
                             }
                             Err(error) => self.status = format!("Month copy failed: {error}"),
                         }
@@ -782,13 +806,18 @@ impl Studio {
         let snapshot = &field.months[&self.project.month];
         ui.small(format!(
             "{} · {} · {} authored cells",
-            field.name, field.provenance.label(), snapshot.overrides.len()
+            field.name,
+            field.provenance.label(),
+            snapshot.overrides.len()
         ));
         ui.small(format!(
             "{} source; dependencies: {}",
-            field.unit.label(), field.dependencies.len()
+            field.unit.label(),
+            field.dependencies.len()
         ));
-        if ui.checkbox(&mut self.dataset_brush, "Paint monthly values").changed()
+        if ui
+            .checkbox(&mut self.dataset_brush, "Paint monthly values")
+            .changed()
             && self.dataset_brush
         {
             self.terrain_brush = false;
@@ -811,10 +840,22 @@ impl Studio {
             ui.small("Drag on the atlas or globe. Missing months are never interpolated.");
         }
         ui.horizontal(|ui| {
-            if ui.add_enabled(!self.dataset_undo.is_empty(), egui::Button::new("Undo climate")).clicked() {
+            if ui
+                .add_enabled(
+                    !self.dataset_undo.is_empty(),
+                    egui::Button::new("Undo climate"),
+                )
+                .clicked()
+            {
                 self.undo_dataset();
             }
-            if ui.add_enabled(!self.dataset_redo.is_empty(), egui::Button::new("Redo climate")).clicked() {
+            if ui
+                .add_enabled(
+                    !self.dataset_redo.is_empty(),
+                    egui::Button::new("Redo climate"),
+                )
+                .clicked()
+            {
                 self.redo_dataset();
             }
         });
@@ -1198,9 +1239,10 @@ impl Studio {
                     self.redo_terrain();
                 }
                 if ui.button("Export atlas sheet SVG").clicked() {
-                    let target = self
-                        .project_path
-                        .with_file_name(format!("{}-atlas.svg", map_export_stem(self.theme, self.project.month)));
+                    let target = self.project_path.with_file_name(format!(
+                        "{}-atlas.svg",
+                        map_export_stem(self.theme, self.project.month)
+                    ));
                     match publication::export_sheet(
                         &self.world,
                         &self.cartography,
@@ -1215,9 +1257,10 @@ impl Studio {
                     }
                 }
                 if ui.button("Export map PNG").clicked() {
-                    let target = self
-                        .project_path
-                        .with_file_name(format!("{}.png", map_export_stem(self.theme, self.project.month)));
+                    let target = self.project_path.with_file_name(format!(
+                        "{}.png",
+                        map_export_stem(self.theme, self.project.month)
+                    ));
                     match render::export_atlas_png(
                         &self.world,
                         &self.cartography,
@@ -1491,10 +1534,20 @@ impl Studio {
                             ui.end_row();
                             if let Some(kind) = self.theme.climate_field() {
                                 if let Some(field) = self.world.scientific_fields.get(kind.id()) {
-                                    ui.label(format!("{} · {}", kind.name(), month_name(self.project.month)));
-                                    ui.monospace(format!("{:.2} {}", field.geo(lon, lat), kind.unit().label()));
+                                    ui.label(format!(
+                                        "{} · {}",
+                                        kind.name(),
+                                        month_name(self.project.month)
+                                    ));
+                                    ui.monospace(format!(
+                                        "{:.2} {}",
+                                        field.geo(lon, lat),
+                                        kind.unit().label()
+                                    ));
                                     ui.end_row();
-                                    if let Some(source) = self.world.scientific_provenance.get(kind.id()) {
+                                    if let Some(source) =
+                                        self.world.scientific_provenance.get(kind.id())
+                                    {
                                         ui.label("Provenance");
                                         ui.label(source.label());
                                         ui.end_row();
@@ -2271,7 +2324,10 @@ fn main() -> eframe::Result {
                 eprintln!("Failed to export {}: {}", theme.name(), error);
                 return Ok(());
             }
-            let sheet = output.join(format!("{}-atlas.svg", map_export_stem(theme, project.month)));
+            let sheet = output.join(format!(
+                "{}-atlas.svg",
+                map_export_stem(theme, project.month)
+            ));
             if let Err(error) =
                 publication::export_sheet(&world, &art, theme, &project.name, &sheet)
             {
@@ -2456,16 +2512,22 @@ mod terrain_activation_tests {
         world.height = 24;
         let mut project = Project::new("Climate test");
         project.terrain_mode = TerrainMode::Imported;
-        project.terrain.create_flat_world(&mut world, -2_000.0).unwrap();
-        project.datasets.create_month(
-            &mut world, datasets::ClimateField::Temperature, 1, 18.0
-        ).unwrap();
-        project.datasets.create_month(
-            &mut world, datasets::ClimateField::Temperature, 7, 27.0
-        ).unwrap();
-        project.datasets.create_month(
-            &mut world, datasets::ClimateField::Precipitation, 1, 100.0
-        ).unwrap();
+        project
+            .terrain
+            .create_flat_world(&mut world, -2_000.0)
+            .unwrap();
+        project
+            .datasets
+            .create_month(&mut world, datasets::ClimateField::Temperature, 1, 18.0)
+            .unwrap();
+        project
+            .datasets
+            .create_month(&mut world, datasets::ClimateField::Temperature, 7, 27.0)
+            .unwrap();
+        project
+            .datasets
+            .create_month(&mut world, datasets::ClimateField::Precipitation, 1, 100.0)
+            .unwrap();
         project.month = 1;
         let json = serde_json::to_string(&project).unwrap();
         let project: Project = serde_json::from_str(&json).unwrap();
@@ -2475,8 +2537,14 @@ mod terrain_activation_tests {
         first.height = 24;
         activate_terrain(&mut first, &project).unwrap();
         assert_eq!(first.active_month, 1);
-        assert_eq!(first.scientific_fields[datasets::ClimateField::Temperature.id()].at(0, 0), 18.0);
-        assert_eq!(first.scientific_fields[datasets::ClimateField::Precipitation.id()].at(0, 0), 100.0);
+        assert_eq!(
+            first.scientific_fields[datasets::ClimateField::Temperature.id()].at(0, 0),
+            18.0
+        );
+        assert_eq!(
+            first.scientific_fields[datasets::ClimateField::Precipitation.id()].at(0, 0),
+            100.0
+        );
         assert!(first.plates.is_empty());
 
         let mut july = project;
@@ -2485,11 +2553,17 @@ mod terrain_activation_tests {
         second.width = 48;
         second.height = 24;
         activate_terrain(&mut second, &july).unwrap();
-        assert_eq!(second.scientific_fields[datasets::ClimateField::Temperature.id()].at(0, 0), 27.0);
-        assert!(!second.scientific_fields.contains_key(datasets::ClimateField::Precipitation.id()));
-        assert!(second.scientific_provenance.values().all(
-            |p| matches!(p, datasets::Provenance::Authored { .. })
-        ));
+        assert_eq!(
+            second.scientific_fields[datasets::ClimateField::Temperature.id()].at(0, 0),
+            27.0
+        );
+        assert!(!second
+            .scientific_fields
+            .contains_key(datasets::ClimateField::Precipitation.id()));
+        assert!(second
+            .scientific_provenance
+            .values()
+            .all(|p| matches!(p, datasets::Provenance::Authored { .. })));
     }
 
     #[test]
