@@ -400,6 +400,7 @@ impl Project {
 
     pub fn save(&self, path: &Path) -> Result<(), String> {
         self.calendar.validate()?;
+        self.terrain_recipe.validate()?;
         let parent = path
             .parent()
             .ok_or_else(|| "Project path has no parent".to_owned())?;

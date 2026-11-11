@@ -17,7 +17,7 @@ mod terrain_generation;
 mod world;
 
 use cartography::Cartography;
-use datasets::{month_name, DatasetStroke, MonthlyField, Provenance};
+use datasets::{month_name, DatasetStroke, MonthlyField};
 use eframe::{
     egui,
     egui::{Color32, Pos2, Rect, Sense, Stroke, TextureHandle, Vec2},
@@ -78,7 +78,9 @@ fn source_for_theme(theme: Theme) -> Option<LayerKind> {
         | Theme::MonthlySpecificHumidity
         | Theme::MonthlyWindEast
         | Theme::MonthlyWindNorth
-        | Theme::TransportedVaporColumn => None,
+        | Theme::TransportedVaporColumn
+        | Theme::TransportedPressure
+        | Theme::TransportedSpecificHumidity => None,
     }
 }
 
@@ -1038,11 +1040,11 @@ impl Studio {
     fn transport_workshop(&mut self, ui: &mut egui::Ui) {
         ui.separator();
         ui.label(
-            egui::RichText::new("CONSERVATIVE MOISTURE TEST")
+            egui::RichText::new("COUPLED ATMOSPHERIC MASS TEST")
                 .strong()
                 .small(),
         );
-        ui.small("Read-only horizontal transport of a vapor-column proxy, not weather or precipitation prediction. Surface humidity is assumed vertically uniform; pressure and prescribed winds stay fixed.");
+        ui.small("Read-only, conservative finite-volume transport of total moist air AND its water-vapor fraction. Horizontal winds remain author-specified; this does not solve momentum, vertical atmosphere, clouds or rainfall.");
         let mut selected = self.project.month;
         egui::ComboBox::from_id_salt("transport-month")
             .selected_text(month_name(selected))
@@ -1059,7 +1061,7 @@ impl Studio {
             ui.colored_label(
                 Color32::from_rgb(229, 188, 111),
                 format!(
-                    "{} monthly input(s) missing; no preview is generated.",
+                    "{} authored input(s) missing for this month.",
                     missing.len()
                 ),
             );
@@ -1074,7 +1076,7 @@ impl Studio {
             ] {
                 if missing.contains(&kind.id())
                     && ui
-                        .button(format!("Create {} source", kind.name()))
+                        .button(format!("Author {} source", kind.name()))
                         .clicked()
                 {
                     self.theme = theme;
@@ -1083,76 +1085,103 @@ impl Studio {
                     self.globe_dirty = true;
                 }
             }
+        }
+        ui.collapsing("Planetary physical constants", |ui| {
+            ui.small("Saved in the world recipe. Changes invalidate the existing preview but do not regenerate terrain.");
+            ui.label("Planet radius (km)");
+            let radius_changed = ui.add(
+                egui::DragValue::new(&mut self.project.terrain_recipe.planet_radius_km)
+                    .range(100.0..=100_000.0).speed(10.0),
+            ).changed();
+            ui.label("Effective surface gravity (m/s²)");
+            let gravity_changed = ui.add(
+                egui::DragValue::new(&mut self.project.terrain_recipe.surface_gravity_m_s2)
+                    .range(0.1..=100.0).speed(0.1),
+            ).changed();
+            if radius_changed || gravity_changed {
+                moisture_transport::clear_preview(&mut self.world);
+                self.atlas_dirty = true;
+                self.globe_dirty = true;
+                self.changed = true;
+            }
+            ui.small("The hydrostatic column uses p/g; radius sets spherical cell areas.");
+        });
+        if let Err(error) = self.project.terrain_recipe.validate() {
+            ui.colored_label(Color32::from_rgb(229, 147, 122), error);
             return;
         }
-
+        if !missing.is_empty() {
+            return;
+        }
         ui.label("Preview duration (seconds)");
         ui.add(
             egui::DragValue::new(&mut self.transport_seconds)
                 .range(0.01..=86_400.0)
                 .speed(5.0),
         );
-        ui.small("Each timestep uses a spherical finite-volume flux budget. High winds/long intervals may require a shorter duration.");
-        if ui.button("Compute read-only transport preview").clicked() {
+        ui.small("A bounded outward Courant number controls the time step; unstable or excessive intervals are rejected.");
+        if ui.button("Compute read-only coupled preview").clicked() {
             self.finish_dataset_stroke();
             match moisture_transport::preview(
                 &self.world,
                 self.project.terrain_recipe.planet_radius_km,
+                self.project.terrain_recipe.surface_gravity_m_s2,
                 self.transport_seconds,
             ) {
                 Ok(preview) => {
-                    self.world.scientific_fields.insert(
-                        moisture_transport::WATER_COLUMN_ID.into(),
-                        preview.column_kg_m2,
-                    );
-                    self.world.scientific_provenance.insert(
-                        moisture_transport::WATER_COLUMN_ID.into(),
-                        Provenance::Derived {
-                            operator: moisture_transport::OPERATOR.into(),
-                            inputs: vec![
-                                MonthlyField::Pressure.id().into(),
-                                MonthlyField::SpecificHumidity.id().into(),
-                                MonthlyField::WindEast.id().into(),
-                                MonthlyField::WindNorth.id().into(),
-                                "planet.radius".into(),
-                            ],
-                        },
-                    );
+                    let air_error = preview.budget.air_relative_mass_error;
+                    let water_error = preview.budget.relative_mass_error;
+                    let steps = preview.budget.substeps;
+                    moisture_transport::publish(&mut self.world, preview);
                     self.status = format!(
-                        "Conservative moisture preview: {} steps · residual {:.2e}",
-                        preview.budget.substeps, preview.budget.relative_mass_error
+                        "Coupled transport: {steps} steps · air {air_error:.2e} · vapor {water_error:.2e}"
                     );
-                    self.world.moisture_transport_budget = Some(preview.budget);
                     self.atlas_dirty = true;
                     self.globe_dirty = true;
                 }
-                Err(error) => self.status = format!("Moisture preview refused: {error}"),
+                Err(error) => self.status = format!("Transport preview refused: {error}"),
             }
         }
         if let Some(report) = &self.world.moisture_transport_budget {
             ui.separator();
-            ui.label(egui::RichText::new("WATER BUDGET").strong().small());
+            ui.label(
+                egui::RichText::new("MASS-CONSERVATION BUDGET")
+                    .strong()
+                    .small(),
+            );
             ui.small(format!(
-                "Transport: {:.2} seconds · {} stable substeps",
-                report.elapsed_seconds, report.substeps
+                "{:.1} seconds · {} substeps · outward Courant {:.4}",
+                report.elapsed_seconds, report.substeps, report.max_outflow_courant
             ));
             ui.small(format!(
-                "Maximum outward Courant: {:.4}",
-                report.max_outflow_courant
+                "Total moist air: {:.6e} → {:.6e} kg",
+                report.air_kg_before, report.air_kg_after
             ));
             ui.small(format!(
-                "Before: {:.6e} kg · After: {:.6e} kg",
+                "Air residual: {:.3e}",
+                report.air_relative_mass_error
+            ));
+            ui.small(format!(
+                "Water vapor: {:.6e} → {:.6e} kg",
                 report.water_kg_before, report.water_kg_after
             ));
             ui.small(format!(
-                "Relative mass residual: {:.3e}",
+                "Water residual: {:.3e}",
                 report.relative_mass_error
             ));
             ui.small(format!(
-                "Column proxy: {:.2}–{:.2} kg/m²",
+                "Pressure: {:.2}–{:.2} hPa · specific humidity: {:.2}–{:.2} g/kg",
+                report.minimum_pressure_hpa,
+                report.maximum_pressure_hpa,
+                report.minimum_humidity_g_kg,
+                report.maximum_humidity_g_kg
+            ));
+            ui.small(format!(
+                "Vapor-column proxy: {:.2}–{:.2} kg/m²",
                 report.minimum_column_kg_m2, report.maximum_column_kg_m2
             ));
-            if ui.button("Export water-budget JSON").clicked() {
+            ui.small("Three available outputs: pressure, humidity, vapor column. Select a diagnostic map from Map library.");
+            if ui.button("Export air + water budget JSON").clicked() {
                 let path = self.project_path.with_file_name(format!(
                     "{}-budget.json",
                     map_export_stem(self.theme, self.project.month)
@@ -1162,8 +1191,8 @@ impl Studio {
                     .and_then(|bytes| {
                         std::fs::write(&path, bytes).map_err(|error| error.to_string())
                     }) {
-                    Ok(()) => format!("Exported numerical water budget: {}", path.display()),
-                    Err(error) => format!("Could not export transport budget: {error}"),
+                    Ok(()) => format!("Exported mass budget: {}", path.display()),
+                    Err(error) => format!("Could not export mass budget: {error}"),
                 };
             }
         }
@@ -1642,7 +1671,7 @@ impl Studio {
                 self.monthly_workshop(ui);
             } else if self.theme == Theme::MonthlyInsolation {
                 self.insolation_workshop(ui);
-            } else if self.theme == Theme::TransportedVaporColumn {
+            } else if self.theme.is_transport_preview() {
                 self.transport_workshop(ui);
             } else {
                 self.map_layer_workshop(ui);
