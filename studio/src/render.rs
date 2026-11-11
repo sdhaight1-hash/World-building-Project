@@ -285,18 +285,25 @@ mod tests {
 
     #[test]
     fn slope_map_uses_derived_numeric_field_at_native_resolution() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../data/aegaea/tectonics/v1");
-        let mut world=World::load(root).unwrap();
-        world.slope_deg=world.elevation.as_ref()
-            .map(|dem|crate::map_graph::slope_degrees(dem,6371.0).unwrap());
-        let art=Cartography::new(&world);
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/aegaea/tectonics/v1");
+        let mut world = World::load(root).unwrap();
+        world.slope_deg = world
+            .elevation
+            .as_ref()
+            .map(|dem| crate::map_graph::slope_degrees(dem, 6371.0).unwrap());
+        let art = Cartography::new(&world);
         assert!(Theme::Slope.available(&world));
-        assert_eq!(Theme::Slope.units(),"degrees");
-        assert_eq!(art.legend(&world,Theme::Slope).len(),6);
-        let image=atlas_image(&world,&art,Theme::Slope);
-        assert_eq!(image.size,[1672,941]);
-        assert!(world.slope_deg.as_ref().unwrap().cells.iter().any(|v|*v>0.0));
+        assert_eq!(Theme::Slope.units(), "degrees");
+        assert_eq!(art.legend(&world, Theme::Slope).len(), 6);
+        let image = atlas_image(&world, &art, Theme::Slope);
+        assert_eq!(image.size, [1672, 941]);
+        assert!(world
+            .slope_deg
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .any(|v| *v > 0.0));
     }
 
     #[test]

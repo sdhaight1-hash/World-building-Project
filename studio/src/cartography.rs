@@ -289,15 +289,25 @@ impl Cartography {
         let base_relief = scale(base, relief);
         let mut fill = match theme {
             Theme::Terrain => base_relief,
-            Theme::Slope => if let Some(ref g)=w.slope_deg {
-                let tint=gradient(g.at(x,y),&[
-                    (0.0,[94,142,132]),(2.0,[131,177,134]),
-                    (5.0,[197,187,117]),(15.0,[223,144,83]),
-                    (30.0,[199,93,76]),(50.0,[127,53,71]),
-                    (90.0,[69,37,61]),
-                ]);
-                scale(blend(base,tint,0.93),relief)
-            } else {base_relief},
+            Theme::Slope => {
+                if let Some(ref g) = w.slope_deg {
+                    let tint = gradient(
+                        g.at(x, y),
+                        &[
+                            (0.0, [94, 142, 132]),
+                            (2.0, [131, 177, 134]),
+                            (5.0, [197, 187, 117]),
+                            (15.0, [223, 144, 83]),
+                            (30.0, [199, 93, 76]),
+                            (50.0, [127, 53, 71]),
+                            (90.0, [69, 37, 61]),
+                        ],
+                    );
+                    scale(blend(base, tint, 0.93), relief)
+                } else {
+                    base_relief
+                }
+            }
             Theme::Plates | Theme::Boundaries => {
                 if theme == Theme::Boundaries {
                     scale(blend(base, [94, 106, 114], 0.50), relief)
@@ -477,12 +487,12 @@ impl Cartography {
     pub fn legend(&self, w: &World, theme: Theme) -> Vec<LegendItem> {
         let items: Vec<(String, [u8; 3])> = match theme {
             Theme::Slope => vec![
-                ("0° · level".into(),[94,142,132]),
-                ("2° · nearly level".into(),[131,177,134]),
-                ("5° · gentle".into(),[197,187,117]),
-                ("15° · moderate".into(),[223,144,83]),
-                ("30° · steep".into(),[199,93,76]),
-                ("50° · very steep".into(),[127,53,71]),
+                ("0° · level".into(), [94, 142, 132]),
+                ("2° · nearly level".into(), [131, 177, 134]),
+                ("5° · gentle".into(), [197, 187, 117]),
+                ("15° · moderate".into(), [223, 144, 83]),
+                ("30° · steep".into(), [199, 93, 76]),
+                ("50° · very steep".into(), [127, 53, 71]),
             ],
             Theme::Terrain => vec![
                 ("Ocean abyss · < -6000 m".into(), terrain_color(-6500.0)),
