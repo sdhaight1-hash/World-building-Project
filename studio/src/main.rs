@@ -20,7 +20,7 @@ use eframe::{
 };
 use geology_diagnostics::Report as GeologyReport;
 use globe3d::{GlobeCallback, GlobeMesh};
-use map_layers::{LayerKind, LayerStroke};
+use map_layers::{BoundarySegment, LayerKind, LayerStroke};
 use rainshadow::WindFrom;
 use render::{atlas_geo_from_fraction, forward_globe, globe_geo_from_fraction, Theme};
 use std::{
@@ -129,6 +129,9 @@ struct Studio {
     active_layer_stroke: LayerStroke,
     layer_undo: Vec<LayerStroke>,
     layer_redo: Vec<LayerStroke>,
+    boundary_draw: bool,
+    boundary_class: u8,
+    boundary_start: Option<(f64, f64)>,
     changed: bool,
     status: String,
     new_project_open: bool,
@@ -224,6 +227,9 @@ impl Studio {
             active_layer_stroke: LayerStroke::default(),
             layer_undo: Vec::new(),
             layer_redo: Vec::new(),
+            boundary_draw: false,
+            boundary_class: 2,
+            boundary_start: None,
             changed: false,
             status,
             new_project_open: false,
@@ -462,6 +468,9 @@ impl Studio {
                 self.active_layer_stroke = LayerStroke::default();
                 self.layer_undo.clear();
                 self.layer_redo.clear();
+                self.boundary_draw = false;
+                self.boundary_class = 2;
+                self.boundary_start = None;
                 self.rebuild_derived_surfaces();
                 // The new world.json already persists its empty editing baseline.
                 self.changed = false;
@@ -895,6 +904,8 @@ impl Studio {
                     if self.placing_marker {
                         self.terrain_brush = false;
                         self.layer_brush = false;
+                        self.boundary_draw = false;
+                        self.boundary_start = None;
                     }
                 }
                 if ui.button("Save").clicked() {
@@ -975,6 +986,8 @@ impl Studio {
                     self.finish_layer_stroke();
                     self.theme=theme;
                     self.layer_brush=false;
+                    self.boundary_draw=false;
+                    self.boundary_start=None;
                     if let Some(kind)=source_for_theme(theme) {
                         self.layer_paint_value = match kind {
                             LayerKind::Plates => self.world.plates.first().map(|p| p.plate_id as f32).unwrap_or(1.0),
