@@ -16,7 +16,11 @@ use crate::{
     world::{CratonInfo, Grid, PlateInfo, Project, ProvinceInfo, World},
 };
 use serde::Serialize;
-use std::{f64::consts::{FRAC_PI_2, PI, TAU}, fs, path::Path};
+use std::{
+    f64::consts::{FRAC_PI_2, PI, TAU},
+    fs,
+    path::Path,
+};
 
 const PLATE_COUNT: usize = 15;
 const LAND_NUCLEI: usize = 8;
@@ -98,7 +102,9 @@ pub fn can_initialize(world: &World) -> bool {
 /// nuclei, and plausible *hypothetical* crust, thermal and craton inputs.
 pub fn generate(world: &World, seed: u64, radius_km: f64) -> Result<SeededGeology, String> {
     if !can_initialize(world) {
-        return Err("Source geology already exists; seeded initialization refuses to overwrite it".into());
+        return Err(
+            "Source geology already exists; seeded initialization refuses to overwrite it".into(),
+        );
     }
     if world.width < 16 || world.height < 8 {
         return Err("Seeded geology requires at least a 16×8 planet grid".into());
@@ -117,17 +123,16 @@ pub fn generate(world: &World, seed: u64, radius_km: f64) -> Result<SeededGeolog
     let mut cratons = Vec::with_capacity(PLATE_COUNT);
     for i in 0..PLATE_COUNT {
         let z = (1.0 - 2.0 * (i as f64 + 0.5) / PLATE_COUNT as f64
-            + (rng.unit() - 0.5) / PLATE_COUNT as f64).clamp(-0.99, 0.99);
-        let phi = azimuth_offset + i as f64 * 2.399_963_229_728_653
-            + (rng.unit() - 0.5) * 0.32;
+            + (rng.unit() - 0.5) / PLATE_COUNT as f64)
+            .clamp(-0.99, 0.99);
+        let phi = azimuth_offset + i as f64 * 2.399_963_229_728_653 + (rng.unit() - 0.5) * 0.32;
         let planar = (1.0 - z * z).sqrt();
         sites.push(Site {
             xyz: [planar * phi.cos(), planar * phi.sin(), z],
             radius: 0.0,
         });
         let pole = rng.point();
-        let signed_rate = if rng.unit() > 0.5 { 1.0 } else { -1.0 }
-            * (0.08 + 0.85 * rng.unit());
+        let signed_rate = if rng.unit() > 0.5 { 1.0 } else { -1.0 } * (0.08 + 0.85 * rng.unit());
         let id = (i + 1) as u8;
         let name = format!("Seed plate {id:02}");
         plates.push(PlateInfo {
@@ -168,11 +173,15 @@ pub fn generate(world: &World, seed: u64, radius_km: f64) -> Result<SeededGeolog
             let i = y * w + x;
             let lon = PI - TAU * (x as f64 + 0.5) / w as f64;
             let pos = xyz(lon, lat);
-            let plate = sites.iter().enumerate()
+            let plate = sites
+                .iter()
+                .enumerate()
                 .max_by(|a, b| dot(a.1.xyz, pos).total_cmp(&dot(b.1.xyz, pos)))
-                .map(|(id, _)| id + 1).unwrap();
+                .map(|(id, _)| id + 1)
+                .unwrap();
             plate_ids.cells[i] = plate as f32;
-            let signed = continental.iter()
+            let signed = continental
+                .iter()
                 .map(|c| (c.radius - dot(c.xyz, pos).clamp(-1.0, 1.0).acos()) as f32)
                 .fold(f32::NEG_INFINITY, f32::max)
                 + field_noise(pos, seed);
@@ -183,7 +192,9 @@ pub fn generate(world: &World, seed: u64, radius_km: f64) -> Result<SeededGeolog
     }
     let land_fraction = land_count as f64 / (w * h) as f64;
     if !(0.10..=0.75).contains(&land_fraction) {
-        return Err(format!("Seed produced an extreme land fraction ({land_fraction:.1%}); change seed"));
+        return Err(format!(
+            "Seed produced an extreme land fraction ({land_fraction:.1%}); change seed"
+        ));
     }
 
     // Inferred contact velocities are *instantaneous* from seeded Euler
@@ -210,19 +221,29 @@ pub fn generate(world: &World, seed: u64, radius_km: f64) -> Result<SeededGeolog
                 || plate_ids.cells[y * w + (x + w - 1) % w] != plate_ids.cells[i]
                 || (y + 1 < h && plate_ids.cells[(y + 1) * w + x] != plate_ids.cells[i])
                 || (y > 0 && plate_ids.cells[(y - 1) * w + x] != plate_ids.cells[i]);
-            let converging = kinematics.as_ref()
+            let converging = kinematics
+                .as_ref()
                 .is_some_and(|g| g.convergence_cm_yr.cells[i] > 1.5);
-            let spreading = kinematics.as_ref()
+            let spreading = kinematics
+                .as_ref()
                 .is_some_and(|g| g.divergence_cm_yr.cells[i] > 1.5);
             let core = continent[i] && continental_signed[i] > 0.18 && !other_plate;
             let province = if continent[i] {
-                if other_plate && converging { 7 } // collision-proxy orogen
-                else if core { 4 }                 // hypothetical ancient shield
-                else { 3 }                         // non-cratonic continent
+                if other_plate && converging {
+                    7
+                }
+                // collision-proxy orogen
+                else if core {
+                    4
+                }
+                // hypothetical ancient shield
+                else {
+                    3
+                } // non-cratonic continent
             } else if other_plate && spreading {
-                1                                   // spreading-axis proxy
+                1 // spreading-axis proxy
             } else {
-                0                                   // ocean basin
+                0 // ocean basin
             };
             let id = plate_ids.cells[i];
             province_ids.cells[i] = province as f32;
@@ -242,12 +263,26 @@ pub fn generate(world: &World, seed: u64, radius_km: f64) -> Result<SeededGeolog
         }
     }
 
-    let provinces = PROVINCE_CLASSES.iter().enumerate()
-        .map(|(i, name)| ProvinceInfo { province_id: i as u8, name: (*name).into() })
+    let provinces = PROVINCE_CLASSES
+        .iter()
+        .enumerate()
+        .map(|(i, name)| ProvinceInfo {
+            province_id: i as u8,
+            name: (*name).into(),
+        })
         .collect();
     Ok(SeededGeology {
-        seed, plates, cratons, provinces, plate_ids, craton_ids, province_ids,
-        crust_km, lithosphere_km, heatflow, land_fraction,
+        seed,
+        plates,
+        cratons,
+        provinces,
+        plate_ids,
+        craton_ids,
+        province_ids,
+        crust_km,
+        lithosphere_km,
+        heatflow,
+        land_fraction,
     })
 }
 
@@ -279,17 +314,27 @@ impl SeededGeology {
             return Err("Project directory does not exist".into());
         }
         let files = [
-            "plate_id.tif", "craton_id.tif", "province_id.tif",
-            "crust_km.tif", "lithosphere_km.tif", "heatflow_mWm2.tif",
-            "plates.csv", "cratons.csv", "crustal_provinces.csv",
+            "plate_id.tif",
+            "craton_id.tif",
+            "province_id.tif",
+            "crust_km.tif",
+            "lithosphere_km.tif",
+            "heatflow_mWm2.tif",
+            "plates.csv",
+            "cratons.csv",
+            "crustal_provinces.csv",
             "geology-scenario.json",
         ];
         for name in files {
             if root.join(name).exists() {
-                return Err(format!("Refusing to overwrite existing geological source: {name}"));
+                return Err(format!(
+                    "Refusing to overwrite existing geological source: {name}"
+                ));
             }
             if root.join(format!("{name}.part")).exists() {
-                return Err(format!("An unfinished geological source exists: {name}.part"));
+                return Err(format!(
+                    "An unfinished geological source exists: {name}.part"
+                ));
             }
         }
         let mut temp = Vec::new();
@@ -310,7 +355,10 @@ impl SeededGeology {
             for (name, rows) in [
                 ("plates.csv", CsvSource::Plates(&self.plates)),
                 ("cratons.csv", CsvSource::Cratons(&self.cratons)),
-                ("crustal_provinces.csv", CsvSource::Provinces(&self.provinces)),
+                (
+                    "crustal_provinces.csv",
+                    CsvSource::Provinces(&self.provinces),
+                ),
             ] {
                 let path = root.join(format!("{name}.part"));
                 temp.push((path.clone(), root.join(name)));
@@ -332,8 +380,11 @@ impl SeededGeology {
                 "assumptions":"Jittered spherical Voronoi plate geometry, independent noise-warped continental nuclei, plate-local shield IDs, heuristic crust/heat parameters and instantaneous Euler rates. Provenance: generated hypothetical inputs, NOT measured geology or simulated tectonic history.",
                 "limitations":"No plate-age history, subduction polarity, mantle convection, crust conservation, isostasy, erosion, or climate inference. Plate-boundary spreading/collision classes are heuristic."
             });
-            fs::write(&path, serde_json::to_vec_pretty(&note).map_err(|e| e.to_string())?)
-                .map_err(|e| format!("{}: {e}", path.display()))?;
+            fs::write(
+                &path,
+                serde_json::to_vec_pretty(&note).map_err(|e| e.to_string())?,
+            )
+            .map_err(|e| format!("{}: {e}", path.display()))?;
             Ok(())
         })();
         if let Err(error) = write {
@@ -364,10 +415,7 @@ impl SeededGeology {
 /// Initialize source-empty projects only, preserving explicitly blank worlds
 /// unless the user invokes the action. Precompute terrain before touching disk.
 /// The original flat-ocean baseline is superseded, not added to generated DEM.
-pub fn initialize_project(
-    world: &mut World,
-    project: &mut Project,
-) -> Result<f64, String> {
+pub fn initialize_project(world: &mut World, project: &mut Project) -> Result<f64, String> {
     if !can_initialize(world)
         || !project.layers.grids.is_empty()
         || !project.terrain.overrides.is_empty()
@@ -376,7 +424,11 @@ pub fn initialize_project(
     {
         return Err("Seeded geology requires an unmodified source-empty project. Existing geology, imported terrain and painted edits are preserved.".into());
     }
-    let seeded = generate(world, project.terrain_recipe.seed, project.terrain_recipe.planet_radius_km)?;
+    let seeded = generate(
+        world,
+        project.terrain_recipe.seed,
+        project.terrain_recipe.planet_radius_km,
+    )?;
     let land_fraction = seeded.land_fraction;
     let mut trial = World::empty(world.root.clone());
     trial.width = world.width;
@@ -397,9 +449,9 @@ fn write_tiff(path: &Path, grid: &Grid) -> Result<(), String> {
     use tiff::encoder::{colortype, TiffEncoder};
     let file = fs::File::create(path).map_err(|e| e.to_string())?;
     let mut encoder = TiffEncoder::new(file).map_err(|e| e.to_string())?;
-    encoder.write_image::<colortype::Gray32Float>(
-        grid.width as u32, grid.height as u32, &grid.cells
-    ).map_err(|e| e.to_string())
+    encoder
+        .write_image::<colortype::Gray32Float>(grid.width as u32, grid.height as u32, &grid.cells)
+        .map_err(|e| e.to_string())
 }
 
 enum CsvSource<'a> {
@@ -426,7 +478,10 @@ fn write_csv(path: &Path, rows: CsvSource<'_>) -> Result<(), String> {
 mod tests {
     use super::*;
     use crate::terrain_generation::{self, TerrainRecipe};
-    use std::{path::PathBuf, time::{SystemTime, UNIX_EPOCH}};
+    use std::{
+        path::PathBuf,
+        time::{SystemTime, UNIX_EPOCH},
+    };
 
     fn blank(w: usize, h: usize) -> World {
         let mut world = World::empty(PathBuf::from("seeded-fixture"));
@@ -448,9 +503,17 @@ mod tests {
         assert!(a.land_fraction > 0.1 && a.land_fraction < 0.75);
         assert!(a.province_ids.cells.iter().any(|&v| v == 0.0));
         assert!(a.province_ids.cells.iter().any(|&v| v >= 3.0));
-        assert!(a.plate_ids.cells.iter().all(|&v| (1.0..=PLATE_COUNT as f32).contains(&v)));
+        assert!(a
+            .plate_ids
+            .cells
+            .iter()
+            .all(|&v| (1.0..=PLATE_COUNT as f32).contains(&v)));
         assert!(a.crust_km.cells.iter().all(|&v| (4.0..=70.0).contains(&v)));
-        assert!(a.heatflow.cells.iter().all(|&v| (15.0..=190.0).contains(&v)));
+        assert!(a
+            .heatflow
+            .cells
+            .iter()
+            .all(|&v| (15.0..=190.0).contains(&v)));
         let left = xyz(-PI, 0.7);
         let right = xyz(PI, 0.7);
         assert!(left.iter().zip(right).all(|(a, b)| (a - b).abs() < 1e-12));
@@ -458,10 +521,12 @@ mod tests {
 
     #[test]
     fn generated_sources_drive_elevation_and_survive_native_reopening() {
-        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
-        let root = std::env::temp_dir().join(format!(
-            "aegaea-seeded-{}-{nonce}", std::process::id()
-        ));
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let root =
+            std::env::temp_dir().join(format!("aegaea-seeded-{}-{nonce}", std::process::id()));
         fs::create_dir(&root).unwrap();
         let mut w = blank(128, 64);
         w.root = root.clone();
@@ -478,7 +543,8 @@ mod tests {
         assert_eq!(reopened.plates.len(), PLATE_COUNT);
         assert_eq!(reopened.cratons.len(), PLATE_COUNT);
         assert_eq!(reopened.provinces.len(), PROVINCE_CLASSES.len());
-        let regenerate = terrain_generation::generate(&reopened, &TerrainRecipe::default()).unwrap();
+        let regenerate =
+            terrain_generation::generate(&reopened, &TerrainRecipe::default()).unwrap();
         assert_eq!(generated.elevation.cells, regenerate.elevation.cells);
         fs::remove_dir_all(root).unwrap();
     }
@@ -486,30 +552,54 @@ mod tests {
     #[test]
     fn blank_project_can_opt_into_seeded_geology_and_reopen_generated_terrain() {
         use crate::world::Project;
-        let nonce = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_nanos();
+        let nonce = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
         let root = std::env::temp_dir().join(format!(
-            "aegaea-seeded-project-{}-{nonce}", std::process::id()
+            "aegaea-seeded-project-{}-{nonce}",
+            std::process::id()
         ));
-        let (mut world, mut project, path) = Project::create_blank(root.clone(), "Genesis").unwrap();
+        let (mut world, mut project, path) =
+            Project::create_blank(root.clone(), "Genesis").unwrap();
         assert!(world.plate_ids.is_none());
         assert_eq!(project.terrain_mode, TerrainMode::Imported);
-        assert!(world.elevation.as_ref().unwrap().cells.iter().all(|&v| v == -2000.0));
+        assert!(world
+            .elevation
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .all(|&v| v == -2000.0));
         project.terrain_recipe.seed = 1984;
         let fraction = initialize_project(&mut world, &mut project).unwrap();
         assert!(fraction > 0.10 && fraction < 0.75);
         assert_eq!(project.terrain_mode, TerrainMode::Generated);
         assert!(project.terrain.base_fill_m.is_none());
-        assert!(world.elevation.as_ref().unwrap().cells.iter().any(|&v| v > 0.0));
+        assert!(world
+            .elevation
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .any(|&v| v > 0.0));
         project.save(&path).unwrap();
         let mut reopened = World::load(root.clone()).unwrap();
         let saved_project = Project::load(&path, "fallback").unwrap();
         assert_eq!(saved_project.terrain_mode, TerrainMode::Generated);
         assert_eq!(saved_project.terrain_recipe.seed, 1984);
-        let regenerated = terrain_generation::generate(&reopened, &saved_project.terrain_recipe).unwrap();
-        assert_eq!(world.elevation.as_ref().unwrap().cells, regenerated.elevation.cells);
+        let regenerated =
+            terrain_generation::generate(&reopened, &saved_project.terrain_recipe).unwrap();
+        assert_eq!(
+            world.elevation.as_ref().unwrap().cells,
+            regenerated.elevation.cells
+        );
         reopened.elevation = Some(regenerated.elevation);
         saved_project.terrain.apply(&mut reopened).unwrap();
-        assert_eq!(world.plate_ids.as_ref().unwrap().cells, reopened.plate_ids.as_ref().unwrap().cells);
+        assert_eq!(
+            world.plate_ids.as_ref().unwrap().cells,
+            reopened.plate_ids.as_ref().unwrap().cells
+        );
         assert!(initialize_project(&mut reopened, &mut Project::new("again")).is_err());
         fs::remove_dir_all(root).unwrap();
     }
