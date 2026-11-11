@@ -1,6 +1,7 @@
 //! Aegaea Studio P0: a modern wgpu-backed desktop shell around physical-world maps.
 //! Purposefully scoped: shared atlas/globe source data, inspector, local point annotation.
 mod cartography;
+mod publication;
 mod rainshadow;
 mod render;
 mod world;
@@ -182,6 +183,15 @@ impl Studio {
                 }
                 if ui.button("Save").clicked() {
                     self.save();
+                }
+                if ui.button("Export atlas sheet SVG").clicked() {
+                    let target=self.project_path.with_file_name(format!("{}-atlas.svg",self.theme.slug()));
+                    match publication::export_sheet(
+                        &self.world,&self.cartography,self.theme,&self.project.name,&target
+                    ) {
+                        Ok(())=>self.status=format!("Exported atlas sheet: {}",target.display()),
+                        Err(error)=>self.status=format!("Atlas export failed: {error}"),
+                    }
                 }
                 if ui.button("Export map PNG").clicked() {
                     let target = self
@@ -719,6 +729,11 @@ fn main() -> eframe::Result {
             let target = output.join(format!("{}.png", theme.slug()));
             if let Err(error) = render::export_atlas_png(&world, &art, theme, &target) {
                 eprintln!("Failed to export {}: {}", theme.name(), error);
+                return Ok(());
+            }
+            let sheet=output.join(format!("{}-atlas.svg",theme.slug()));
+            if let Err(error)=publication::export_sheet(&world,&art,theme,&project.name,&sheet) {
+                eprintln!("Could not export SVG sheet for {}: {}",theme.name(),error);
                 return Ok(());
             }
             println!(

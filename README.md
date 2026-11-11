@@ -18,7 +18,7 @@ The `studio/` directory contains an **initial desktop vertical slice**, not a co
 - A dark, map-first Rust/egui desktop interface backed by **wgpu**.
 - A 2D atlas and an orthographic globe **rendered programmatically from the same native geological fields**, with derived terrain hillshade and source-classified tectonic boundaries.
 - **Ten map styles** including physical relief/bathymetry, tectonic plates, classified plate contacts, craton IDs, craton basement age, named crustal provinces, crust thickness, lithosphere thickness, heat flow and rain-shadow exposure.
-- Built-in legends and native-resolution **PNG + JSON map metadata export**; export every available map in one CLI invocation.
+- Built-in legends, native-resolution **PNG + JSON map metadata**, and self-contained **publication SVG sheets** with vector titles, legends, graticules, equatorial scale annotations, and provenance.
 - Thematic display of terrain, plate IDs, cratons, crustal provinces and selected numeric geophysical fields.
 - **Dedicated Rain Shadow map**: DEM-derived windward/leeward exposure, selectable incoming wind, inspector, legend, TIFF + metadata export. This is not a precipitation simulation.
 - Geographic coordinate picking and a data inspector; plate and craton names come from CSV records.

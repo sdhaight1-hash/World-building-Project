@@ -26,3 +26,7 @@ In P0, a **software-projected** orthographic globe texture (displayed using wgpu
 - Markers/notes persist separately, with no mutation of source GeoTIFFs
 - Blank independent project opens and saves without default Aegaea plate names or datasets
 - No silently substituted or invented scientific values for missing layers
+
+## P0.3 — Publication sheets
+
+Reusable `publication.rs` exports self-contained SVG atlas pages from each physical-world map. Vector labels, thematic legends, a coordinate graticule and an equator-only scale bar are composed with the same native raster. No embedded font assets or GPU window required. This is the initial print layout foundation, not an editable print-layout engine.
