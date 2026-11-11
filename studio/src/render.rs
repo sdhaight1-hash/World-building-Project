@@ -310,11 +310,19 @@ pub fn export_atlas_png(
             "lat_at_y":"-90 + 180*(y+0.5)/height",
             "not_Earth_EPSG_4326":true,
         },
-        "dataset_id":scientific_id,
+        "dataset_id":if theme == Theme::SurfaceHeatCapacity {
+            Some("surface.areal_heat_capacity")
+        } else {
+            scientific_id
+        },
         "month":theme.is_monthly().then_some(world.active_month),
         "month_name":theme.is_monthly().then(|| month_name(world.active_month)),
         "planetary_calendar":(theme == Theme::MonthlyInsolation || theme == Theme::AnnualTemperature).then_some(&world.calendar),
-        "provenance":provenance,
+        "provenance":if theme == Theme::SurfaceHeatCapacity {
+            serde_json::json!({"kind":"authored","note":"Project-local hand-authored stationary heat capacity; not derived from land/ocean mask"})
+        } else {
+            serde_json::json!(provenance)
+        },
         "derived_from":if theme == Theme::SurfaceHeatCapacity {
             "project-local explicitly authored surface areal heat capacity; land/ocean status is not inferred"
         } else if theme == Theme::MonthlyInsolation {
@@ -451,7 +459,7 @@ mod tests {
     }
 
     #[test]
-    fn independently_authored_world_can_render_all_nineteen_existing_maps() {
+    fn independently_authored_world_can_render_all_twenty_four_maps() {
         use crate::map_layers::{LayerKind, ProjectLayers};
         use crate::world::Grid;
 
@@ -492,12 +500,11 @@ mod tests {
         ));
         let mut monthly = crate::datasets::DatasetRegistry::default();
         for month in 1..=12 {
-            monthly
-                .create_month(&mut world, ClimateField::Temperature, month, 18.0)
-                .unwrap();
-            monthly
-                .create_month(&mut world, ClimateField::Precipitation, month, 100.0)
-                .unwrap();
+            for kind in crate::datasets::MonthlyField::ALL {
+                monthly
+                    .create_month(&mut world, kind, month, kind.default_fill())
+                    .unwrap();
+            }
         }
         let art = Cartography::new(&world);
         for theme in Theme::ALL {
