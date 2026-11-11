@@ -328,18 +328,19 @@ mod tests {
     fn refuses_missing_fields_or_nonfinite_parameters_without_mutating_world() {
         let mut w = fixture(12, 6, 10.0, 0.0);
         w.scientific_fields.remove(MonthlyField::Pressure.id());
-        assert!(preview(&w, 6371.0, 30.0).unwrap_err().contains("pressure"));
-        assert!(preview(&w, 6371.0, f64::NAN).is_err());
+        assert!(preview(&w, 6371.0, 9.80665, 30.0).unwrap_err().contains("pressure"));
+        assert!(preview(&w, 6371.0, 9.80665, f64::NAN).is_err());
+        assert!(preview(&w, 6371.0, 0.0, 30.0).is_err());
         w.scientific_fields.insert(
             MonthlyField::Pressure.id().into(),
             Grid::new(12, 6, 1013.25),
         );
-        assert!(preview(&w, f64::INFINITY, 20.0).is_err());
+        assert!(preview(&w, f64::INFINITY, 9.80665, 20.0).is_err());
         w.scientific_fields
             .get_mut(MonthlyField::WindNorth.id())
             .unwrap()
             .cells[0] = 300.0;
-        assert!(preview(&w, 6371.0, 30.0).is_err());
+        assert!(preview(&w, 6371.0, 9.80665, 30.0).is_err());
         assert!(!w.scientific_fields.contains_key(WATER_COLUMN_ID));
     }
 
@@ -353,9 +354,11 @@ mod tests {
         let source = w.scientific_fields[MonthlyField::SpecificHumidity.id()]
             .cells
             .clone();
-        let result = preview(&w, 6371.0, 3600.0).unwrap();
+        let result = preview(&w, 6371.0, 9.80665, 3600.0).unwrap();
         assert_eq!(result.budget.substeps, 1);
         assert_eq!(result.budget.max_outflow_courant, 0.0);
+        assert!(result.budget.air_relative_mass_error < 1.0e-7);
+        assert!(result.pressure_hpa.cells.iter().all(|&v| v == 1013.25));
         assert!(result.budget.relative_mass_error < 1.0e-7);
         assert!(result.column_kg_m2.cells[80] > result.column_kg_m2.cells[81]);
         assert_eq!(
@@ -372,7 +375,7 @@ mod tests {
             .get_mut(MonthlyField::SpecificHumidity.id())
             .unwrap()
             .cells[origin] = 50.0;
-        let result = preview(&w, 6371.0, 120.0).unwrap();
+        let result = preview(&w, 6371.0, 9.80665, 120.0).unwrap();
         assert!(
             result.column_kg_m2.cells[origin + 23] > 0.0,
             "x index decreases eastward, so x=0 moves to x=width-1"
@@ -389,7 +392,7 @@ mod tests {
             .get_mut(MonthlyField::SpecificHumidity.id())
             .unwrap()
             .cells[7 * 32 + 8] = 40.0;
-        let result = preview(&w, 6371.0, 300.0).unwrap();
+        let result = preview(&w, 6371.0, 9.80665, 300.0).unwrap();
         assert!(result.column_kg_m2.cells[8 * 32 + 8] > 0.0);
         assert!(result.budget.relative_mass_error < 1.0e-7);
         assert!(result.column_kg_m2.cells.iter().all(|&v| v >= 0.0));
@@ -403,7 +406,7 @@ mod tests {
             .get_mut(MonthlyField::SpecificHumidity.id())
             .unwrap()
             .cells[15 * 32 + 8] = 40.0;
-        let at_pole = preview(&w, 6371.0, 300.0).unwrap();
+        let at_pole = preview(&w, 6371.0, 9.80665, 300.0).unwrap();
         assert!(at_pole.budget.relative_mass_error < 1.0e-7);
         assert!(at_pole.column_kg_m2.cells[15 * 32 + 8] > 0.0);
     }
@@ -420,7 +423,7 @@ mod tests {
             *value = if i % 7 == 0 { 40.0 } else { 5.0 };
         }
         let initial = q.clone();
-        let result = preview(&w, 6371.0, 1800.0).unwrap();
+        let result = preview(&w, 6371.0, 9.80665, 1800.0).unwrap();
         assert!(result.budget.substeps > 1);
         assert!(result.budget.max_outflow_courant <= MAX_COURANT * (1.0 + 1.0e-12));
         assert!(result.budget.relative_mass_error < 1.0e-7);
@@ -434,7 +437,7 @@ mod tests {
             initial
         );
         let fast = fixture(256, 128, 150.0, 150.0);
-        assert!(preview(&fast, 6371.0, 86_400.0)
+        assert!(preview(&fast, 6371.0, 9.80665, 86_400.0)
             .unwrap_err()
             .contains("substeps"));
     }
@@ -449,11 +452,74 @@ mod tests {
             .fill(10.0);
         let planet_radius_m = 6371.0 * 1000.0;
         let expected =
-            4.0 * PI * planet_radius_m * planet_radius_m * (1013.25 * 100.0 / GRAVITY_M_S2) * 0.01;
-        let result = preview(&w, 6371.0, 60.0).unwrap();
+            4.0 * PI * planet_radius_m * planet_radius_m * (1013.25 * 100.0 / 9.80665) * 0.01;
+        let result = preview(&w, 6371.0, 9.80665, 60.0).unwrap();
         assert!((result.budget.water_kg_before / expected - 1.0).abs() < 1.0e-12);
         assert!((result.budget.water_kg_after / expected - 1.0).abs() < 1.0e-7);
         assert_eq!(result.budget.month, 2);
+    }
+
+    #[test]
+    fn pressure_responds_to_advection_and_air_mass_is_conserved() {
+        let mut w = fixture(32, 16, 40.0, 0.0);
+        let source = &mut w.scientific_fields.get_mut(MonthlyField::Pressure.id()).unwrap().cells;
+        source[8 * 32] = 1150.0;
+        let input = source.clone();
+        let result = preview(&w, 6371.0, 9.80665, 1200.0).unwrap();
+        // Positive geographic east is decreasing Aegaea x.
+        assert!(result.pressure_hpa.cells[8 * 32] < 1150.0);
+        assert!(result.pressure_hpa.cells[8 * 32 + 31] > 1013.25);
+        assert!(result.pressure_hpa.cells[8 * 32 + 1] == 1013.25);
+        assert!(result.budget.air_relative_mass_error < 1.0e-7);
+        assert!(result.budget.relative_mass_error < 1.0e-7);
+        assert_eq!(w.scientific_fields[MonthlyField::Pressure.id()].cells, input);
+    }
+
+    #[test]
+    fn divergent_prescribed_flow_changes_pressure_but_not_uniform_mixing_ratio() {
+        let mut w = fixture(32, 16, 0.0, 0.0);
+        w.scientific_fields.get_mut(MonthlyField::SpecificHumidity.id())
+            .unwrap().cells.fill(12.0);
+        // Divergence from prescribed eastward velocity near x=5.
+        let wind = &mut w.scientific_fields.get_mut(MonthlyField::WindEast.id()).unwrap().cells;
+        for y in 0..16 {
+            wind[y * 32 + 5] = 50.0;
+        }
+        let result = preview(&w, 6371.0, 9.80665, 1800.0).unwrap();
+        assert!(result.pressure_hpa.cells.iter().any(|p| (*p - 1013.25).abs() > 0.01));
+        assert!(result.specific_humidity_g_kg.cells.iter().all(|q| (*q - 12.0).abs() < 0.0001));
+        assert!(result.budget.air_relative_mass_error < 1.0e-7);
+        assert!(result.budget.relative_mass_error < 1.0e-7);
+        assert!(result.budget.minimum_pressure_hpa > 0.0);
+    }
+
+    #[test]
+    fn tracer_stays_bounded_even_when_moist_air_columns_diverge() {
+        let mut w = fixture(48, 24, -60.0, 40.0);
+        w.scientific_fields.get_mut(MonthlyField::SpecificHumidity.id()).unwrap()
+            .cells.iter_mut().enumerate().for_each(|(i, q)| {
+                *q = if i % 3 == 0 { 60.0 } else { 0.0 };
+            });
+        let result = preview(&w, 6371.0, 9.80665, 1800.0).unwrap();
+        assert!(result.specific_humidity_g_kg.cells.iter().all(|&q| q >= 0.0 && q <= 60.001));
+        assert!(result.pressure_hpa.cells.iter().all(|&p| p > 0.0 && p.is_finite()));
+        assert!(result.budget.air_relative_mass_error < 1.0e-7);
+        assert!(result.budget.relative_mass_error < 1.0e-7);
+    }
+
+    #[test]
+    fn gravity_changes_column_mass_but_not_initial_pressure() {
+        let mut w = fixture(8, 4, 0.0, 0.0);
+        w.scientific_fields.get_mut(MonthlyField::SpecificHumidity.id())
+            .unwrap().cells.fill(20.0);
+        let earth = preview(&w, 6371.0, 9.80665, 60.0).unwrap();
+        let low_g = preview(&w, 6371.0, 3.71, 60.0).unwrap();
+        assert!((low_g.column_kg_m2.at(0, 0) / earth.column_kg_m2.at(0, 0)
+            - (9.80665 / 3.71) as f32).abs() < 1.0e-5);
+        assert_eq!(earth.pressure_hpa.at(0, 0), 1013.25);
+        assert_eq!(low_g.pressure_hpa.at(0, 0), 1013.25);
+        assert_eq!(low_g.budget.surface_gravity_m_s2, 3.71);
+        assert!(low_g.budget.air_relative_mass_error < 1.0e-7);
     }
 
     #[test]
@@ -471,7 +537,7 @@ mod tests {
             .cells;
         pressure[0] = 500.0;
         pressure[1] = 1000.0;
-        let result = preview(&w, 6371.0, 60.0).unwrap();
+        let result = preview(&w, 6371.0, 9.80665, 60.0).unwrap();
         let first = result.column_kg_m2.cells[0];
         let second = result.column_kg_m2.cells[1];
         assert!((second / first - 2.0).abs() < 1.0e-6);
