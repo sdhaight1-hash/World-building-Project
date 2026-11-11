@@ -424,7 +424,7 @@ mod tests {
             ));
             export_atlas_png(&world, &art, theme, &path).unwrap();
             let metadata = std::fs::read_to_string(path.with_extension("json")).unwrap();
-            assert!(metadata.contains("\\"month\\": 2"));
+            assert!(metadata.contains(r#""month": 2"#));
             assert!(metadata.contains("author"));
             assert!(metadata.contains(theme.climate_field().unwrap().id()));
             std::fs::remove_file(path.with_extension("json")).unwrap();
