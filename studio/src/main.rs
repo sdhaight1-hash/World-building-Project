@@ -4,8 +4,8 @@ mod cartography;
 mod globe3d;
 mod publication;
 mod rainshadow;
-mod terrain_edit;
 mod render;
+mod terrain_edit;
 mod world;
 
 use cartography::Cartography;
@@ -15,13 +15,13 @@ use eframe::{
 };
 use globe3d::{GlobeCallback, GlobeMesh};
 use rainshadow::WindFrom;
-use terrain_edit::Stroke as TerrainStroke;
 use render::{atlas_geo_from_fraction, forward_globe, globe_geo_from_fraction, Theme};
 use std::{
     env,
     path::{Path, PathBuf},
     sync::Arc,
 };
+use terrain_edit::Stroke as TerrainStroke;
 use world::{geo_to_uv, Project, World};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -84,8 +84,8 @@ impl Studio {
             style.spacing.button_padding = Vec2::new(12.0, 6.0);
         });
         // Apply project-local height edits over the imported DEM, never changing source TIFFs.
-        if let Err(error)=project.terrain.apply(&mut world) {
-            status=format!("Terrain project overlay could not load: {error}");
+        if let Err(error) = project.terrain.apply(&mut world) {
+            status = format!("Terrain project overlay could not load: {error}");
         }
         world.rain_shadow = world
             .elevation
@@ -165,42 +165,52 @@ impl Studio {
     }
 
     fn rebuild_derived_surfaces(&mut self) {
-        self.world.rain_shadow=self.world.elevation.as_ref()
-            .map(|dem|rainshadow::derive(dem,self.project.wind_from));
-        self.cartography=Cartography::new(&self.world);
-        self.gpu_mesh=Arc::new(GlobeMesh::from_world(&self.world));
-        self.atlas_dirty=true;
-        self.globe_dirty=true;
-        self.changed=true;
+        self.world.rain_shadow = self
+            .world
+            .elevation
+            .as_ref()
+            .map(|dem| rainshadow::derive(dem, self.project.wind_from));
+        self.cartography = Cartography::new(&self.world);
+        self.gpu_mesh = Arc::new(GlobeMesh::from_world(&self.world));
+        self.atlas_dirty = true;
+        self.globe_dirty = true;
+        self.changed = true;
     }
 
     fn finish_terrain_stroke(&mut self) {
-        if self.active_stroke.is_empty() {return;}
-        let stroke=std::mem::take(&mut self.active_stroke);
+        if self.active_stroke.is_empty() {
+            return;
+        }
+        let stroke = std::mem::take(&mut self.active_stroke);
         self.terrain_undo.push(stroke);
-        if self.terrain_undo.len()>64 {self.terrain_undo.remove(0);}
+        if self.terrain_undo.len() > 64 {
+            self.terrain_undo.remove(0);
+        }
         self.terrain_redo.clear();
         self.rebuild_derived_surfaces();
-        self.status=format!("Terrain edited: {} authored cells",self.project.terrain.overrides.len());
+        self.status = format!(
+            "Terrain edited: {} authored cells",
+            self.project.terrain.overrides.len()
+        );
     }
 
     fn undo_terrain(&mut self) {
         self.finish_terrain_stroke();
-        if let Some(stroke)=self.terrain_undo.pop() {
-            stroke.undo(&mut self.world,&mut self.project.terrain);
+        if let Some(stroke) = self.terrain_undo.pop() {
+            stroke.undo(&mut self.world, &mut self.project.terrain);
             self.terrain_redo.push(stroke);
             self.rebuild_derived_surfaces();
-            self.status="Undid terrain brush stroke".into();
+            self.status = "Undid terrain brush stroke".into();
         }
     }
 
     fn redo_terrain(&mut self) {
         self.finish_terrain_stroke();
-        if let Some(stroke)=self.terrain_redo.pop() {
-            stroke.redo(&mut self.world,&mut self.project.terrain);
+        if let Some(stroke) = self.terrain_redo.pop() {
+            stroke.redo(&mut self.world, &mut self.project.terrain);
             self.terrain_undo.push(stroke);
             self.rebuild_derived_surfaces();
-            self.status="Redid terrain brush stroke".into();
+            self.status = "Redid terrain brush stroke".into();
         }
     }
 
@@ -254,15 +264,29 @@ impl Studio {
                     .clicked()
                 {
                     self.placing_marker = !self.placing_marker;
-                    if self.placing_marker {self.terrain_brush=false;}
+                    if self.placing_marker {
+                        self.terrain_brush = false;
+                    }
                 }
                 if ui.button("Save").clicked() {
                     self.save();
                 }
-                if ui.add_enabled(!self.terrain_undo.is_empty(),egui::Button::new("Undo terrain")).clicked() {
+                if ui
+                    .add_enabled(
+                        !self.terrain_undo.is_empty(),
+                        egui::Button::new("Undo terrain"),
+                    )
+                    .clicked()
+                {
                     self.undo_terrain();
                 }
-                if ui.add_enabled(!self.terrain_redo.is_empty(),egui::Button::new("Redo terrain")).clicked() {
+                if ui
+                    .add_enabled(
+                        !self.terrain_redo.is_empty(),
+                        egui::Button::new("Redo terrain"),
+                    )
+                    .clicked()
+                {
                     self.redo_terrain();
                 }
                 if ui.button("Export atlas sheet SVG").clicked() {
@@ -682,7 +706,8 @@ impl Studio {
                             (self.globe_lat + (delta.y as f64) * 0.45).clamp(-85.0, 85.0);
                         self.globe_dirty = true;
                     }
-                } else if !self.terrain_brush && self.view == ViewMode::Atlas && response.dragged() {
+                } else if !self.terrain_brush && self.view == ViewMode::Atlas && response.dragged()
+                {
                     let delta = ui.input(|input| input.pointer.delta());
                     if delta != Vec2::ZERO {
                         self.pan_u -= delta.x / rect.width() / self.zoom;
@@ -690,34 +715,45 @@ impl Studio {
                     }
                 }
                 if self.terrain_brush && (response.clicked() || response.dragged()) {
-                    if let Some(pos)=response.interact_pointer_pos() {
-                        let fraction_x=((pos.x-rect.left())/rect.width()) as f64;
-                        let fraction_y=((pos.y-rect.top())/rect.height()) as f64;
-                        let geo=match self.view {
-                            ViewMode::Atlas=>Some(atlas_geo_from_fraction(
-                                uv.min.x as f64+fraction_x*uv.width() as f64,
-                                uv.min.y as f64+fraction_y*uv.height() as f64)),
-                            ViewMode::Globe=>globe_geo_from_fraction(
-                                fraction_x,fraction_y,self.globe_lon,self.globe_lat),
+                    if let Some(pos) = response.interact_pointer_pos() {
+                        let fraction_x = ((pos.x - rect.left()) / rect.width()) as f64;
+                        let fraction_y = ((pos.y - rect.top()) / rect.height()) as f64;
+                        let geo = match self.view {
+                            ViewMode::Atlas => Some(atlas_geo_from_fraction(
+                                uv.min.x as f64 + fraction_x * uv.width() as f64,
+                                uv.min.y as f64 + fraction_y * uv.height() as f64,
+                            )),
+                            ViewMode::Globe => globe_geo_from_fraction(
+                                fraction_x,
+                                fraction_y,
+                                self.globe_lon,
+                                self.globe_lat,
+                            ),
                         };
-                        if let Some((lon,lat))=geo {
-                            let signed_strength=if self.terrain_raise {
+                        if let Some((lon, lat)) = geo {
+                            let signed_strength = if self.terrain_raise {
                                 self.terrain_strength_m
                             } else {
                                 -self.terrain_strength_m
                             };
                             match terrain_edit::brush_dab(
-                                &mut self.world,&mut self.project.terrain,
-                                lon,lat,self.terrain_radius,signed_strength
+                                &mut self.world,
+                                &mut self.project.terrain,
+                                lon,
+                                lat,
+                                self.terrain_radius,
+                                signed_strength,
                             ) {
-                                Ok(dab)=>{
+                                Ok(dab) => {
                                     if !dab.is_empty() {
                                         self.active_stroke.merge(dab);
-                                        self.changed=true;
-                                        self.picked=Some((lon,lat));
+                                        self.changed = true;
+                                        self.picked = Some((lon, lat));
                                     }
-                                },
-                                Err(error)=>self.status=format!("Terrain brush failed: {error}"),
+                                }
+                                Err(error) => {
+                                    self.status = format!("Terrain brush failed: {error}")
+                                }
                             }
                         }
                     }
@@ -726,8 +762,12 @@ impl Studio {
                     self.finish_terrain_stroke();
                 }
                 if self.terrain_brush && response.hovered() {
-                    if let Some(pos)=response.hover_pos() {
-                        painter.circle_stroke(pos,10.0,Stroke::new(1.5,Color32::from_rgb(250,215,117)));
+                    if let Some(pos) = response.hover_pos() {
+                        painter.circle_stroke(
+                            pos,
+                            10.0,
+                            Stroke::new(1.5, Color32::from_rgb(250, 215, 117)),
+                        );
                     }
                 }
                 if !self.terrain_brush && response.clicked() {
@@ -787,10 +827,14 @@ impl Studio {
 
 impl eframe::App for Studio {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let undo=ctx.input(|i|i.modifiers.ctrl && i.key_pressed(egui::Key::Z));
-        let redo=ctx.input(|i|i.modifiers.ctrl && i.key_pressed(egui::Key::Y));
-        if undo {self.undo_terrain();}
-        if redo {self.redo_terrain();}
+        let undo = ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Z));
+        let redo = ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Y));
+        if undo {
+            self.undo_terrain();
+        }
+        if redo {
+            self.redo_terrain();
+        }
         self.topbar(ctx);
         self.layers_panel(ctx);
         self.inspector(ctx);
@@ -890,7 +934,7 @@ fn main() -> eframe::Result {
     let (mut world, project, path, status) = boot();
     let args = env::args().collect::<Vec<_>>();
     if let Some(index) = args.iter().position(|a| a == "--export-maps") {
-        if let Err(error)=project.terrain.apply(&mut world) {
+        if let Err(error) = project.terrain.apply(&mut world) {
             eprintln!("Authored terrain overrides could not be applied: {error}");
             std::process::exit(2);
         }
