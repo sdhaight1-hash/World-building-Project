@@ -93,10 +93,11 @@ pub const MONTHS: [&str; 12] = [
 ];
 
 pub fn month_name(month: u8) -> &'static str {
-    MONTHS
-        .get(month.saturating_sub(1) as usize)
-        .copied()
-        .unwrap_or("Invalid month")
+    if (1..=12).contains(&month) {
+        MONTHS[(month - 1) as usize]
+    } else {
+        "Invalid month"
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -500,6 +501,14 @@ mod tests {
         w.width = 48;
         w.height = 24;
         w
+    }
+
+    #[test]
+    fn month_labels_do_not_map_invalid_zero_to_january() {
+        assert_eq!(month_name(1), "January");
+        assert_eq!(month_name(12), "December");
+        assert_eq!(month_name(0), "Invalid month");
+        assert_eq!(month_name(13), "Invalid month");
     }
 
     #[test]
