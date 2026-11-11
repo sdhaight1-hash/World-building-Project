@@ -465,7 +465,7 @@ mod tests {
     }
 
     #[test]
-    fn independently_authored_world_can_render_all_twenty_four_maps() {
+    fn independently_authored_world_renders_all_maps_except_opt_in_transport() {
         use crate::map_layers::{LayerKind, ProjectLayers};
         use crate::world::Grid;
 
@@ -513,7 +513,14 @@ mod tests {
             }
         }
         let art = Cartography::new(&world);
+        assert!(
+            !Theme::TransportedVaporColumn.available(&world),
+            "An opt-in numerical preview cannot exist before it is computed"
+        );
         for theme in Theme::ALL {
+            if theme == Theme::TransportedVaporColumn {
+                continue;
+            }
             assert!(theme.available(&world), "{} should be usable", theme.name());
             assert_eq!(atlas_image(&world, &art, theme).size, [64, 32]);
             assert!(
