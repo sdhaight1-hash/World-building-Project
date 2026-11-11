@@ -839,6 +839,7 @@ impl Studio {
                     self.placing_marker = !self.placing_marker;
                     if self.placing_marker {
                         self.terrain_brush = false;
+                        self.layer_brush = false;
                     }
                 }
                 if ui.button("Save").clicked() {
@@ -1297,6 +1298,10 @@ impl Studio {
                     egui::RichText::new(format!("{}  ·  {}", self.project.name, self.theme.name()))
                         .strong(),
                 );
+                if !self.theme.available(&self.world) {
+                    ui.colored_label(Color32::from_rgb(229, 188, 111),
+                        "Map data not initialized; use Map Layer Workshop on the left.");
+                }
                 let (rect, response) =
                     ui.allocate_exact_size(egui::vec2(width, height), Sense::click_and_drag());
                 let painter = ui.painter_at(rect);
@@ -1374,7 +1379,7 @@ impl Studio {
                         );
                     }
                 }
-                if !self.terrain_brush && self.view == ViewMode::Globe && response.dragged() {
+                if !self.terrain_brush && !self.layer_brush && self.view == ViewMode::Globe && response.dragged() {
                     let delta = ui.input(|input| input.pointer.delta());
                     if delta != Vec2::ZERO {
                         self.globe_lon = (self.globe_lon - (delta.x as f64) * 0.45 + 180.0)
@@ -1384,7 +1389,7 @@ impl Studio {
                             (self.globe_lat + (delta.y as f64) * 0.45).clamp(-85.0, 85.0);
                         self.globe_dirty = true;
                     }
-                } else if !self.terrain_brush && self.view == ViewMode::Atlas && response.dragged()
+                } else if !self.terrain_brush && !self.layer_brush && self.view == ViewMode::Atlas && response.dragged()
                 {
                     let delta = ui.input(|input| input.pointer.delta());
                     if delta != Vec2::ZERO {
@@ -1392,7 +1397,7 @@ impl Studio {
                         self.pan_v -= delta.y / rect.height() * uv.height();
                     }
                 }
-                if !self.terrain_brush && self.view == ViewMode::Atlas && response.hovered() {
+                if !self.terrain_brush && !self.layer_brush && self.view == ViewMode::Atlas && response.hovered() {
                     let wheel = ui.input(|input| input.raw_scroll_delta.y);
                     if wheel.abs() > 0.0 {
                         self.zoom = (self.zoom * (wheel * 0.0015).exp()).clamp(1.0, 8.0);
@@ -1445,6 +1450,59 @@ impl Studio {
                 if self.terrain_brush && (response.clicked() || response.drag_stopped()) {
                     self.finish_terrain_stroke();
                 }
+                if self.layer_brush && (response.clicked() || response.dragged()) {
+                    if let (Some(kind), Some(pos)) = (
+                        source_for_theme(self.theme),
+                        response.interact_pointer_pos(),
+                    ) {
+                        let fraction_x = ((pos.x - rect.left()) / rect.width()) as f64;
+                        let fraction_y = ((pos.y - rect.top()) / rect.height()) as f64;
+                        let geo = match self.view {
+                            ViewMode::Atlas => Some(atlas_geo_from_fraction(
+                                uv.min.x as f64 + fraction_x * uv.width() as f64,
+                                uv.min.y as f64 + fraction_y * uv.height() as f64,
+                            )),
+                            ViewMode::Globe => globe_geo_from_fraction(
+                                fraction_x,
+                                fraction_y,
+                                self.globe_lon,
+                                self.globe_lat,
+                            ),
+                        };
+                        if let Some((lon, lat)) = geo {
+                            match self.project.layers.paint(
+                                &mut self.world,
+                                kind,
+                                lon,
+                                lat,
+                                self.layer_radius,
+                                self.layer_paint_value,
+                            ) {
+                                Ok(dab) => {
+                                    if !dab.is_empty() {
+                                        self.active_layer_stroke.merge(dab);
+                                        self.changed = true;
+                                        self.picked = Some((lon, lat));
+                                    }
+                                }
+                                Err(error) => self.status = format!("Map paint failed: {error}"),
+                            }
+                        }
+                    }
+                }
+                if self.layer_brush && (response.clicked() || response.drag_stopped()) {
+                    self.finish_layer_stroke();
+                }
+                if self.layer_brush && response.hovered() {
+                    if let Some(pos) = response.hover_pos() {
+                        painter.circle_stroke(
+                            pos,
+                            10.0,
+                            Stroke::new(1.5_f32, Color32::from_rgb(126, 206, 180)),
+                        );
+                    }
+                }
+
                 if self.terrain_brush && response.hovered() {
                     if let Some(pos) = response.hover_pos() {
                         painter.circle_stroke(
@@ -1454,7 +1512,7 @@ impl Studio {
                         );
                     }
                 }
-                if !self.terrain_brush && response.clicked() {
+                if !self.terrain_brush && !self.layer_brush && response.clicked() {
                     if let Some(pos) = response.interact_pointer_pos() {
                         let fraction_x = ((pos.x - rect.left()) / rect.width()) as f64;
                         let fraction_y = ((pos.y - rect.top()) / rect.height()) as f64;
@@ -1514,10 +1572,10 @@ impl eframe::App for Studio {
         let undo = ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Z));
         let redo = ctx.input(|i| i.modifiers.ctrl && i.key_pressed(egui::Key::Y));
         if undo {
-            self.undo_terrain();
+            if self.layer_brush { self.undo_layer(); } else { self.undo_terrain(); }
         }
         if redo {
-            self.redo_terrain();
+            if self.layer_brush { self.redo_layer(); } else { self.redo_terrain(); }
         }
         self.topbar(ctx);
         self.layers_panel(ctx);
