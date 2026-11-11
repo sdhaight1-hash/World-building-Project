@@ -324,7 +324,27 @@ mod tests {
         assert!(result.budget.relative_mass_error < 1.0e-7);
         assert!(result.column_kg_m2.cells.iter().all(|&v| v.is_finite() && v >= 0.0));
         assert_eq!(w.scientific_fields[MonthlyField::SpecificHumidity.id()].cells, initial);
-        assert!(preview(&w, 6371.0, 86_400.0).unwrap_err().contains("substeps"));
+        let fast = fixture(256, 128, 150.0, 150.0);
+        assert!(preview(&fast, 6371.0, 86_400.0)
+            .unwrap_err()
+            .contains("substeps"));
+    }
+
+    #[test]
+    fn water_budget_uses_spherical_cell_areas_not_equal_pixel_areas() {
+        let mut w = fixture(48, 24, 0.0, 0.0);
+        w.scientific_fields
+            .get_mut(MonthlyField::SpecificHumidity.id())
+            .unwrap()
+            .cells
+            .fill(10.0);
+        let planet_radius_m = 6371.0 * 1000.0;
+        let expected = 4.0 * PI * planet_radius_m * planet_radius_m
+            * (1013.25 * 100.0 / GRAVITY_M_S2) * 0.01;
+        let result = preview(&w, 6371.0, 60.0).unwrap();
+        assert!((result.budget.water_kg_before / expected - 1.0).abs() < 1.0e-12);
+        assert!((result.budget.water_kg_after / expected - 1.0).abs() < 1.0e-7);
+        assert_eq!(result.budget.month, 2);
     }
 
     #[test]
