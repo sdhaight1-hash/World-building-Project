@@ -104,7 +104,7 @@ impl LayerKind {
     }
 }
 
-const PROVINCE_CLASSES: [&str; 11] = [
+pub(crate) const PROVINCE_CLASSES: [&str; 11] = [
     "ocean_basin",
     "ocean_spreading_axis",
     "ocean_trench",
