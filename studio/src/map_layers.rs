@@ -141,8 +141,10 @@ impl BoundarySegment {
             return Err("Unknown manual contact class".into());
         }
         for point in [self.start, self.end] {
-            if !point[0].is_finite() || !(-180.0..=180.0).contains(&point[0])
-                || !point[1].is_finite() || !(-90.0..=90.0).contains(&point[1])
+            if !point[0].is_finite()
+                || !(-180.0..=180.0).contains(&point[0])
+                || !point[1].is_finite()
+                || !(-90.0..=90.0).contains(&point[1])
             {
                 return Err("Invalid manual contact coordinates".into());
             }
