@@ -153,14 +153,6 @@ impl Theme {
         }
     }
 
-    pub fn climate_field(self) -> Option<ClimateField> {
-        match self {
-            Self::MonthlyTemperature => Some(ClimateField::Temperature),
-            Self::MonthlyPrecipitation => Some(ClimateField::Precipitation),
-            _ => None,
-        }
-    }
-
     pub fn monthly_source(self) -> Option<MonthlyField> {
         match self {
             Self::MonthlyTemperature => Some(MonthlyField::Temperature),
@@ -544,7 +536,7 @@ mod tests {
             let metadata = std::fs::read_to_string(path.with_extension("json")).unwrap();
             assert!(metadata.contains(r#""month": 2"#));
             assert!(metadata.contains("author"));
-            assert!(metadata.contains(theme.climate_field().unwrap().id()));
+            assert!(metadata.contains(theme.monthly_source().unwrap().id()));
             std::fs::remove_file(path.with_extension("json")).unwrap();
             std::fs::remove_file(path).unwrap();
         }
