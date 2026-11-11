@@ -34,3 +34,7 @@ Reusable `publication.rs` exports self-contained SVG atlas pages from each physi
 ## GPU globe milestone P0.4
 
 Use `egui-wgpu` paint callbacks to render a DEM-displaced spherical triangle mesh in WGSL. Share the atlas layer texture, and preserve source coordinate orientation, selection and camera parameters. Acceptance: exact mesh counts; validation of the shader with Naga in headless tests; compilation on Windows; subsequent desktop visual verification on GTX 2060. Further LOD and custom planet radius metadata remain future phases.
+
+## P1/P2 checkpoint — Non-destructive DEM authoring
+
+An elevation painting tool lets the author raise/lower terrain directly in the 2D map and globe. Sparse absolute-elevation overrides are stored in the project sidecar, and grouped brush strokes are undoable/redoable without writing to the source TIFF. Completion recomputes hillshade, rain-shadow and the displaced globe mesh; numeric DEM/metadata export is provided. Blank worlds can be created with a flat-ocean seed elevation. Polygon/line editing and geological time reconstructions are still future work.
