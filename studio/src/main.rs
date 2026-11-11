@@ -57,8 +57,13 @@ fn activate_terrain(world: &mut World, project: &Project) -> Result<TerrainMode,
     let has_edits = !project.terrain.overrides.is_empty() || project.terrain.base_fill_m.is_some();
     let mode = terrain_generation::resolve_mode(project.terrain_mode, world, has_edits);
     if mode == TerrainMode::Generated {
-        world.elevation =
-            Some(terrain_generation::generate(world, &project.terrain_recipe)?.elevation);
+        let generated = terrain_generation::generate(world, &project.terrain_recipe)?;
+        world.plate_motion = generated.kinematics;
+        world.elevation = Some(generated.elevation);
+    } else {
+        // Motion maps must be available even while comparing the imported DEM.
+        world.plate_motion =
+            plate_kinematics::derive(world, project.terrain_recipe.planet_radius_km)?;
     }
     project.terrain.apply(world)?;
     Ok(mode)
@@ -670,6 +675,22 @@ impl Studio {
                                 if let Some(ref field) = self.world.slope_deg {
                                     ui.label("Surface slope");
                                     ui.monospace(format!("{:.2}°", field.geo(lon, lat)));
+                                    ui.end_row();
+                                }
+                            }
+                            if let Some(ref motion) = self.world.plate_motion {
+                                let selected = match self.theme {
+                                    Theme::PlateConvergence =>
+                                        Some(("Convergence", &motion.convergence_cm_yr)),
+                                    Theme::PlateDivergence =>
+                                        Some(("Spreading", &motion.divergence_cm_yr)),
+                                    Theme::PlateShear =>
+                                        Some(("Shear", &motion.shear_cm_yr)),
+                                    _ => None,
+                                };
+                                if let Some((label, field)) = selected {
+                                    ui.label(label);
+                                    ui.monospace(format!("{:.2} cm/year", field.geo(lon, lat)));
                                     ui.end_row();
                                 }
                             }
