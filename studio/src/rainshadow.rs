@@ -248,6 +248,20 @@ mod tests {
     }
 
     #[test]
+    fn exported_tiff_is_readable_with_metadata() {
+        let g = Grid::new(4, 2, 0.25);
+        let path = std::env::temp_dir().join(format!("aegaea-rain-shadow-test-{}.tif", std::process::id()));
+        export_tiff(&g, WindFrom::West, &path).expect("TIFF export");
+        let result = Grid::from_tiff(&path).expect("TIFF round-trip");
+        assert_eq!((result.width, result.height), (4, 2));
+        assert_eq!(result.cells, g.cells);
+        let metadata = std::fs::read_to_string(path.with_extension("json")).expect("sidecar");
+        assert!(metadata.contains("not_a_precipitation_model"));
+        let _ = std::fs::remove_file(path.with_extension("json"));
+        let _ = std::fs::remove_file(path);
+    }
+
+    #[test]
     fn old_project_default_is_west() {
         let from: WindFrom = serde_json::from_str("\"west\"").unwrap();
         assert_eq!(from, WindFrom::default());

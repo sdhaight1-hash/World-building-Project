@@ -59,6 +59,6 @@ Source/dependent invalidation must be targeted. Editing a river must not force r
 
 ### File/data policy
 
-The repo has unusually large pre-existing scientific imports split into `.binary-parts`. The desktop slice uses ordinary checked-in plate/craton/province GeoTIFFs and their CSV metadata. `elevation_m.tif` is split; use `restore_assets.py` to reconstruct the actual DEM. The app must report missing elevation (not synthesize its values and pretend the world was loaded).
+The repo has unusually large pre-existing scientific imports split into `.binary-parts`. The desktop slice uses ordinary checked-in plate/craton/province GeoTIFFs and their CSV metadata. `elevation_m.tif` is split; the loader now assembles its committed parts **in memory** when the TIFF is absent, so users do not need to run Python to obtain the source DEM. The app must report corrupt/missing elevation, not synthesize its values.
 
 Scientific status: Aegaea v1 plates are a synthetic *instantaneous* Euler configuration, cratons are assigned ancient blocks, and deep-time history is hypothetical. No implementation should claim complete tectonic physics.
