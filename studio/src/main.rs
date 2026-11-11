@@ -2810,24 +2810,40 @@ mod terrain_activation_tests {
         authored.height = 24;
         let mut project = Project::new("Independent atmosphere");
         project.terrain_mode = TerrainMode::Imported;
-        project.terrain.create_flat_world(&mut authored, -2000.0).unwrap();
-        project.layers.create(
-            &mut authored, LayerKind::SurfaceHeatCapacity, 2.0
-        ).unwrap();
-        project.layers.paint(
-            &mut authored, LayerKind::SurfaceHeatCapacity, 0.0, 0.0, 2, 200.0
-        ).unwrap();
+        project
+            .terrain
+            .create_flat_world(&mut authored, -2000.0)
+            .unwrap();
+        project
+            .layers
+            .create(&mut authored, LayerKind::SurfaceHeatCapacity, 2.0)
+            .unwrap();
+        project
+            .layers
+            .paint(
+                &mut authored,
+                LayerKind::SurfaceHeatCapacity,
+                0.0,
+                0.0,
+                2,
+                200.0,
+            )
+            .unwrap();
         for field in [
-            MonthlyField::Pressure, MonthlyField::SpecificHumidity,
-            MonthlyField::WindEast, MonthlyField::WindNorth,
+            MonthlyField::Pressure,
+            MonthlyField::SpecificHumidity,
+            MonthlyField::WindEast,
+            MonthlyField::WindNorth,
         ] {
-            project.datasets.create_month(
-                &mut authored, field, 2, field.default_fill()
-            ).unwrap();
+            project
+                .datasets
+                .create_month(&mut authored, field, 2, field.default_fill())
+                .unwrap();
         }
-        project.datasets.paint(
-            &mut authored, MonthlyField::WindEast, 2, 0.0, 0.0, 2, -15.0
-        ).unwrap();
+        project
+            .datasets
+            .paint(&mut authored, MonthlyField::WindEast, 2, 0.0, 0.0, 2, -15.0)
+            .unwrap();
         project.month = 2;
         let saved = serde_json::to_string(&project).unwrap();
         let restored: Project = serde_json::from_str(&saved).unwrap();
@@ -2837,19 +2853,38 @@ mod terrain_activation_tests {
         activate_terrain(&mut reloaded, &restored).unwrap();
         assert!(reloaded.plates.is_empty());
         assert!(reloaded.plate_ids.is_none());
-        assert!(reloaded.surface_heat_capacity.as_ref().unwrap()
-            .cells.iter().any(|&v| v == 200.0));
+        assert!(reloaded
+            .surface_heat_capacity
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .any(|&v| v == 200.0));
         assert!(reloaded.scientific_fields[MonthlyField::WindEast.id()]
-            .cells.iter().any(|&v| v == -15.0));
-        assert_eq!(reloaded.scientific_fields[MonthlyField::Pressure.id()].at(0, 0), 1013.25);
+            .cells
+            .iter()
+            .any(|&v| v == -15.0));
+        assert_eq!(
+            reloaded.scientific_fields[MonthlyField::Pressure.id()].at(0, 0),
+            1013.25
+        );
         assert!(reloaded.scientific_fields[MonthlyField::WindNorth.id()]
-            .cells.iter().all(|&v| v == 0.0));
+            .cells
+            .iter()
+            .all(|&v| v == 0.0));
         let mut missing = restored;
         missing.month = 3;
         activate_terrain(&mut reloaded, &missing).unwrap();
-        assert!(!reloaded.scientific_fields.contains_key(MonthlyField::Pressure.id()));
-        assert!(reloaded.surface_heat_capacity.as_ref().unwrap()
-            .cells.iter().any(|&v| v == 200.0));
+        assert!(!reloaded
+            .scientific_fields
+            .contains_key(MonthlyField::Pressure.id()));
+        assert!(reloaded
+            .surface_heat_capacity
+            .as_ref()
+            .unwrap()
+            .cells
+            .iter()
+            .any(|&v| v == 200.0));
     }
 
     #[test]
