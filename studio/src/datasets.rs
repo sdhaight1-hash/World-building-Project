@@ -563,6 +563,49 @@ mod tests {
     }
 
     #[test]
+    fn annual_climate_requires_all_months_and_respects_monthly_units() {
+        let mut w = world();
+        let mut registry = DatasetRegistry::default();
+        for month in 1..=11u8 {
+            registry.create_month(&mut w, ClimateField::Temperature, month, month as f32).unwrap();
+            registry.create_month(&mut w, ClimateField::Precipitation, month, 10.0 * month as f32).unwrap();
+        }
+        assert!(registry.annual(ClimateField::Temperature).is_none());
+        assert!(registry.annual(ClimateField::Precipitation).is_none());
+        assert!(!w.scientific_fields.contains_key(ClimateField::Temperature.annual_id()));
+
+        registry.create_month(&mut w, ClimateField::Temperature, 12, 12.0).unwrap();
+        assert!(w.scientific_fields.contains_key(ClimateField::Temperature.annual_id()));
+        assert!(!w.scientific_fields.contains_key(ClimateField::Precipitation.annual_id()));
+        registry.create_month(&mut w, ClimateField::Precipitation, 12, 120.0).unwrap();
+
+        let mean = &w.scientific_fields[ClimateField::Temperature.annual_id()];
+        let annual_rain = &w.scientific_fields[ClimateField::Precipitation.annual_id()];
+        assert!((mean.at(0, 0) - 6.5).abs() < 0.0001);
+        assert!((annual_rain.at(0, 0) - 780.0).abs() < 0.001);
+
+        registry.activate(&mut w, 3).unwrap();
+        let dab = registry.paint(
+            &mut w, ClimateField::Temperature, 3, 0.0, 0.0, 1, 15.0
+        ).unwrap();
+        assert!(!dab.is_empty());
+        registry.paint(&mut w, ClimateField::Precipitation, 3, 0.0, 0.0, 1, 300.0).unwrap();
+        registry.activate(&mut w, 3).unwrap();
+        let new_mean = &w.scientific_fields[ClimateField::Temperature.annual_id()];
+        let new_rain = &w.scientific_fields[ClimateField::Precipitation.annual_id()];
+        assert!(new_mean.cells.iter().any(|&v| (v - 7.5).abs() < 0.001));
+        assert!(new_rain.cells.iter().any(|&v| (v - 1050.0).abs() < 0.01));
+        registry.activate(&mut w, 9).unwrap();
+        assert!(w.scientific_fields[ClimateField::Temperature.annual_id()]
+            .cells.iter().any(|&v| (v - 7.5).abs() < 0.001));
+        assert_eq!(w.scientific_provenance[ClimateField::Precipitation.annual_id()],
+            Provenance::Derived {
+                operator: "sum_of_12_monthly_totals".into(),
+                inputs: vec![ClimateField::Precipitation.id().into()],
+            });
+    }
+
+    #[test]
     fn month_labels_do_not_map_invalid_zero_to_january() {
         assert_eq!(month_name(1), "January");
         assert_eq!(month_name(12), "December");
