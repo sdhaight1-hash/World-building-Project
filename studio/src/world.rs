@@ -353,8 +353,7 @@ mod tests {
 
     #[test]
     fn aegreea_split_elevation_is_loadable_directly() {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../data/aegaea/tectonics/v1");
+        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../data/aegaea/tectonics/v1");
         let world = World::load(root).expect("committed Aegaea rasters should load");
         assert_eq!((world.width, world.height), (1672, 941));
         let elevation = world.elevation.expect("split reference DEM should load");

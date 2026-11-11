@@ -250,7 +250,10 @@ mod tests {
     #[test]
     fn exported_tiff_is_readable_with_metadata() {
         let g = Grid::new(4, 2, 0.25);
-        let path = std::env::temp_dir().join(format!("aegaea-rain-shadow-test-{}.tif", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "aegaea-rain-shadow-test-{}.tif",
+            std::process::id()
+        ));
         export_tiff(&g, WindFrom::West, &path).expect("TIFF export");
         let result = Grid::from_tiff(&path).expect("TIFF round-trip");
         assert_eq!((result.width, result.height), (4, 2));
