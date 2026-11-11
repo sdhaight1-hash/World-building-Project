@@ -14,6 +14,9 @@ pub enum Theme {
     Slope,
     Plates,
     Boundaries,
+    PlateConvergence,
+    PlateDivergence,
+    PlateShear,
     Cratons,
     BasementAge,
     Provinces,
@@ -24,11 +27,14 @@ pub enum Theme {
 }
 
 impl Theme {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 14] = [
         Self::Terrain,
         Self::Slope,
         Self::Plates,
         Self::Boundaries,
+        Self::PlateConvergence,
+        Self::PlateDivergence,
+        Self::PlateShear,
         Self::Cratons,
         Self::BasementAge,
         Self::Provinces,
@@ -44,6 +50,9 @@ impl Theme {
             Self::Slope => "Surface slope",
             Self::Plates => "Tectonic plates",
             Self::Boundaries => "Plate boundary classes",
+            Self::PlateConvergence => "Plate convergence",
+            Self::PlateDivergence => "Plate spreading",
+            Self::PlateShear => "Plate shear",
             Self::Cratons => "Cratonic basement",
             Self::BasementAge => "Basement age",
             Self::Provinces => "Crustal provinces",
@@ -60,6 +69,9 @@ impl Theme {
             Self::Slope => "surface-slope",
             Self::Plates => "tectonic-plates",
             Self::Boundaries => "plate-boundaries",
+            Self::PlateConvergence => "plate-convergence",
+            Self::PlateDivergence => "plate-spreading",
+            Self::PlateShear => "plate-shear",
             Self::Cratons => "cratons",
             Self::BasementAge => "basement-age",
             Self::Provinces => "crustal-provinces",
@@ -75,6 +87,9 @@ impl Theme {
             Self::Terrain => w.elevation.is_some(),
             Self::Slope => w.slope_deg.is_some(),
             Self::Plates | Self::Boundaries => w.plate_ids.is_some(),
+            Self::PlateConvergence | Self::PlateDivergence | Self::PlateShear => {
+                w.plate_motion.is_some()
+            },
             Self::Cratons => w.craton_ids.is_some(),
             Self::BasementAge => w.craton_ids.is_some() && !w.cratons.is_empty(),
             Self::Provinces => w.province_ids.is_some(),
@@ -93,6 +108,7 @@ impl Theme {
             Self::Crust | Self::Lithosphere => "km",
             Self::HeatFlow => "mW/m²",
             Self::RainShadow => "signed dimensionless index",
+            Self::PlateConvergence | Self::PlateDivergence | Self::PlateShear => "cm/year",
             _ => "named categories",
         }
     }
