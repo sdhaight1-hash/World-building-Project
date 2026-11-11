@@ -337,7 +337,7 @@ pub fn generate(world: &World, recipe: &TerrainRecipe) -> Result<GeneratedTerrai
                 .abs())
             .powi(3);
             let structure = 0.55 * n1 + 0.30 * n2 + 0.15 * n3;
-            let near_boundary = (-boundary_distance[i] as f32 / 7.0).exp();
+            let near_boundary = (-(boundary_distance[i] as f32) / 7.0).exp();
             let shield = world
                 .craton_ids
                 .as_ref()
@@ -572,6 +572,6 @@ mod tests {
         let r = generate(&world, &TerrainRecipe::default()).unwrap();
         assert_eq!((r.elevation.width, r.elevation.height), (1672, 941));
         assert!(r.elevation.cells.iter().any(|v| *v > 3000.0));
-        assert!(r.elevation.cells.iter().any(|v|*v<-3000.0));
+        assert!(r.elevation.cells.iter().any(|v|*v < -3000.0));
     }
 }
