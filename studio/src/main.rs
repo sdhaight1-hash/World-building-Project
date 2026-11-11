@@ -280,7 +280,8 @@ impl Studio {
     }
 
     fn select_terrain_mode(&mut self, new_mode: TerrainMode) {
-        if !self.project.terrain.overrides.is_empty() || self.project.terrain.base_fill_m.is_some()
+        if !self.project.terrain.overrides.is_empty()
+            || (self.project.terrain.base_fill_m.is_some() && self.imported_elevation.is_some())
         {
             self.status="Cannot change terrain basis with saved height edits. Preserve this project or clear edits before switching.".into();
             return;
@@ -319,6 +320,12 @@ impl Studio {
         };
         self.world.elevation = Some(next);
         self.world.plate_motion = plate_motion;
+        if effective == TerrainMode::Generated && self.imported_elevation.is_none() {
+            // The pristine -2,000m blank-world initializer is superseded, not
+            // layered over the new generator's DEM on the next project reopen.
+            self.project.terrain.base_fill_m = None;
+            self.project.terrain.grid_size = None;
+        }
         self.project.terrain_mode = effective;
         self.active_terrain_mode = effective;
         self.terrain_undo.clear();
@@ -906,14 +913,29 @@ impl Studio {
             egui::ScrollArea::vertical().max_height(280.0).show(ui, |ui| {
             for theme in Theme::ALL {
                 let enabled=theme.available(&self.world);
-                let text=if enabled { theme.name().to_string() } else { format!("{}  · unavailable",theme.name()) };
-                if ui.add_enabled(enabled,egui::Button::selectable(self.theme==theme,text)).clicked() {
+                let text=if enabled { theme.name().to_string() } else { format!("{}  · needs source",theme.name()) };
+                if ui.add(egui::Button::selectable(self.theme==theme,text)).clicked() {
+                    self.finish_layer_stroke();
                     self.theme=theme;
+                    self.layer_brush=false;
+                    if let Some(kind)=source_for_theme(theme) {
+                        self.layer_paint_value = match kind {
+                            LayerKind::Plates => self.world.plates.first().map(|p| p.plate_id as f32).unwrap_or(1.0),
+                            LayerKind::Cratons => 0.0,
+                            LayerKind::Provinces => 0.0,
+                            _ => kind.default_fill(),
+                        };
+                    }
                     self.atlas_dirty=true;
                     self.globe_dirty=true;
                 }
             }
             });
+            self.map_layer_workshop(ui);
+            if !self.theme.available(&self.world) {
+                ui.colored_label(Color32::from_rgb(229, 188, 111),
+                    "This map has no source data yet. Set up its input layer above.");
+            }
             ui.separator();
             ui.collapsing(format!("Map legend · {}",self.theme.units()), |ui| {
                 egui::ScrollArea::vertical().max_height(200.0).show(ui,|ui| {
@@ -964,7 +986,7 @@ impl Studio {
             ui.collapsing("TERRAIN SOURCE / GENERATOR",|ui| {
                 ui.label(format!("Active: {}",self.active_terrain_mode.label()));
                 let can_change_basis=self.project.terrain.overrides.is_empty()
-                    && self.project.terrain.base_fill_m.is_none();
+                    && (self.project.terrain.base_fill_m.is_none() || self.imported_elevation.is_none());
                 ui.small("Generated height uses crustal provinces, plates, crust and cratons; not the legacy elevation TIFF.");
                 if ui.add_enabled(can_change_basis && terrain_generation::available(&self.world),
                     egui::Button::new("Generate from geology")).clicked() {
@@ -986,7 +1008,7 @@ impl Studio {
                 }
                 ui.small("After changing parameters, press Generate from geology. Project recipe is saved.");
                 if !can_change_basis {
-                    ui.small("Existing authored terrain locks the source and recipe.");
+                    ui.small("Existing painted terrain edits lock the source and recipe.");
                 }
             });
             ui.separator();
@@ -1005,6 +1027,7 @@ impl Studio {
                 }
             } else {
                 if ui.checkbox(&mut self.terrain_brush,"Terrain brush").clicked() && self.terrain_brush {
+                    self.layer_brush=false;
                     self.placing_marker=false;
                 }
                 if self.terrain_brush {
