@@ -680,6 +680,34 @@ mod tests {
     }
 
     #[test]
+    fn manual_classification_is_visible_but_not_inferred_from_plate_edges() {
+        let mut world = World::empty(PathBuf::from("blank-project"));
+        world.width = 64;
+        world.height = 32;
+        let mut ids = Grid::new(64, 32, 1.0);
+        for y in 0..32 {
+            for x in 0..32 {
+                ids.cells[y * 64 + x] = 2.0;
+            }
+        }
+        world.plate_ids = Some(ids);
+        let unclassified = Cartography::new(&world);
+        assert_eq!(unclassified.classified_segments, 0);
+        assert_eq!(unclassified.legend(&world, Theme::Boundaries)[0].label,
+            "Unclassified plate contact");
+
+        world.boundary_segments.push(crate::map_layers::BoundarySegment {
+            start: [0.0, 0.0],
+            end: [25.0, 0.0],
+            class: 3,
+        });
+        let authored = Cartography::new(&world);
+        assert_eq!(authored.classified_segments, 1);
+        assert_eq!(authored.sample(&world, Theme::Boundaries, 32, 16), contact_color(3));
+        assert!(authored.legend(&world, Theme::Boundaries).iter().any(|l| l.label == "Transform"));
+    }
+
+    #[test]
     fn classified_boundaries_use_real_source_geometry() {
         let mut world = World::empty(PathBuf::new());
         world.width = 4;
