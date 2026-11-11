@@ -319,6 +319,10 @@ fn january() -> u8 {
     1
 }
 
+fn default_atmosphere_wave_speed() -> f64 {
+    80.0
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Project {
     pub name: String,
@@ -340,6 +344,9 @@ pub struct Project {
     pub calendar: PlanetCalendar,
     #[serde(default = "january")]
     pub month: u8,
+    /// Assumed equivalent barotropic wave speed, m/s. Not derived from heat.
+    #[serde(default = "default_atmosphere_wave_speed")]
+    pub dynamics_wave_speed_m_s: f64,
 }
 
 impl Project {
@@ -355,6 +362,7 @@ impl Project {
             datasets: DatasetRegistry::default(),
             calendar: PlanetCalendar::default(),
             month: 1,
+            dynamics_wave_speed_m_s: default_atmosphere_wave_speed(),
         }
     }
 
@@ -401,6 +409,11 @@ impl Project {
     pub fn save(&self, path: &Path) -> Result<(), String> {
         self.calendar.validate()?;
         self.terrain_recipe.validate()?;
+        if !self.dynamics_wave_speed_m_s.is_finite()
+            || !(1.0..=400.0).contains(&self.dynamics_wave_speed_m_s)
+        {
+            return Err("Atmospheric equivalent wave speed must be 1–400 m/s".into());
+        }
         let parent = path
             .parent()
             .ok_or_else(|| "Project path has no parent".to_owned())?;
@@ -547,5 +560,28 @@ mod tests {
         assert_eq!(q.wind_from, WindFrom::West);
         assert_eq!(q.terrain_mode, TerrainMode::Auto);
         assert_eq!(q.terrain_recipe, TerrainRecipe::default());
+        assert_eq!(q.dynamics_wave_speed_m_s, 80.0);
+    }
+
+    #[test]
+    fn dynamics_wave_speed_defaults_on_legacy_project_and_round_trips() {
+        let mut old = serde_json::to_value(Project::new("old")).unwrap();
+        old.as_object_mut()
+            .unwrap()
+            .remove("dynamics_wave_speed_m_s");
+        let restored: Project = serde_json::from_value(old).unwrap();
+        assert_eq!(restored.dynamics_wave_speed_m_s, 80.0);
+        let mut world = Project::new("another");
+        world.dynamics_wave_speed_m_s = 34.5;
+        let json = serde_json::to_string(&world).unwrap();
+        let loaded: Project = serde_json::from_str(&json).unwrap();
+        assert_eq!(loaded.dynamics_wave_speed_m_s, 34.5);
+        let path = std::env::temp_dir().join(format!(
+            "aegaea-invalid-wave-speed-{}.json",
+            std::process::id()
+        ));
+        world.dynamics_wave_speed_m_s = f64::NAN;
+        assert!(world.save(&path).unwrap_err().contains("wave speed"));
+        assert!(!path.exists());
     }
 }
