@@ -57,8 +57,13 @@ fn activate_terrain(world: &mut World, project: &Project) -> Result<TerrainMode,
     let has_edits = !project.terrain.overrides.is_empty() || project.terrain.base_fill_m.is_some();
     let mode = terrain_generation::resolve_mode(project.terrain_mode, world, has_edits);
     if mode == TerrainMode::Generated {
-        world.elevation =
-            Some(terrain_generation::generate(world, &project.terrain_recipe)?.elevation);
+        let generated = terrain_generation::generate(world, &project.terrain_recipe)?;
+        world.plate_motion = generated.kinematics;
+        world.elevation = Some(generated.elevation);
+    } else {
+        // Motion maps must be available even while comparing the imported DEM.
+        world.plate_motion =
+            plate_kinematics::derive(world, project.terrain_recipe.planet_radius_km)?;
     }
     project.terrain.apply(world)?;
     Ok(mode)
@@ -242,17 +247,26 @@ impl Studio {
             self.status="Cannot change terrain basis with saved height edits. Preserve this project or clear edits before switching.".into();
             return;
         }
-        let next = match new_mode {
-            TerrainMode::Imported => match &self.imported_elevation {
-                Some(grid) => grid.clone(),
-                None => {
+        let (next, plate_motion) = match new_mode {
+            TerrainMode::Imported => {
+                let Some(grid) = &self.imported_elevation else {
                     self.status = "No imported source DEM exists for this world".into();
                     return;
+                };
+                match plate_kinematics::derive(
+                    &self.world,
+                    self.project.terrain_recipe.planet_radius_km,
+                ) {
+                    Ok(motion) => (grid.clone(), motion),
+                    Err(error) => {
+                        self.status = format!("Plate-motion diagnostics unavailable: {error}");
+                        return;
+                    }
                 }
-            },
+            }
             TerrainMode::Generated | TerrainMode::Auto => {
                 match terrain_generation::generate(&self.world, &self.project.terrain_recipe) {
-                    Ok(result) => result.elevation,
+                    Ok(result) => (result.elevation, result.kinematics),
                     Err(error) => {
                         self.status = format!("Geology generation unavailable: {error}");
                         return;
@@ -266,6 +280,7 @@ impl Studio {
             new_mode
         };
         self.world.elevation = Some(next);
+        self.world.plate_motion = plate_motion;
         self.project.terrain_mode = effective;
         self.active_terrain_mode = effective;
         self.terrain_undo.clear();
@@ -670,6 +685,23 @@ impl Studio {
                                 if let Some(ref field) = self.world.slope_deg {
                                     ui.label("Surface slope");
                                     ui.monospace(format!("{:.2}°", field.geo(lon, lat)));
+                                    ui.end_row();
+                                }
+                            }
+                            if let Some(ref motion) = self.world.plate_motion {
+                                let selected = match self.theme {
+                                    Theme::PlateConvergence => {
+                                        Some(("Convergence", &motion.convergence_cm_yr))
+                                    }
+                                    Theme::PlateDivergence => {
+                                        Some(("Spreading", &motion.divergence_cm_yr))
+                                    }
+                                    Theme::PlateShear => Some(("Shear", &motion.shear_cm_yr)),
+                                    _ => None,
+                                };
+                                if let Some((label, field)) = selected {
+                                    ui.label(label);
+                                    ui.monospace(format!("{:.2} cm/year", field.geo(lon, lat)));
                                     ui.end_row();
                                 }
                             }

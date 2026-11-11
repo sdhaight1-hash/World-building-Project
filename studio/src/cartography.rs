@@ -131,6 +131,40 @@ fn parse_rgb(raw: &str) -> Option<[u8; 3]> {
     Some([fields.next()??, fields.next()??, fields.next()??])
 }
 
+/// Velocity-component styling, in cm/year. A subdued zero field keeps the
+/// planet visible while active contacts carry high-contrast scientific data.
+fn motion_color(theme: Theme, speed: f32) -> [u8; 3] {
+    let speed = speed.max(0.0);
+    if speed < 0.1 {
+        return [51, 61, 75];
+    }
+    let ramp: &[(f32, [u8; 3])] = match theme {
+        Theme::PlateConvergence => &[
+            (0.0, [82, 88, 100]),
+            (1.0, [135, 93, 96]),
+            (3.0, [199, 106, 85]),
+            (6.0, [242, 150, 89]),
+            (10.0, [255, 218, 142]),
+        ],
+        Theme::PlateDivergence => &[
+            (0.0, [68, 90, 97]),
+            (1.0, [56, 128, 151]),
+            (3.0, [64, 175, 174]),
+            (6.0, [93, 214, 188]),
+            (10.0, [177, 245, 203]),
+        ],
+        Theme::PlateShear => &[
+            (0.0, [73, 79, 99]),
+            (1.0, [100, 103, 171]),
+            (3.0, [149, 111, 201]),
+            (6.0, [199, 143, 235]),
+            (10.0, [245, 205, 255]),
+        ],
+        _ => return [51, 61, 75],
+    };
+    gradient(speed, ramp)
+}
+
 fn contact_color(id: u8) -> [u8; 3] {
     match id {
         0 => [240, 89, 81],   // subduction
@@ -314,6 +348,21 @@ impl Cartography {
                 } else if let Some(ref g) = w.plate_ids {
                     let color = plate_color(w, g.at(x, y) as usize);
                     scale(blend(base, color, 0.82), relief)
+                } else {
+                    base_relief
+                }
+            }
+            Theme::PlateConvergence | Theme::PlateDivergence | Theme::PlateShear => {
+                if let Some(ref motion) = w.plate_motion {
+                    let value = match theme {
+                        Theme::PlateConvergence => motion.convergence_cm_yr.at(x, y),
+                        Theme::PlateDivergence => motion.divergence_cm_yr.at(x, y),
+                        Theme::PlateShear => motion.shear_cm_yr.at(x, y),
+                        _ => unreachable!(),
+                    };
+                    let tint = motion_color(theme, value);
+                    // No second hillshade pass: velocities should remain legible.
+                    blend(base, tint, if value < 0.1 { 0.92 } else { 0.98 })
                 } else {
                     base_relief
                 }
@@ -512,6 +561,21 @@ impl Cartography {
                 ("Divergent spreading".into(), contact_color(2)),
                 ("Transform".into(), contact_color(3)),
             ],
+            Theme::PlateConvergence | Theme::PlateDivergence | Theme::PlateShear => {
+                [0.0f32, 1.0, 3.0, 6.0, 10.0]
+                    .iter()
+                    .map(|&value| {
+                        (
+                            if value == 0.0 {
+                                "0 · no modeled component".to_owned()
+                            } else {
+                                format!("{value:.0} cm/year")
+                            },
+                            motion_color(theme, value),
+                        )
+                    })
+                    .collect()
+            }
             Theme::Cratons => w
                 .cratons
                 .iter()

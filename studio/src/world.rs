@@ -1,5 +1,6 @@
 //! Scientific source-data loading, source conventions, and editable world annotations.
 //! Data files are immutable; annotations use a separate JSON sidecar.
+use crate::plate_kinematics::KinematicFields;
 use crate::rainshadow::WindFrom;
 use crate::terrain_edit::TerrainEdits;
 use crate::terrain_generation::{TerrainMode, TerrainRecipe};
@@ -144,6 +145,8 @@ pub struct World {
     pub lithosphere_km: Option<Grid>,
     pub heatflow: Option<Grid>,
     pub rain_shadow: Option<Grid>,
+    /// Derived Euler-relative boundary velocities, not stored source data.
+    pub plate_motion: Option<KinematicFields>,
     pub plates: Vec<PlateInfo>,
     pub cratons: Vec<CratonInfo>,
     pub provinces: Vec<ProvinceInfo>,
@@ -164,6 +167,7 @@ impl World {
             lithosphere_km: None,
             heatflow: None,
             rain_shadow: None,
+            plate_motion: None,
             plates: Vec::new(),
             cratons: Vec::new(),
             provinces: Vec::new(),
