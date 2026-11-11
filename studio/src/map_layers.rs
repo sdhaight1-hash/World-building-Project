@@ -474,7 +474,7 @@ mod tests {
     use std::path::PathBuf;
 
     #[test]
-    fn authoring_all_six_sources_and_reload() {
+    fn authoring_all_seven_sources_and_reload() {
         let mut world = World::empty(PathBuf::from("independent"));
         let mut layers = ProjectLayers::default();
         for kind in LayerKind::ALL {
@@ -531,6 +531,37 @@ mod tests {
         }
         assert_eq!(reloaded.plates.len(), 2);
         assert_eq!(reloaded.cratons.len(), 1);
+    }
+
+    #[test]
+    fn heat_capacity_source_is_painted_reloaded_and_validated_without_inference() {
+        let mut original = World::empty(PathBuf::from("independent"));
+        original.width = 48;
+        original.height = 24;
+        let mut layers = ProjectLayers::default();
+        assert!(original.surface_heat_capacity.is_none());
+        layers.create(&mut original, LayerKind::SurfaceHeatCapacity, 2.0).unwrap();
+        assert_eq!(original.surface_heat_capacity.as_ref().unwrap().at(0, 0), 2.0);
+        let stroke = layers.paint(
+            &mut original, LayerKind::SurfaceHeatCapacity, 179.9, 0.0, 2, 200.0
+        ).unwrap();
+        assert!(!stroke.is_empty());
+        assert!(original.surface_heat_capacity.as_ref().unwrap().cells.iter().any(|&v| v == 200.0));
+        stroke.undo(&mut original, &mut layers);
+        assert!(original.surface_heat_capacity.as_ref().unwrap().cells.iter().all(|&v| v == 2.0));
+        stroke.redo(&mut original, &mut layers);
+        assert!(layers.paint(&mut original, LayerKind::SurfaceHeatCapacity, 0.0, 0.0, 1, 0.0).is_err());
+        assert!(layers.paint(&mut original, LayerKind::SurfaceHeatCapacity, 0.0, 0.0, 1, f32::NAN).is_err());
+        let saved = serde_json::to_string(&layers).unwrap();
+        let reopened: ProjectLayers = serde_json::from_str(&saved).unwrap();
+        let mut independent = World::empty(PathBuf::from("independent"));
+        independent.width = 48;
+        independent.height = 24;
+        reopened.apply(&mut independent).unwrap();
+        assert_eq!(
+            independent.surface_heat_capacity.as_ref().unwrap().cells,
+            original.surface_heat_capacity.as_ref().unwrap().cells
+        );
     }
 
     #[test]
