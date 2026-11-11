@@ -1,11 +1,14 @@
-//! Conservative finite-volume **preview**, not a climate forecast.
+//! Coupled spherical finite-volume **mass-continuity preview**, not a weather forecast.
 //!
-//! The authored surface specific humidity (g/kg) is assumed vertically
-//! uniform through the atmospheric column. p/g * q is therefore a *proxy*
-//! column vapor mass (kg/m²), not observed precipitable water. Prescribed
-//! horizontal winds advect this column mass on spherical cell areas.
-//! No evaporation, condensation, precipitation, air-mass continuity,
-//! vertical physics, pressure tendency, or generated winds are modeled.
+//! A hydrostatic p/g *total moist-air column* and its water-vapor fraction are
+//! transported by the SAME upwind face flux. This conserves total air, dry
+//! air and water mass, with a positive and bounded mixing ratio, while letting
+//! diagnostic surface pressure respond to horizontal convergence/divergence.
+//!
+//! Prescribed wind fields remain FIXED. No momentum equation, Coriolis force,
+//! vertical structure, terrain coupling, heat, precipitation, evaporation,
+//! or thermodynamics is solved. These outputs are ephemeral, never authored
+//! source data.
 use crate::{
     datasets::MonthlyField,
     world::{Grid, World},
@@ -14,8 +17,9 @@ use serde::{Deserialize, Serialize};
 use std::f64::consts::{FRAC_PI_2, PI, TAU};
 
 pub const WATER_COLUMN_ID: &str = "transport.vapor_column_proxy";
-pub const OPERATOR: &str = "spherical_upwind_column_vapor_transport_v1";
-const GRAVITY_M_S2: f64 = 9.80665;
+pub const PRESSURE_PREVIEW_ID: &str = "transport.surface_pressure_preview";
+pub const HUMIDITY_PREVIEW_ID: &str = "transport.specific_humidity_preview";
+pub const OPERATOR: &str = "spherical_upwind_moist_air_and_vapor_continuity_v2";
 const MAX_COURANT: f64 = 0.75;
 const MAX_SUBSTEPS: usize = 512;
 
@@ -24,11 +28,19 @@ pub struct Budget {
     pub month: u8,
     pub elapsed_seconds: f64,
     pub planet_radius_km: f64,
+    pub surface_gravity_m_s2: f64,
     pub substeps: usize,
     pub max_outflow_courant: f64,
+    pub air_kg_before: f64,
+    pub air_kg_after: f64,
+    pub air_relative_mass_error: f64,
     pub water_kg_before: f64,
     pub water_kg_after: f64,
     pub relative_mass_error: f64,
+    pub minimum_pressure_hpa: f32,
+    pub maximum_pressure_hpa: f32,
+    pub minimum_humidity_g_kg: f32,
+    pub maximum_humidity_g_kg: f32,
     pub minimum_column_kg_m2: f32,
     pub maximum_column_kg_m2: f32,
     pub operator: String,
@@ -38,6 +50,8 @@ pub struct Budget {
 #[derive(Debug)]
 pub struct Preview {
     pub column_kg_m2: Grid,
+    pub pressure_hpa: Grid,
+    pub specific_humidity_g_kg: Grid,
     pub budget: Budget,
 }
 
@@ -78,15 +92,23 @@ fn source<'a>(world: &'a World, kind: MonthlyField) -> Result<&'a Grid, String> 
     Ok(grid)
 }
 
-/// A single explicitly requested interval. Pure: does not edit authored data.
-/// Each face transfers equal and opposite water mass, including the periodic
-/// longitude seam. Latitude poles have no cross-boundary faces.
-pub fn preview(world: &World, radius_km: f64, seconds: f64) -> Result<Preview, String> {
+/// One read-only, explicitly requested time interval. Moist-air surface
+/// pressure is inferred from air-column mass p = g*A, not advanced separately.
+/// Fluxes transport air mass AND its source-cell water fraction together.
+pub fn preview(
+    world: &World,
+    radius_km: f64,
+    gravity_m_s2: f64,
+    seconds: f64,
+) -> Result<Preview, String> {
     if world.width == 0 || world.height == 0 || world.width.checked_mul(world.height).is_none() {
         return Err("Transport requires nonempty, representable grid dimensions".into());
     }
     if !radius_km.is_finite() || !(100.0..=100_000.0).contains(&radius_km) {
         return Err("Transport radius must be between 100 and 100,000 km".into());
+    }
+    if !gravity_m_s2.is_finite() || !(0.1..=100.0).contains(&gravity_m_s2) {
+        return Err("Surface gravity must be 0.1–100 m/s²".into());
     }
     if !seconds.is_finite() || !(0.01..=86_400.0).contains(&seconds) {
         return Err("Transport duration must be 0.01–86,400 seconds".into());
@@ -109,23 +131,24 @@ pub fn preview(world: &World, radius_km: f64, seconds: f64) -> Result<Preview, S
         .map(|y| radius * radius * dlon * (lat_edge(y + 1).sin() - lat_edge(y).sin()))
         .collect();
 
-    // f64 internally for global water-budget conservation. Output f32 only
-    // after the conservative steps; reported mass is checked on that output.
-    let mut mass = vec![0.0; size];
+    // f64 internal state: kg of moist air and kg of water vapor per cell.
+    // Vapor is carried with the same donor upwind velocity as its carrier air.
+    let mut air_mass = vec![0.0f64; size];
+    let mut vapor_mass = vec![0.0f64; size];
     for y in 0..height {
         for x in 0..width {
             let i = y * width + x;
-            let water_kg_m2 = pressure.cells[i] as f64 * 100.0 / GRAVITY_M_S2
-                * (humidity.cells[i] as f64 / 1000.0);
-            mass[i] = water_kg_m2 * area_per_row[y];
+            air_mass[i] = pressure.cells[i] as f64 * 100.0 / gravity_m_s2 * area_per_row[y];
+            vapor_mass[i] = air_mass[i] * humidity.cells[i] as f64 / 1000.0;
         }
     }
-    let before: f64 = mass.iter().sum();
+    let air_before: f64 = air_mass.iter().sum();
+    let water_before: f64 = vapor_mass.iter().sum();
 
-    // Assemble signed upwind flow faces once: Aegaea x increases WEST,
-    // while source wind u>0 goes EAST; y increases NORTH with v>0.
+    // Aegaea's map x increases WEST, whereas u>0 points EAST; y points NORTH.
+    // Every interface has one directed upwind face; no polar boundary face.
     let mut faces = Vec::with_capacity(size.saturating_mul(2));
-    let mut outward_per_second = vec![0.0; size];
+    let mut outward_per_second = vec![0.0f64; size];
     for y in 0..height {
         let meridional_face_m = if width > 1 { meridian_edge_m } else { 0.0 };
         for x in 0..width {
@@ -137,30 +160,17 @@ pub fn preview(world: &World, radius_km: f64, seconds: f64) -> Result<Preview, S
                     let (from, to) = if westward > 0.0 { (i, west) } else { (west, i) };
                     let sweep = westward.abs() * meridional_face_m;
                     outward_per_second[from] += sweep / area_per_row[y];
-                    faces.push(Face {
-                        from,
-                        to,
-                        swept_m2_s: sweep,
-                    });
+                    faces.push(Face { from, to, swept_m2_s: sweep });
                 }
             }
             if y + 1 < height {
                 let north = i + width;
                 let northward = 0.5 * (v.cells[i] as f64 + v.cells[north] as f64);
                 if northward != 0.0 {
-                    let (from, to) = if northward > 0.0 {
-                        (i, north)
-                    } else {
-                        (north, i)
-                    };
+                    let (from, to) = if northward > 0.0 { (i, north) } else { (north, i) };
                     let sweep = northward.abs() * radius * dlon * lat_edge(y + 1).cos().max(0.0);
-                    let donor_y = from / width;
-                    outward_per_second[from] += sweep / area_per_row[donor_y];
-                    faces.push(Face {
-                        from,
-                        to,
-                        swept_m2_s: sweep,
-                    });
+                    outward_per_second[from] += sweep / area_per_row[from / width];
+                    faces.push(Face { from, to, swept_m2_s: sweep });
                 }
             }
         }
@@ -174,64 +184,98 @@ pub fn preview(world: &World, radius_km: f64, seconds: f64) -> Result<Preview, S
     }
     let substeps = required as usize;
     let dt = seconds / substeps as f64;
-    let mut changes = vec![0.0; size];
+    let mut air_change = vec![0.0; size];
+    let mut vapor_change = vec![0.0; size];
     for _ in 0..substeps {
-        changes.fill(0.0);
+        air_change.fill(0.0);
+        vapor_change.fill(0.0);
         for face in &faces {
-            let area = area_per_row[face.from / width];
-            let flux_kg = mass[face.from] / area * face.swept_m2_s * dt;
-            changes[face.from] -= flux_kg;
-            changes[face.to] += flux_kg;
+            let fraction = face.swept_m2_s * dt / area_per_row[face.from / width];
+            let moved_air = air_mass[face.from] * fraction;
+            let moved_vapor = vapor_mass[face.from] * fraction;
+            air_change[face.from] -= moved_air;
+            air_change[face.to] += moved_air;
+            vapor_change[face.from] -= moved_vapor;
+            vapor_change[face.to] += moved_vapor;
         }
-        for (i, value) in mass.iter_mut().enumerate() {
-            let updated = *value + changes[i];
-            if updated < -1.0e-12 * value.max(1.0) {
-                return Err("Numerical instability: negative vapor mass after transport".into());
+        for i in 0..size {
+            let next_air = air_mass[i] + air_change[i];
+            let next_vapor = vapor_mass[i] + vapor_change[i];
+            // Same upwind operator retains 0 <= vapor <= air by construction.
+            if !next_air.is_finite() || !next_vapor.is_finite()
+                || next_air <= 0.0 || next_vapor < -1.0e-12 * next_air
+                || next_vapor > next_air * (1.0 + 1.0e-12)
+            {
+                return Err("Numerical instability: invalid moist-air or water mass".into());
             }
-            *value = updated.max(0.0);
+            air_mass[i] = next_air;
+            vapor_mass[i] = next_vapor.max(0.0);
         }
     }
-    let mut output = Grid::new(width, height, 0.0);
-    for (i, v) in output.cells.iter_mut().enumerate() {
-        *v = (mass[i] / area_per_row[i / width]) as f32;
-        if !v.is_finite() {
+
+    let mut column = Grid::new(width, height, 0.0);
+    let mut pressure_out = Grid::new(width, height, 0.0);
+    let mut humidity_out = Grid::new(width, height, 0.0);
+    for i in 0..size {
+        let area = area_per_row[i / width];
+        column.cells[i] = (vapor_mass[i] / area) as f32;
+        pressure_out.cells[i] = (air_mass[i] / area * gravity_m_s2 / 100.0) as f32;
+        humidity_out.cells[i] = (1000.0 * vapor_mass[i] / air_mass[i]) as f32;
+        if !column.cells[i].is_finite()
+            || !pressure_out.cells[i].is_finite()
+            || !humidity_out.cells[i].is_finite()
+        {
             return Err("Transport output exceeded representable float limits".into());
         }
     }
-    let after: f64 = output
-        .cells
-        .iter()
-        .enumerate()
-        .map(|(i, &water)| water as f64 * area_per_row[i / width])
+
+    // Compute budgets from the *published f32 rasters*, not hidden f64 state.
+    let air_after: f64 = pressure_out.cells.iter().enumerate()
+        .map(|(i, &p)| p as f64 * 100.0 / gravity_m_s2 * area_per_row[i / width])
         .sum();
-    let relative_mass_error = (after - before).abs() / before.max(1.0);
-    if relative_mass_error > 1.0e-6 {
+    let water_after: f64 = column.cells.iter().enumerate()
+        .map(|(i, &w)| w as f64 * area_per_row[i / width])
+        .sum();
+    let air_error = (air_after - air_before).abs() / air_before.max(1.0);
+    let water_error = (water_after - water_before).abs() / water_before.max(1.0);
+    if air_error > 1.0e-6 || water_error > 1.0e-6 {
         return Err(format!(
-            "Mass budget exceeded tolerance (relative error {relative_mass_error:.3e})"
+            "Mass budget exceeded tolerance: air {air_error:.3e}, water {water_error:.3e}"
         ));
     }
-    let minimum = output.cells.iter().copied().fold(f32::INFINITY, f32::min);
-    let maximum = output
-        .cells
-        .iter()
-        .copied()
-        .fold(f32::NEG_INFINITY, f32::max);
+    let range = |g: &Grid| -> (f32, f32) {
+        (g.cells.iter().copied().fold(f32::INFINITY, f32::min),
+         g.cells.iter().copied().fold(f32::NEG_INFINITY, f32::max))
+    };
+    let (min_water, max_water) = range(&column);
+    let (min_pressure, max_pressure) = range(&pressure_out);
+    let (min_humidity, max_humidity) = range(&humidity_out);
 
     Ok(Preview {
-        column_kg_m2: output,
+        column_kg_m2: column,
+        pressure_hpa: pressure_out,
+        specific_humidity_g_kg: humidity_out,
         budget: Budget {
             month: world.active_month,
             elapsed_seconds: seconds,
             planet_radius_km: radius_km,
+            surface_gravity_m_s2: gravity_m_s2,
             substeps,
             max_outflow_courant: dt * fastest,
-            water_kg_before: before,
-            water_kg_after: after,
-            relative_mass_error,
-            minimum_column_kg_m2: minimum,
-            maximum_column_kg_m2: maximum,
+            air_kg_before: air_before,
+            air_kg_after: air_after,
+            air_relative_mass_error: air_error,
+            water_kg_before: water_before,
+            water_kg_after: water_after,
+            relative_mass_error: water_error,
+            minimum_pressure_hpa: min_pressure,
+            maximum_pressure_hpa: max_pressure,
+            minimum_humidity_g_kg: min_humidity,
+            maximum_humidity_g_kg: max_humidity,
+            minimum_column_kg_m2: min_water,
+            maximum_column_kg_m2: max_water,
             operator: OPERATOR.into(),
-            assumption: "Vertically uniform surface specific humidity over a hydrostatic p/g air column; prescribed winds, no evaporation, rainfall, vertical transport or atmospheric mass continuity. Read-only numerical experiment.".into(),
+            assumption: "Hydrostatic total moist-air column p/g with vertically uniform specific humidity; both advected by fixed prescribed winds. No prognostic momentum, Coriolis, vertical transport, evaporation, condensation, precipitation, radiation or topography. Diagnostic pressure tendency only.".into(),
         },
     })
 }
