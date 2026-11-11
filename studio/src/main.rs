@@ -753,7 +753,9 @@ impl Studio {
         if self.theme == Theme::Boundaries {
             ui.separator();
             ui.label(egui::RichText::new("CLASSIFIED CONTACTS").small().strong());
-            ui.small("Manual line classifications are authored hypotheses, not inferred plate physics.");
+            ui.small(
+                "Manual line classifications are authored hypotheses, not inferred plate physics.",
+            );
             egui::ComboBox::from_id_salt("boundary-class")
                 .selected_text(BoundarySegment::CLASSES[self.boundary_class as usize])
                 .show_ui(ui, |ui| {
@@ -761,7 +763,13 @@ impl Studio {
                         ui.selectable_value(&mut self.boundary_class, i as u8, *label);
                     }
                 });
-            if ui.checkbox(&mut self.boundary_draw, "Draw classified contact (two clicks)").changed() {
+            if ui
+                .checkbox(
+                    &mut self.boundary_draw,
+                    "Draw classified contact (two clicks)",
+                )
+                .changed()
+            {
                 self.boundary_start = None;
                 if self.boundary_draw {
                     self.layer_brush = false;
@@ -770,18 +778,25 @@ impl Studio {
                 }
             }
             if let Some((lon, lat)) = self.boundary_start {
-                ui.small(format!("First point: {lat:.1}°, {lon:.1}° · click the endpoint."));
+                ui.small(format!(
+                    "First point: {lat:.1}°, {lon:.1}° · click the endpoint."
+                ));
             }
             ui.small(format!(
                 "{} authored classified segments",
                 self.project.layers.boundary_segments.len()
             ));
-            if ui.add_enabled(
-                !self.project.layers.boundary_segments.is_empty(),
-                egui::Button::new("Remove last contact"),
-            ).clicked() {
+            if ui
+                .add_enabled(
+                    !self.project.layers.boundary_segments.is_empty(),
+                    egui::Button::new("Remove last contact"),
+                )
+                .clicked()
+            {
                 self.project.layers.boundary_segments.pop();
-                self.world.boundary_segments.clone_from(&self.project.layers.boundary_segments);
+                self.world
+                    .boundary_segments
+                    .clone_from(&self.project.layers.boundary_segments);
                 self.refresh_layer_maps();
             }
         }

@@ -693,18 +693,28 @@ mod tests {
         world.plate_ids = Some(ids);
         let unclassified = Cartography::new(&world);
         assert_eq!(unclassified.classified_segments, 0);
-        assert_eq!(unclassified.legend(&world, Theme::Boundaries)[0].label,
-            "Unclassified plate contact");
+        assert_eq!(
+            unclassified.legend(&world, Theme::Boundaries)[0].label,
+            "Unclassified plate contact"
+        );
 
-        world.boundary_segments.push(crate::map_layers::BoundarySegment {
-            start: [0.0, 0.0],
-            end: [25.0, 0.0],
-            class: 3,
-        });
+        world
+            .boundary_segments
+            .push(crate::map_layers::BoundarySegment {
+                start: [0.0, 0.0],
+                end: [25.0, 0.0],
+                class: 3,
+            });
         let authored = Cartography::new(&world);
         assert_eq!(authored.classified_segments, 1);
-        assert_eq!(authored.sample(&world, Theme::Boundaries, 32, 16), contact_color(3));
-        assert!(authored.legend(&world, Theme::Boundaries).iter().any(|l| l.label == "Transform"));
+        assert_eq!(
+            authored.sample(&world, Theme::Boundaries, 32, 16),
+            contact_color(3)
+        );
+        assert!(authored
+            .legend(&world, Theme::Boundaries)
+            .iter()
+            .any(|l| l.label == "Transform"));
     }
 
     #[test]
