@@ -861,6 +861,71 @@ mod tests {
             .contains("reserved"));
     }
 
+
+    #[test]
+    fn atmospheric_sources_are_month_isolated_sparse_and_signed() {
+        let mut w = world();
+        let mut registry = DatasetRegistry::default();
+        for field in [
+            MonthlyField::Pressure,
+            MonthlyField::SpecificHumidity,
+            MonthlyField::WindEast,
+            MonthlyField::WindNorth,
+        ] {
+            registry.create_month(&mut w, field, 1, field.default_fill()).unwrap();
+        }
+        registry.create_month(&mut w, MonthlyField::WindEast, 7, 7.0).unwrap();
+        registry.activate(&mut w, 1).unwrap();
+        let stroke = registry.paint(&mut w, MonthlyField::WindEast, 1, 179.9, 0.0, 2, -12.0).unwrap();
+        assert!(!stroke.is_empty());
+        let wind = &w.scientific_fields[MonthlyField::WindEast.id()];
+        assert!(wind.cells.iter().any(|&v| v == -12.0));
+        assert!(wind.at(0, 12) == -12.0 || wind.at(47, 12) == -12.0);
+        stroke.undo(&mut w, &mut registry);
+        assert!(w.scientific_fields[MonthlyField::WindEast.id()].cells.iter().all(|&v| v == 0.0));
+        stroke.redo(&mut w, &mut registry);
+        registry.activate(&mut w, 7).unwrap();
+        assert!(w.scientific_fields[MonthlyField::WindEast.id()].cells.iter().all(|&v| v == 7.0));
+        assert!(!w.scientific_fields.contains_key(MonthlyField::Pressure.id()));
+        registry.activate(&mut w, 1).unwrap();
+        assert!(w.scientific_fields[MonthlyField::WindEast.id()].cells.iter().any(|&v| v == -12.0));
+
+        let stored = serde_json::to_vec(&registry).unwrap();
+        let reopened: DatasetRegistry = serde_json::from_slice(&stored).unwrap();
+        let mut independent = world();
+        reopened.activate(&mut independent, 1).unwrap();
+        assert_eq!(
+            independent.scientific_fields[MonthlyField::WindEast.id()].cells,
+            w.scientific_fields[MonthlyField::WindEast.id()].cells
+        );
+        assert_eq!(independent.scientific_fields[MonthlyField::Pressure.id()].at(0, 0), 1013.25);
+        assert_eq!(independent.scientific_provenance[MonthlyField::SpecificHumidity.id()].label(), "Author-specified");
+    }
+
+    #[test]
+    fn atmospheric_units_and_invalid_bounds_are_enforced_without_annual_fabrication() {
+        let mut w = world();
+        let mut registry = DatasetRegistry::default();
+        assert!(registry.create_month(&mut w, MonthlyField::Pressure, 0, 1000.0).is_err());
+        assert!(registry.create_month(&mut w, MonthlyField::Pressure, 1, 50.0).is_err());
+        assert!(registry.create_month(&mut w, MonthlyField::SpecificHumidity, 1, 61.0).is_err());
+        assert!(registry.create_month(&mut w, MonthlyField::WindEast, 1, f32::NAN).is_err());
+        registry.create_month(&mut w, MonthlyField::Pressure, 1, 1010.0).unwrap();
+        registry.create_month(&mut w, MonthlyField::SpecificHumidity, 1, 9.0).unwrap();
+        registry.create_month(&mut w, MonthlyField::WindEast, 1, -25.0).unwrap();
+        registry.create_month(&mut w, MonthlyField::WindNorth, 1, 14.0).unwrap();
+        assert!(registry.paint(&mut w, MonthlyField::SpecificHumidity, 1, 0.0, 0.0, 1, -0.1).is_err());
+        assert!(registry.paint(&mut w, MonthlyField::WindNorth, 1, 0.0, 0.0, 1, 200.0).is_err());
+        assert!(!w.scientific_fields.contains_key(ClimateField::Temperature.annual_id()));
+        assert!(!w.scientific_fields.contains_key(ClimateField::Precipitation.annual_id()));
+        let mut invalid = registry.clone();
+        invalid.fields.get_mut(MonthlyField::Pressure.id()).unwrap().unit = Unit::Celsius;
+        assert!(invalid.activate(&mut w, 1).is_err());
+        assert_eq!(w.scientific_fields[MonthlyField::Pressure.id()].at(0, 0), 1010.0);
+        assert_eq!(MonthlyField::SpecificHumidity.unit().label(), "g/kg");
+        assert_eq!(MonthlyField::WindNorth.unit().label(), "m/s");
+    }
+
     #[test]
     fn month_labels_do_not_map_invalid_zero_to_january() {
         assert_eq!(month_name(1), "January");
