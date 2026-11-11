@@ -2,8 +2,8 @@
 //! Data files are immutable; annotations use a separate JSON sidecar.
 use crate::datasets::{DatasetRegistry, Provenance};
 use crate::map_layers::BoundarySegment;
-use crate::plate_kinematics::KinematicFields;
 use crate::planetary::PlanetCalendar;
+use crate::plate_kinematics::KinematicFields;
 use crate::rainshadow::WindFrom;
 use crate::terrain_edit::TerrainEdits;
 use crate::terrain_generation::{TerrainMode, TerrainRecipe};
