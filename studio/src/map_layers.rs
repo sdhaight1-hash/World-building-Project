@@ -119,6 +119,38 @@ pub struct AuthoredGrid {
     pub overrides: BTreeMap<usize, f32>,
 }
 
+/// A manually declared contact line: (longitude, latitude) endpoint pairs.
+/// Classification is authored and has no inferred subducting side.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct BoundarySegment {
+    pub start: [f64; 2],
+    pub end: [f64; 2],
+    pub class: u8,
+}
+
+impl BoundarySegment {
+    pub const CLASSES: [&'static str; 4] = [
+        "Subduction (unpolarized)",
+        "Continental collision",
+        "Divergent spreading",
+        "Transform",
+    ];
+
+    pub fn validate(&self) -> Result<(), String> {
+        if self.class >= 4 {
+            return Err("Unknown manual contact class".into());
+        }
+        for point in [self.start, self.end] {
+            if !point[0].is_finite() || !(-180.0..=180.0).contains(&point[0])
+                || !point[1].is_finite() || !(-90.0..=90.0).contains(&point[1])
+            {
+                return Err("Invalid manual contact coordinates".into());
+            }
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ProjectLayers {
@@ -126,6 +158,8 @@ pub struct ProjectLayers {
     pub plates: Option<Vec<PlateInfo>>,
     pub cratons: Option<Vec<CratonInfo>>,
     pub provinces: Option<Vec<ProvinceInfo>>,
+    #[serde(default)]
+    pub boundary_segments: Vec<BoundarySegment>,
 }
 
 impl ProjectLayers {
@@ -189,6 +223,9 @@ impl ProjectLayers {
     /// Reconstitute authored data from an independent project, or apply a
     /// non-destructive overlay to source rasters. Invalid grids fail explicitly.
     pub fn apply(&self, world: &mut World) -> Result<(), String> {
+        for segment in &self.boundary_segments {
+            segment.validate()?;
+        }
         for (kind, authored) in &self.grids {
             if authored.size != [world.width, world.height] {
                 return Err(format!(
@@ -227,6 +264,7 @@ impl ProjectLayers {
         if let Some(provinces) = &self.provinces {
             world.provinces.clone_from(provinces);
         }
+        world.boundary_segments.clone_from(&self.boundary_segments);
         Ok(())
     }
 
@@ -483,6 +521,24 @@ mod tests {
         }
         assert_eq!(reloaded.plates.len(), 2);
         assert_eq!(reloaded.cratons.len(), 1);
+    }
+
+    #[test]
+    fn classified_contact_segments_round_trip_and_reject_invalid_coordinates() {
+        let mut world = World::empty(PathBuf::from("world"));
+        let mut layers = ProjectLayers::default();
+        layers.boundary_segments.push(BoundarySegment {
+            start: [179.5, 12.0],
+            end: [-179.5, 16.0],
+            class: 2,
+        });
+        let saved = serde_json::to_string(&layers).unwrap();
+        let restored: ProjectLayers = serde_json::from_str(&saved).unwrap();
+        restored.apply(&mut world).unwrap();
+        assert_eq!(world.boundary_segments, layers.boundary_segments);
+        layers.boundary_segments[0].start = [f64::NAN, 0.0];
+        assert!(layers.apply(&mut world).is_err());
+        assert_eq!(world.boundary_segments.len(), 1);
     }
 
     #[test]
