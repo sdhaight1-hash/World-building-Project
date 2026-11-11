@@ -58,3 +58,9 @@ Next after renderer visual acceptance: (a) area- and geology-aware DEM diagnosti
 ## P1 terrain dependency inversion: actual generated elevation (v1)
 
 The next main application now uses the non-elevation geological fields to calculate an independent DEM, with a documented source mode, saved seed, repeatable terrain output and parallel access to the old DEM as a comparison. Required: real Aegaea passes generation with the old elevation field deliberately absent, output is deterministic, scientific fields maintain native orientation, and all derived maps/export paths use the newly generated DEM. The process is currently a tectonic-class heuristic. The next steps are independent province geometry from plate motion and native-scale regional synthesis with explicit physical forcing; do not substitute palette cleanup for source model changes.
+
+## Euler-derived boundary forcing checkpoint
+
+A separate `plate_kinematics.rs` module now calculates present-day signed closure, spreading and tangential slip at plate-ID edges from the optional Euler poles/rates recorded in `plates.csv`. Derived terrain adds a small, explicit **heuristic** topographic response and exports independently inspectable kinematic raster layers. These fields are entirely independent of inherited DEM height values. This is **not** a history reconstruction, subducting-slab polarity model, or uplift-rate integration.
+
+The scientific acceptance gate is a passing real-world Aegaea headless export and Windows unit tests, **followed by desktop visual review**. The next model step is to define subduction polarity and independently authored plate-stage topology before estimating large-scale uplift, drainage, erosion or climate. Avoid treating prettier maps as evidence that underlying geology is correct.
