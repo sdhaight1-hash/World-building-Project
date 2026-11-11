@@ -139,6 +139,15 @@ pub fn preview(
         // One global grid cell has no horizontal neighbors.
         min_cell_m = radius_m;
     }
+    // The polar-longitude wave limit alone gives a strict lower bound on
+    // required steps. Refuse impossible intervals before any large iteration.
+    let unavoidable_steps = (duration_s * (effective_wave_speed_m_s + 1.0)
+        / (CFL * min_cell_m)).ceil();
+    if !unavoidable_steps.is_finite() || unavoidable_steps > MAX_SUBSTEPS as f64 {
+        return Err(format!(
+            "Dynamics require at least {unavoidable_steps:.0} substeps (>512) at this resolution. Shorten the interval or use a smaller wave speed."
+        ));
+    }
     let mut air_mass = vec![0.0f64; n];
     let mut vapor_mass = vec![0.0f64; n];
     let mut east: Vec<f64> = east_input.cells.iter().map(|&u| u as f64).collect();
